@@ -21,6 +21,9 @@ and Windows.
 
 ## Features
 
+- **Graphite interface:** a built-in black and gray vector rack, dark knobs with white
+  pointers, restrained active-state accents and grouped step pads. No external mod needed.
+  See [Graphite](docs/graphite.md).
 - **Independent TB arpeggiators:** chord or existing pattern notes, six directions, octaves,
   rhythm, accents and slides, with a visual preview and separate Undo for each TB.
   Click **ARP** on a TB. See the [arpeggiator guide](docs/arpeggiator.md).

@@ -155,9 +155,9 @@ impl App {
             let rect = view.rect(106.0, 86.0 + 115.0 * row as f32, 36.0, 9.0);
             let response = ui.interact(rect, egui::Id::unique(("arp-open", row)), Sense::click());
             let fill = if response.hovered() {
-                Color32::from_rgb(0x31, 0x78, 0x89)
+                Color32::from_rgb(0x50, 0x50, 0x56)
             } else {
-                Color32::from_rgb(0x26, 0x43, 0x4d)
+                Color32::from_rgb(0x30, 0x30, 0x34)
             };
             ui.painter().rect_filled(rect, view.scale, fill);
             ui.painter().text(

@@ -28,11 +28,30 @@ jobs:
       - name: Lint
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Tests
-        run: cargo test --locked -p orb-ui --test arpeggiator --test generator --test midi_preset --test midi --test settings --test wired --test repaint
+        run: cargo test --locked -p orb-ui --lib --test theme --test arpeggiator --test generator --test midi_preset --test midi --test settings --test wired --test repaint
+      - name: Check default skin and render preview
+        shell: pwsh
+        run: |
+          cargo test --locked -p orb-ui-art
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo run --locked -p orb-ui-art -- graphite graphite-preview
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Output ('GRAPHITE_PREVIEW:' + [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $PWD 'graphite-preview/panel.png'))))
       - name: Audio callback allocation guard
         run: cargo test --locked -p orb-player --test no_alloc
       - name: Portable Windows build
         run: cargo build --release --locked -p orb-ui
+      - name: Capture the desktop interface
+        shell: pwsh
+        run: |
+          $previewPath = Join-Path $PWD 'graphite-preview/desktop.png'
+          $process = Start-Process -FilePath target/release/OpenRB-338.exe -WindowStyle Hidden -PassThru -ArgumentList @('--demo', '--size', '936x765', '--screenshot', $previewPath)
+          if (-not $process.WaitForExit(45000)) { Stop-Process -Id $process.Id }
+          if (Test-Path -LiteralPath $previewPath) {
+            Write-Output ('GRAPHITE_APP_PREVIEW:' + [Convert]::ToBase64String([IO.File]::ReadAllBytes($previewPath)))
+          } else {
+            Write-Output 'Desktop screenshot unavailable on this runner; vector preview is included.'
+          }
       - name: Prepare preview
         shell: pwsh
         run: |
@@ -42,6 +61,9 @@ jobs:
           Copy-Item docs/midi-controller.md midi-preview/README-MIDI.md
           Copy-Item docs/pattern-generator.md midi-preview/README-RANDOM.md
           Copy-Item docs/arpeggiator.md midi-preview/README-ARP.md
+          Copy-Item graphite-preview/panel.png midi-preview/Graphite-preview.png
+          Copy-Item docs/graphite.md midi-preview/README-GRAPHITE.md
+          if (Test-Path graphite-preview/desktop.png) { Copy-Item graphite-preview/desktop.png midi-preview/Graphite-desktop.png }
       - uses: actions/upload-artifact@v4
         with:
           name: OpenRB-338-UC33-MIDI-Windows-x64

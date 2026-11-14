@@ -18,11 +18,11 @@ fn rack_button(
 ) -> egui::Response {
     let response = ui.interact(rect, egui::Id::unique(id), Sense::click());
     let color = if on {
-        Color32::from_rgb(0x26, 0x80, 0x78)
+        Color32::from_rgb(0x4a, 0x53, 0x32)
     } else if response.hovered() {
-        Color32::from_rgb(0x65, 0x71, 0x82)
+        Color32::from_rgb(0x50, 0x50, 0x56)
     } else {
-        Color32::from_rgb(0x25, 0x2d, 0x37)
+        Color32::from_rgb(0x30, 0x30, 0x34)
     };
     ui.painter().rect_filled(rect, 1.5 * scale, color);
     ui.painter().text(
