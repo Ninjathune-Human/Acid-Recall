@@ -127,6 +127,8 @@ pub struct App {
     pub midi: crate::midi::Midi,
     /// Musical pattern generation and its one-generation undo snapshot.
     pub generator: crate::generator::Generator,
+    /// Two independent arpeggio pattern tools, each with preview and guarded undo.
+    pub arpeggiator: crate::arpeggiator::Arpeggiator,
     /// The open file browser, if any (`open_browser`).
     browser: Option<Browser>,
     /// The open song: its file, its mod, whether it has unsaved changes (task-047).
@@ -217,6 +219,7 @@ impl App {
             settings: Settings::default(),
             midi: crate::midi::Midi::default(),
             generator: crate::generator::Generator::default(),
+            arpeggiator: crate::arpeggiator::Arpeggiator::default(),
             browser: None,
             doc: Document::new(),
             settled: false,
@@ -666,6 +669,7 @@ impl App {
         self.drum_strips(ui, &view);
         self.instrument_selection(ui, &view);
         self.generator_buttons(ui, &view);
+        self.arpeggiator_buttons(ui, &view);
 
         // Send what was done, take what the engine did (the panel follows playback).
         self.note_edits();
@@ -702,6 +706,7 @@ impl App {
         self.mod_info_ui(&ctx);
         self.midi_ui(&ctx);
         self.generator_ui(&ctx);
+        self.arpeggiator_ui(&ctx);
         self.poll_export(&ctx);
         self.update_title(&ctx);
         self.close_if_allowed(&ctx);

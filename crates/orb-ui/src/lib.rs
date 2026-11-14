@@ -7,6 +7,7 @@
 
 pub mod about;
 pub mod app;
+pub mod arpeggiator;
 pub mod art;
 pub mod behavior;
 pub mod browser;

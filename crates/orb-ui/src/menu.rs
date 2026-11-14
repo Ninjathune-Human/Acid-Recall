@@ -573,6 +573,7 @@ impl App {
             kit,
         };
         self.events_seen = 0;
+        self.arpeggiator.clear_undo();
     }
 
     /// The app's start (`sub_480AA0`, docs/ui_spec.md section 18): the song named on the
@@ -1216,6 +1217,12 @@ impl App {
                         ui.menu_button("Options", |ui| {
                             if item(ui, "Pattern Generator...", None) {
                                 self.generator.open = true;
+                            }
+                            if item(ui, "Arpeggiator / TB-303 A...", None) {
+                                self.open_arpeggiator(0);
+                            }
+                            if item(ui, "Arpeggiator / TB-303 B...", None) {
+                                self.open_arpeggiator(1);
                             }
                             if item(ui, "MIDI Controller...", None) {
                                 self.midi.open = true;

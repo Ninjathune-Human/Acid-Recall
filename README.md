@@ -21,6 +21,9 @@ and Windows.
 
 ## Features
 
+- **Independent TB arpeggiators:** chord or existing pattern notes, six directions, octaves,
+  rhythm, accents and slides, with a visual preview and separate Undo for each TB.
+  Click **ARP** on a TB. See the [arpeggiator guide](docs/arpeggiator.md).
 - **Musical Random:** RND on each machine, key/scale-guided TB phrases, linked TB call/response,
   structured TR grooves and Undo Random. Open **Options > Pattern Generator...**.
   See the [pattern generator guide](docs/pattern-generator.md).
