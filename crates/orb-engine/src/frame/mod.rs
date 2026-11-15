@@ -264,6 +264,10 @@ pub trait ChannelDevice: SongDevice {
     fn kick_count(&self) -> u64 {
         0
     }
+    /// Logical synth gate for optional modulation, independent of mixer volume.
+    fn gate_open(&self) -> bool {
+        false
+    }
     /// Vtable slot 14 (0x10013580): render one block into `bus`, overwriting all of it.
     fn process(&mut self, bus: &mut Block, ctx: &BlockContext);
     /// Not a slot: the pattern the device plays (the 303's `+0xC94`, the 808's `+0x18D0`, the
@@ -1049,6 +1053,8 @@ impl Frame {
         if let Some(studio) = &mut self.studio {
             let advance = f64::from(self.seq.globals.tempo) * f64::from_bits(0x3ED3_7A72_81B2_2126)
                 / BLOCK as f64;
+            let gates = std::array::from_fn(|i| self.devices.channels[i].gate_open());
+            studio.modulation(gates, kicks, audible, self.sidechain.config());
             studio.process(self.seq.pos, advance, self.seq.globals.play != 0, l, r);
         }
         // 0x10013883: the compressor on the master

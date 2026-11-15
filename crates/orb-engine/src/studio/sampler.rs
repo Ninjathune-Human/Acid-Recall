@@ -17,6 +17,7 @@ pub enum Mode {
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct Lane {
     pub steps: Vec<u8>,
     pub bars: u8,
@@ -34,6 +35,11 @@ pub struct Lane {
     pub gate: f64,
     pub choke: u8,
     pub send: f64,
+    pub gater_source: u8,
+    pub gater_depth: f64,
+    pub gater_attack_ms: f64,
+    pub gater_release_ms: f64,
+    pub sidechain: bool,
 }
 
 impl Default for Lane {
@@ -55,6 +61,11 @@ impl Default for Lane {
             gate: 0.8,
             choke: 0,
             send: 0.0,
+            gater_source: 0,
+            gater_depth: 1.0,
+            gater_attack_ms: 2.0,
+            gater_release_ms: 35.0,
+            sidechain: false,
         }
     }
 }
@@ -74,12 +85,16 @@ impl Lane {
         }
         self.gain = finite(self.gain, 0.0, 0.0, 2.0);
         self.pan = finite(self.pan, 0.0, -1.0, 1.0);
-        self.start = finite(self.start, 0.0, 0.0, 0.999);
-        self.end = finite(self.end, 1.0, self.start + 0.001, 1.0);
+        self.start = finite(self.start, 0.0, 0.0, 1.0 - 1e-9);
+        self.end = finite(self.end, 1.0, self.start + 1e-9, 1.0);
         self.attack_ms = finite(self.attack_ms, 1.0, 0.1, 2000.0);
         self.release_ms = finite(self.release_ms, 8.0, 1.0, 3000.0);
         self.gate = finite(self.gate, 0.8, 0.01, 16.0);
         self.send = finite(self.send, 0.0, 0.0, 1.0);
+        self.gater_source = self.gater_source.min(2);
+        self.gater_depth = finite(self.gater_depth, 1.0, 0.0, 1.0);
+        self.gater_attack_ms = finite(self.gater_attack_ms, 2.0, 0.1, 100.0);
+        self.gater_release_ms = finite(self.gater_release_ms, 35.0, 1.0, 500.0);
         for v in &mut self.steps {
             *v = (*v).min(127);
         }
@@ -108,6 +123,10 @@ pub struct Sampler {
     audition: [bool; LANES],
     gains: [[f64; 2]; LANES],
     sends: [f64; LANES],
+    source_gates: [bool; 2],
+    duck: [f32; 64],
+    modulation: [f64; LANES],
+    duck_mix: [f64; LANES],
 }
 
 impl Default for Sampler {
@@ -138,11 +157,20 @@ impl Default for Sampler {
             audition: [false; LANES],
             gains: [[0.0; 2]; LANES],
             sends: [0.0; LANES],
+            source_gates: [false; 2],
+            duck: [1.0; 64],
+            modulation: [1.0; LANES],
+            duck_mix: [0.0; LANES],
         }
     }
 }
 
 impl Sampler {
+    pub fn set_modulation(&mut self, source_gates: [bool; 2], duck: [f32; 64]) {
+        self.source_gates = source_gates;
+        self.duck = duck;
+    }
+
     pub fn stop(&mut self) {
         for i in 0..LANES {
             self.cut(i);
@@ -174,7 +202,7 @@ impl Sampler {
         }
     }
 
-    fn trigger(&mut self, lane: usize, velocity: u8, tick: f64, lanes: &[Lane; LANES]) {
+    fn trigger(&mut self, lane: usize, velocity: u8, lanes: &[Lane; LANES]) {
         if self.waves[lane].is_none() {
             return;
         }
@@ -190,6 +218,11 @@ impl Sampler {
             self.cut(lane);
         }
         let voices = &mut self.voices[lane];
+        // A One Shot already playing is never stolen by a later sequencer trigger.
+        // Keep the voice pool fixed: ignore excess triggers until a slot is available.
+        if setting.mode == Mode::OneShot && voices.iter().all(|v| v.active) {
+            return;
+        }
         let index = voices.iter().position(|v| !v.active).unwrap_or_else(|| {
             voices
                 .iter()
@@ -207,7 +240,7 @@ impl Sampler {
         voices[index] = Voice {
             active: true,
             velocity: f64::from(velocity) / 127.0,
-            until: tick + 48.0 * setting.gate,
+            until: 48.0 * setting.gate,
             ..Voice::default()
         };
     }
@@ -222,14 +255,21 @@ impl Sampler {
         output: &mut [[f64; 64]; 2],
         send: &mut [[f64; 64]; 2],
     ) {
-        if (!playing && self.playing)
-            || (playing && (tick < self.last_tick || tick - self.last_tick > 12.0))
-        {
+        if !playing && self.playing {
             self.stop();
+        }
+        if playing && (tick < self.last_tick || tick - self.last_tick > 12.0) {
+            self.last_step = None;
         }
         let solo = lanes.iter().any(|l| l.solo);
         let rates: [f64; LANES] =
             std::array::from_fn(|i| 2.0f64.powf(f64::from(lanes[i].pitch) / 12.0));
+        let attacks: [f64; LANES] = std::array::from_fn(|i| {
+            1.0 - (-1.0 / (lanes[i].gater_attack_ms * 44.1)).exp()
+        });
+        let releases: [f64; LANES] = std::array::from_fn(|i| {
+            1.0 - (-1.0 / (lanes[i].gater_release_ms * 44.1)).exp()
+        });
         for j in 0..64 {
             let now = tick + j as f64 * ticks_per_frame;
             if playing {
@@ -239,7 +279,7 @@ impl Sampler {
                         let position = step.rem_euclid(i64::from(lane.bars) * 16) as usize;
                         let velocity = lane.steps.get(position).copied().unwrap_or(0);
                         if velocity > 0 && !lane.muted && (!solo || lane.solo) {
-                            self.trigger(i, velocity, now, lanes);
+                            self.trigger(i, velocity, lanes);
                         }
                     }
                     self.last_step = Some(step);
@@ -248,7 +288,7 @@ impl Sampler {
             for (i, lane) in lanes.iter().enumerate() {
                 if self.audition[i] {
                     self.audition[i] = false;
-                    self.trigger(i, 127, now, lanes);
+                    self.trigger(i, 127, lanes);
                 }
                 let mut sample = self.tails[i];
                 for x in &mut self.tails[i] {
@@ -268,12 +308,7 @@ impl Sampler {
                         if !voice.active || length < 2 {
                             continue;
                         }
-                        let gate_end = lane.mode == Mode::Gate
-                            && (if playing {
-                                now >= voice.until
-                            } else {
-                                voice.age as f64 * ticks_per_frame >= 48.0 * lane.gate
-                            });
+                        let gate_end = lane.mode == Mode::Gate && voice.until <= 0.0;
                         if gate_end {
                             voice.release += 1.0 / (lane.release_ms * 44.1);
                         }
@@ -329,12 +364,21 @@ impl Sampler {
                         }
                         voice.age += 1;
                         voice.position += rate;
+                        voice.until -= ticks_per_frame;
                         if voice.release >= 1.0 {
                             voice.active = false;
                         }
                     }
                 }
                 let audible = !lane.muted && (!solo || lane.solo);
+                let gate_open = lane.gater_source == 0
+                    || self.source_gates[(lane.gater_source.saturating_sub(1) as usize).min(1)];
+                let gate_target = if gate_open { 1.0 } else { 1.0 - lane.gater_depth };
+                let target = gate_target;
+                let factor = if target > self.modulation[i] { attacks[i] } else { releases[i] };
+                super::smooth(&mut self.modulation[i], target, factor);
+                super::smooth(&mut self.duck_mix[i], if lane.sidechain { 1.0 } else { 0.0 }, 0.01);
+                let duck = 1.0 - self.duck_mix[i] * (1.0 - f64::from(self.duck[j]));
                 let pan = [(1.0 - lane.pan).min(1.0), (1.0 + lane.pan).min(1.0)];
                 super::smooth(&mut self.sends[i], lane.send, 0.004);
                 for c in 0..2 {
@@ -343,7 +387,7 @@ impl Sampler {
                     if target == 0.0 && self.gains[i][c].abs() < 1e-10 {
                         self.gains[i][c] = 0.0;
                     }
-                    let value = sample[c] * self.gains[i][c];
+                    let value = sample[c] * self.gains[i][c] * self.modulation[i] * duck;
                     output[c][j] += value;
                     send[c][j] += value * self.sends[i];
                 }

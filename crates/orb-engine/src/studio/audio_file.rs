@@ -1,7 +1,24 @@
 //! Bounded WAV/AIFF import and offline bandlimited resampling. No callback file I/O.
 
 pub const RATE: usize = 44100;
-pub const MAX_FRAMES: usize = RATE * 180;
+/// RAM budget, shared by imported audio and the portable sampler bank. No duration limit.
+pub const MAX_AUDIO_BYTES: usize = 240 * 1024 * 1024;
+pub const MAX_FILE_BYTES: usize = 256 * 1024 * 1024;
+pub const MAX_FRAMES: usize = MAX_AUDIO_BYTES / std::mem::size_of::<[f32; 2]>();
+
+pub(super) fn output_frames(count: usize, rate: usize) -> Result<usize, String> {
+    if count == 0 || !(8000..=192000).contains(&rate) {
+        return Err("Sample must contain audio at a supported sample rate".into());
+    }
+    if count > MAX_FRAMES {
+        return Err("Decoded audio exceeds the 240 MiB memory budget".into());
+    }
+    let output = (count as u64 * RATE as u64 / rate as u64) as usize;
+    if output == 0 || output > MAX_FRAMES {
+        return Err("Decoded audio exceeds the 240 MiB memory budget".into());
+    }
+    Ok(output)
+}
 
 #[derive(Clone)]
 pub struct Wave {
@@ -21,7 +38,7 @@ fn word(b: &[u8], at: usize, n: usize, big: bool) -> Result<u64, String> {
 
 impl Wave {
     pub fn decode(bytes: &[u8]) -> Result<Self, String> {
-        if bytes.len() > 256 * 1024 * 1024 {
+        if bytes.len() > MAX_FILE_BYTES {
             return Err("Audio file exceeds 256 MiB".into());
         }
         let wav = bytes.get(..4) == Some(b"RIFF") && bytes.get(8..12) == Some(b"WAVE");
@@ -95,12 +112,10 @@ impl Wave {
         let width = bits / 8;
         let stride = width * channels;
         let count = data.len() / stride;
-        if count == 0
-            || !data.len().is_multiple_of(stride)
-            || count as u64 * RATE as u64 > MAX_FRAMES as u64 * rate as u64
-        {
-            return Err("Sample must contain audio and be no longer than 180 seconds".into());
+        if !data.len().is_multiple_of(stride) {
+            return Err("Incomplete audio frame".into());
         }
+        output_frames(count, rate)?;
         let mut input = Vec::with_capacity(count);
         for i in 0..count {
             let mut frame = [0.0; 2];
@@ -136,16 +151,10 @@ impl Wave {
     }
 
     pub(super) fn from_frames(input: Vec<[f32; 2]>, rate: usize) -> Result<Self, String> {
-        if input.is_empty()
-            || !(8000..=192000).contains(&rate)
-            || input.len() as u64 * RATE as u64 > MAX_FRAMES as u64 * rate as u64
-        {
-            return Err("Sample must contain audio and be no longer than 180 seconds".into());
-        }
+        let count = output_frames(input.len(), rate)?;
         if rate == RATE {
             return Ok(Self { frames: input });
         }
-        let count = (input.len() as u64 * RATE as u64 / rate as u64) as usize;
         let mut frames = Vec::with_capacity(count);
         let cutoff = (RATE as f64 / rate as f64).min(1.0) * 0.95;
         let kernels: Vec<[f64; 64]> = (0..1024)
@@ -192,6 +201,18 @@ pub(super) fn sinc(x: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn import_length_follows_memory_instead_of_a_three_minute_timer() {
+        assert_eq!(output_frames(RATE * 181, RATE).unwrap(), RATE * 181);
+        assert_eq!(output_frames(RATE * 600, RATE).unwrap(), RATE * 600);
+        assert_eq!(output_frames(48000 * 181, 48000).unwrap(), RATE * 181);
+        assert_eq!(output_frames(MAX_FRAMES, RATE).unwrap(), MAX_FRAMES);
+        assert!(output_frames(MAX_FRAMES + 1, RATE).is_err());
+        assert!(output_frames(MAX_FRAMES, 8000).is_err());
+        assert!(output_frames(0, RATE).is_err());
+        assert!(output_frames(100, 0).is_err());
+    }
 
     fn wav(bits: u16, format: u16, payload: &[u8]) -> Vec<u8> {
         let mut out = b"RIFF".to_vec();

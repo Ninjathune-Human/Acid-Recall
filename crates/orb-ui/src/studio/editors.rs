@@ -440,7 +440,7 @@ impl App {
                 });
                 let lane = &mut self.studio.settings.lanes[selected];
                 if let Some(wave) = &self.studio.waves[selected] {
-                    waveform(
+                    let response = waveform(
                         ui,
                         &wave.frames,
                         100.0,
@@ -449,6 +449,40 @@ impl App {
                         self.studio.waveform_epoch,
                         &mut self.studio.wave_views[selected],
                     );
+                    let minimum = 2.0 / wave.frames.len().max(2) as f64;
+                    if response.double_clicked() {
+                        lane.start = 0.0;
+                        lane.end = 1.0;
+                    } else if let Some(pointer) = response.interact_pointer_pos() {
+                        let at = f64::from((pointer.x - response.rect.left()) / response.rect.width())
+                            .clamp(0.0, 1.0);
+                        let id = response.id.with("trim-handle");
+                        if response.drag_started() || response.clicked() {
+                            let entry = (at - lane.start).abs() <= (at - lane.end).abs();
+                            ui.data_mut(|d| d.insert_temp(id, entry));
+                        }
+                        if response.dragged() || response.clicked() {
+                            let entry = ui.data(|d| d.get_temp::<bool>(id)).unwrap_or(true);
+                            trim_at(lane, entry, at, minimum);
+                        }
+                    }
+                    response.on_hover_text(
+                        "Drag IN or OUT. Click to move the nearest marker. \
+                         Double-click to select all.",
+                    );
+                    let duration = wave.frames.len() as f64 / 44100.0;
+                    let mut entry = lane.start * duration;
+                    let mut exit = lane.end * duration;
+                    ui.horizontal(|ui| {
+                        if ui.add(egui::DragValue::new(&mut entry).range(0.0..=duration)
+                            .speed(0.001).fixed_decimals(3).prefix("IN ").suffix(" s")).changed() {
+                            trim_at(lane, true, entry / duration, minimum);
+                        }
+                        if ui.add(egui::DragValue::new(&mut exit).range(0.0..=duration)
+                            .speed(0.001).fixed_decimals(3).prefix("OUT ").suffix(" s")).changed() {
+                            trim_at(lane, false, exit / duration, minimum);
+                        }
+                    });
                     ui.small(format!(
                         "{:.2} seconds / stereo / 44.1 kHz",
                         wave.frames.len() as f64 / 44100.0
@@ -477,8 +511,8 @@ impl App {
                 });
                 ui.small(match lane.mode {
                     Mode::OneShot => {
-                        "One Shot: each trigger plays to the end, up to four \
-            overlapping voices."
+                        "One Shot: plays IN to OUT across pattern wraps. Four overlaps; \
+                         excess triggers are ignored. Stop ends all voices."
                     }
                     Mode::AutoCut => {
                         "Auto Cut: each new trigger cuts the previous voice with a short fade."
@@ -508,16 +542,34 @@ impl App {
                         3000.0,
                         "Release / ms",
                     );
-                    slider(&mut columns[2], &mut lane.start, 0.0, 0.999, "Start");
+                    slider(&mut columns[2], &mut lane.start, 0.0, 1.0 - 1e-9, "Start");
                     slider(
                         &mut columns[2],
                         &mut lane.end,
-                        lane.start + 0.001,
+                        lane.start + 1e-9,
                         1.0,
                         "End",
                     );
                     slider(&mut columns[2], &mut lane.gate, 0.01, 16.0, "Gate / steps");
                 });
+                ui.separator();
+                ui.horizontal(|ui| {
+                    ui.strong("RHYTHMIC GATER");
+                    for (value, label) in [(0, "Off"), (1, "TB1"), (2, "TB2")] {
+                        ui.selectable_value(&mut lane.gater_source, value, label);
+                    }
+                    ui.checkbox(&mut lane.sidechain, "Kick sidechain");
+                });
+                ui.columns(3, |columns| {
+                    slider(&mut columns[0], &mut lane.gater_depth, 0.0, 1.0, "Gater depth");
+                    slider(&mut columns[1], &mut lane.gater_attack_ms, 0.1, 100.0, "Open / ms");
+                    slider(&mut columns[2], &mut lane.gater_release_ms, 1.0, 500.0, "Close / ms");
+                });
+                ui.small(
+                    "Gater follows the selected TB's note gates, including slides, even with \
+                     its mixer volume down. Kick sidechain follows the global sidechain \
+                     On, source and release (65% depth).",
+                );
                 ui.small(
                     "Pitch changes playback speed. Choke 0 is independent; lanes \
             sharing 1–8 cut each other.",
@@ -642,11 +694,11 @@ fn waveform(
     end: f64,
     epoch: u64,
     cache: &mut super::WaveformCache,
-) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::hover());
+) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::click_and_drag());
     ui.painter().rect_filled(rect, 4.0, Color32::from_gray(17));
     if frames.is_empty() {
-        return;
+        return response;
     }
     let peaks = cache.get(epoch, frames);
     let columns = rect.width().floor().max(1.0) as usize;
@@ -669,5 +721,38 @@ fn waveform(
             ],
             Stroke::new(1.0, if selected { ACCENT } else { DIM }),
         );
+    }
+    for (value, label) in [(start, "IN"), (end, "OUT")] {
+        let x = (rect.left() + value as f32 * rect.width()).clamp(rect.left() + 1.0, rect.right() - 1.0);
+        ui.painter().line_segment([egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())], Stroke::new(2.0, ACCENT));
+        let align = if label == "IN" { egui::Align2::LEFT_TOP } else { egui::Align2::RIGHT_TOP };
+        ui.painter().text(egui::pos2(x, rect.top() + 3.0), align, label, egui::FontId::monospace(11.0), ACCENT);
+    }
+    response
+}
+
+fn trim_at(lane: &mut orb_engine::studio::sampler::Lane, entry: bool, at: f64, minimum: f64) {
+    if entry {
+        lane.start = at.clamp(0.0, (lane.end - minimum).max(0.0));
+    } else {
+        lane.end = at.clamp((lane.start + minimum).min(1.0), 1.0);
+    }
+}
+
+#[cfg(test)]
+mod trim_tests {
+    use super::*;
+
+    #[test]
+    fn markers_do_not_cross_and_long_samples_allow_precise_regions() {
+        let mut lane = orb_engine::studio::sampler::Lane::default();
+        let minimum = 2.0 / (600.0 * 44100.0);
+        trim_at(&mut lane, true, 0.9, minimum);
+        trim_at(&mut lane, false, 0.0, minimum);
+        assert!((lane.end - lane.start - minimum).abs() < 1e-12);
+        trim_at(&mut lane, true, 1.0, minimum);
+        assert!(lane.start < lane.end);
+        trim_at(&mut lane, false, 1.5, minimum);
+        assert_eq!(lane.end, 1.0);
     }
 }

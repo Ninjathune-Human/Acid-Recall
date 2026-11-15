@@ -84,6 +84,7 @@ pub struct Studio {
     smooth_sends: [f64; 4],
     smooth_return: f64,
     wet_remaining: usize,
+    ducker: crate::sidechain::Ducker,
 }
 
 impl Studio {
@@ -105,6 +106,7 @@ impl Studio {
             smooth_sends: [0.0; 4],
             smooth_return: 0.0,
             wet_remaining: 0,
+            ducker: crate::sidechain::Ducker::default(),
         }
     }
 
@@ -137,6 +139,21 @@ impl Studio {
 
     pub fn begin(&mut self) {
         self.send = [[0.0; 64]; 2];
+    }
+
+    pub fn modulation(
+        &mut self,
+        gates: [bool; 2],
+        kicks: [u64; 2],
+        audible: [bool; 2],
+        mut config: crate::sidechain::Config,
+    ) {
+        // Sampler ducking follows the global kick source and release, with its own depth.
+        // TB depth controls stay independent from the sampler's opt-in lanes.
+        config.depth = [65; 2];
+        self.ducker.set_config(config);
+        let duck = self.ducker.gains(kicks, audible);
+        self.sampler.set_modulation(gates, duck[0]);
     }
 
     pub fn channel(&mut self, channel: usize, sample: usize, left: f64, right: f64) {

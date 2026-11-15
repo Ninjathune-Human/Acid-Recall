@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use orb_engine::studio::audio_file::{MAX_FRAMES, Wave};
+use orb_engine::studio::audio_file::{MAX_AUDIO_BYTES, MAX_FRAMES, Wave};
 use orb_engine::studio::{Settings, Studio, convolution::Convolver};
 use serde::{Deserialize, Serialize};
 
@@ -61,6 +61,10 @@ fn take<'a>(bytes: &mut &'a [u8], limit: usize) -> Result<&'a [u8], String> {
 
 impl Project {
     pub fn encode(&self) -> Result<Vec<u8>, String> {
+        validate_bank(self.waves.iter().flatten().map(|w| w.frames.len()))?;
+        if self.ir.frames.len() > 6 * 44100 {
+            return Err("Impulse response exceeds six seconds".into());
+        }
         let mut out = MAGIC.to_vec();
         let metadata = toml::to_string(&self.metadata).map_err(|e| e.to_string())?;
         put(&mut out, metadata.as_bytes())?;
@@ -106,6 +110,7 @@ impl Project {
         let song = take(&mut bytes, 16 * 1024 * 1024)?.to_vec();
         rbs::Song::parse(&song).map_err(|e| format!("Invalid embedded song: {e}"))?;
         let mut assets: [Option<Arc<Wave>>; 9] = std::array::from_fn(|_| None);
+        let mut bank_frames = 0;
         for (i, slot) in assets.iter_mut().enumerate() {
             let raw = take(
                 &mut bytes,
@@ -120,6 +125,10 @@ impl Project {
             }
             if raw.is_empty() {
                 continue;
+            }
+            if i < 8 {
+                bank_frames += raw.len() / 8;
+                validate_bank([bank_frames])?;
             }
             let mut frames = Vec::with_capacity(raw.len() / 8);
             for chunk in raw.as_chunks::<8>().0 {
@@ -156,9 +165,25 @@ impl Project {
     }
 }
 
+fn validate_bank(lengths: impl IntoIterator<Item = usize>) -> Result<(), String> {
+    let frames = lengths.into_iter().try_fold(0usize, usize::checked_add);
+    if frames.is_none_or(|n| n > MAX_AUDIO_BYTES / 8) {
+        return Err("Sampler bank exceeds the 240 MiB decoded-audio memory budget".into());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bank_budget_counts_all_lanes_without_imposing_a_duration_limit() {
+        assert!(validate_bank([44100 * 181, 44100 * 181]).is_ok());
+        assert!(validate_bank([MAX_FRAMES]).is_ok());
+        assert!(validate_bank([MAX_FRAMES, 1]).is_err());
+        assert!(validate_bank([usize::MAX, 1]).is_err());
+    }
 
     #[test]
     fn portable_roundtrip_retains_last_step_and_embedded_audio_and_rejects_corruption() {

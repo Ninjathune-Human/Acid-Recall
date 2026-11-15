@@ -1,6 +1,6 @@
 //! MP3 decoding runs entirely on the import worker. Only decoded PCM reaches the callback.
 
-use super::audio_file::Wave;
+use super::audio_file::{MAX_FILE_BYTES, MAX_FRAMES, Wave, output_frames};
 use std::io::{Cursor, ErrorKind};
 use symphonia::core::{
     audio::SampleBuffer, codecs::DecoderOptions, errors::Error, formats::FormatOptions,
@@ -8,8 +8,8 @@ use symphonia::core::{
 };
 
 pub(super) fn decode(bytes: &[u8]) -> Result<Wave, String> {
-    if bytes.len() > 32 * 1024 * 1024 {
-        return Err("MP3 import is limited to 32 MiB / 180 seconds".into());
+    if bytes.len() > MAX_FILE_BYTES {
+        return Err("Audio file exceeds 256 MiB".into());
     }
     let stream = MediaSourceStream::new(Box::new(Cursor::new(bytes.to_vec())), Default::default());
     let mut hint = Hint::new();
@@ -63,8 +63,15 @@ pub(super) fn decode(bytes: &[u8]) -> Result<Wave, String> {
         channels = count;
         let mut buffer = SampleBuffer::<f32>::new(decoded.capacity() as u64, spec);
         buffer.copy_interleaved_ref(decoded);
-        if frames.len() + buffer.samples().len() / channels > 180 * rate {
-            return Err("MP3 sample exceeds 180 seconds".into());
+        if buffer.samples().is_empty() {
+            continue;
+        }
+        let count = frames.len() + buffer.samples().len() / channels;
+        output_frames(count, rate)?;
+        if count > frames.capacity() {
+            // Keep allocation growth amortized while respecting the decoded-audio budget.
+            let capacity = count.next_power_of_two().min(MAX_FRAMES);
+            frames.reserve_exact(capacity - frames.len());
         }
         for samples in buffer.samples().chunks(channels) {
             let frame = [samples[0], samples[channels - 1]];

@@ -724,6 +724,10 @@ impl SongDevice for Tb303 {
 }
 
 impl ChannelDevice for Tb303 {
+    fn gate_open(&self) -> bool {
+        self.gate != 0.0 && self.enabled != 0
+    }
+
     fn playing_pattern(&self) -> Option<u8> {
         Some(self.cur_pattern)
     }
@@ -741,3 +745,4 @@ impl ChannelDevice for Tb303 {
         }
     }
 }
+

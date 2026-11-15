@@ -13,7 +13,7 @@ use std::sync::{Arc, mpsc};
 use eframe::egui::Context;
 use orb_engine::studio::{
     Settings, Studio,
-    audio_file::Wave,
+    audio_file::{MAX_AUDIO_BYTES, MAX_FILE_BYTES, Wave},
     convolution::{self, Convolver},
 };
 use orb_player::Command;
@@ -376,7 +376,7 @@ impl App {
             .sum();
         self.studio.work(ctx, move || {
             let wave = load_wave(&path)?;
-            if existing + wave.frames.len() * 8 > 240 * 1024 * 1024 {
+            if existing + wave.frames.len() * 8 > MAX_AUDIO_BYTES {
                 return Err(
                     "Sampler bank exceeds 240 MiB; shorten or remove another sample".into(),
                 );
@@ -445,7 +445,7 @@ impl App {
 }
 
 fn load_wave(path: &Path) -> Result<Wave, String> {
-    if std::fs::metadata(path).map_err(|e| e.to_string())?.len() > 256 * 1024 * 1024 {
+    if std::fs::metadata(path).map_err(|e| e.to_string())?.len() > MAX_FILE_BYTES as u64 {
         return Err("Audio file exceeds 256 MiB".into());
     }
     Wave::decode(&std::fs::read(path).map_err(|e| e.to_string())?)

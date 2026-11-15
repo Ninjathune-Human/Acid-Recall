@@ -47,7 +47,9 @@ Click **SAMPLER**, or Options > Sampler / 64-bar sequencer.
 
 Modes:
 
-- **One Shot:** plays the selected region to its end; up to four overlapping voices per lane.
+- **One Shot:** plays IN to OUT across sequencer/pattern wraps; up to four overlapping voices
+  per lane. Existing voices finish before further triggers can use their slots; excess
+  triggers are ignored. Transport Stop and explicitly selected choke groups still stop voices.
 - **Auto Cut:** a new trigger cuts that lane's previous voice with a short fade.
 - **Gate:** releases after the chosen duration, expressed in sixteenth-note steps.
 - **Loop:** repeats the selected region until retrigger, choke or Stop. Short seam fades
@@ -59,10 +61,31 @@ duration together, not a phase-vocoder or tempo-warp algorithm. Choke 0 is indep
 lanes in the same group (1–8) cut each other. Audition works with the transport stopped;
 Stop also ends an auditioned loop.
 
-Limits: 180 seconds per imported sample; 240 MiB of decoded stereo sample audio per bank.
-MP3 files are limited to 32 MiB and 180 seconds. Compressed AIFF/AIFC and multichannel audio
-are not supported. Audio-file decoding,
-resampling and IR preparation run in the background; their failure leaves existing audio intact.
+There is no three-minute sample-duration limit. WAV, AIFF and MP3 use the same memory budget:
+240 MiB of decoded stereo audio for the whole bank (about 11 minutes 53 seconds at 44.1 kHz
+if one sample fills it). Import also bounds its intermediate decoded buffer to 240 MiB;
+high sample-rate files may therefore use that budget sooner. Source files are limited to
+256 MiB. Exceeding a memory budget reports an error and leaves existing audio intact.
+Compressed AIFF/AIFC and multichannel audio are not supported. Audio-file decoding,
+resampling and IR preparation run in the background.
+
+### Sample region and rhythmic modulation
+
+Drag the waveform's **IN / OUT** markers, or enter their times in seconds below the display.
+Clicking moves the nearest marker; double-clicking restores the whole file. The markers cannot
+cross. They affect playback and export, including reverse and loop modes, and are saved in
+the project. Moving markers also changes the region of an already playing voice.
+
+Each lane's **RHYTHMIC GATER** selects Off, TB1 or TB2. It follows the TB's actual note gate,
+including rests and sustained slides, independently of the TB mixer volume. Depth sets the
+closed level; Open / Close set smooth transitions. The source TB must be playing an enabled
+pattern. The sampler playhead keeps moving while the gater closes, so a vocal is chopped
+without restarting on every TB note. Gater Off is the default.
+
+**Kick sidechain** independently opts each lane into kick ducking, before dry mixing and its
+reverb send. It follows the global sidechain On, kick source and release with a separate
+65% sampler depth; TB depth controls do not change sampler ducking. Gater transitions do not
+slow down the kick envelope. Both effects are included in offline export and saved in projects.
 
 ## MIDI
 
