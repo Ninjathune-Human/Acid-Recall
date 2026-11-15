@@ -343,7 +343,9 @@ impl Tr909 {
                 let x4 = x2 * x2;
                 let x8 = x4 * x4;
                 // 0x1002D958: sub_1001E3D0(0.996) on the OH voice
-                if !self.independent_hats { self.simple[SIMPLE_OH].set_m(CHOKE); }
+                if !self.independent_hats {
+                    self.simple[SIMPLE_OH].set_m(CHOKE);
+                }
                 (SIMPLE_CH, C_CH, st(x8))
             }
             _ => (SIMPLE_OH, C_RS_OH, dt),
@@ -623,7 +625,8 @@ impl ChannelDevice for Tr909 {
     }
     fn set_closed_hat_level(&mut self, level: Option<u8>) {
         self.closed_hat_level = level.map(|v| v.min(127)).or_else(|| {
-            self.independent_hats.then(|| self.closed_hat_level.unwrap_or(self.live[HH_LEVEL]))
+            self.independent_hats
+                .then(|| self.closed_hat_level.unwrap_or(self.live[HH_LEVEL]))
         });
     }
     fn closed_hat_level(&self) -> u8 {

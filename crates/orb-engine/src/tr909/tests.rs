@@ -356,4 +356,3 @@ fn independent_hats_keep_both_voices_and_separate_levels() {
     d.trigger(CH);
     assert_eq!(d.simple[SIMPLE_CH].v.g, closed_gain);
 }
-

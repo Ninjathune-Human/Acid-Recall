@@ -632,7 +632,9 @@ impl Audio {
         for channel in &mut self.current.frame.devices.channels[2..] {
             channel.set_independent_hats(independent);
         }
-        if let Some(pending) = &mut self.pending { pending.frame.independent_hats = independent; }
+        if let Some(pending) = &mut self.pending {
+            pending.frame.independent_hats = independent;
+        }
     }
     /// Fills `out` (interleaved stereo int16 at 44.1 kHz, `out.len() / 2` frames) with the
     /// engine's output, running an engine call whenever the last one is used up.

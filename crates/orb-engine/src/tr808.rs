@@ -274,7 +274,9 @@ impl Tr808 {
                 let s = self.sample(slot::CH);
                 self.simple[SIMPLE_CH].trigger(s, g, NO_DECAY, 0);
                 for (i, v) in self.simple.iter_mut().enumerate() {
-                    if !self.independent_hats || i != SIMPLE_OH { v.set_hold(0); }
+                    if !self.independent_hats || i != SIMPLE_OH {
+                        v.set_hold(0);
+                    }
                 }
             }
             _ => {}
@@ -511,7 +513,9 @@ impl SongDevice for Tr808 {
 }
 
 impl ChannelDevice for Tr808 {
-    fn set_independent_hats(&mut self, independent: bool) { self.independent_hats = independent; }
+    fn set_independent_hats(&mut self, independent: bool) {
+        self.independent_hats = independent;
+    }
     fn kick_count(&self) -> u64 {
         self.kicks
     }

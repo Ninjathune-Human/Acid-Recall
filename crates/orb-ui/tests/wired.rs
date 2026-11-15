@@ -861,17 +861,20 @@ fn the_909_step_buttons_send_modifiers_and_preserve_the_other_hihat() {
     assert_eq!(h.app.panel.inst909, 9);
     h.take_log();
     h.click_at(strip(4));
-    assert_eq!(
-        h.take_log(),
-        vec![dev(Device::Tr909, 79, &[0, 4, 9, 1])]
-    );
+    assert_eq!(h.take_log(), vec![dev(Device::Tr909, 79, &[0, 4, 9, 1])]);
     h.calls(2);
     let pat = h.engine_patterns(3);
     let at = |s: usize, i: usize| pat[2 + 12 * s + i];
     assert_eq!((at(1, 1), at(2, 1), at(3, 1)), (1, 2, 3));
     assert_eq!((at(4, 8), at(4, 9)), (1, 1));
     let saved = rbs::Song::parse(&h.app.song_bytes().unwrap()).unwrap();
-    assert_eq!((saved.tr909.patterns[0].steps[4][8], saved.tr909.patterns[0].steps[4][9]), (1, 1));
+    assert_eq!(
+        (
+            saved.tr909.patterns[0].steps[4][8],
+            saved.tr909.patterns[0].steps[4][9]
+        ),
+        (1, 1)
+    );
 }
 
 #[test]

@@ -348,4 +348,3 @@ fn independent_closed_hat_does_not_shorten_open_hat() {
     assert_eq!((d.simple[SIMPLE_OH].v.m, d.simple[SIMPLE_OH].v.hold), open);
     assert!(d.simple[SIMPLE_CH].v.active && d.simple[SIMPLE_OH].v.active);
 }
-

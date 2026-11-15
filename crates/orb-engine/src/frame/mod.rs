@@ -934,7 +934,9 @@ impl Frame {
     /// the rest of the block (later channels, the send, the master) does not run.
     pub fn block(&mut self, l: &mut Block, r: &mut Block) -> Result<(), Fault> {
         if self.independent_hats {
-            for channel in &mut self.devices.channels[2..] { channel.set_independent_hats(true); }
+            for channel in &mut self.devices.channels[2..] {
+                channel.set_independent_hats(true);
+            }
         }
         self.blocks += 1;
         if self.state.counter & (UPDATE_PERIOD - 1) == 0 {
