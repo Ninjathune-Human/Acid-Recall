@@ -142,6 +142,119 @@ fn gater_follows_selected_tb_and_sidechain_is_opt_in() {
 }
 
 #[test]
+fn drum_gater_uses_only_the_selected_machine_and_instrument() {
+    let (mut sampler, mut lanes) = setup(Mode::Loop);
+    lanes[0].gater_source = 3;
+    lanes[0].gater_instrument = 2;
+    lanes[0].gater_hold = 0.125;
+    lanes[0].gater_attack_ms = 0.1;
+    lanes[0].gater_release_ms = 1.0;
+    sampler.audition(0);
+    for _ in 0..40 {
+        block(&mut sampler, &lanes, 0.0, false);
+    }
+    assert_eq!(sampler.modulation[0], 0.0);
+
+    let mut hits = [[0; 12]; 2];
+    hits[0][1] = 1;
+    hits[1][2] = 1;
+    sampler.set_drum_modulation(hits, 0.01);
+    block(&mut sampler, &lanes, 0.0, false);
+    assert_eq!(sampler.modulation[0], 0.0, "808 kick and 909 snare are not 808 snare");
+
+    hits = [[0; 12]; 2];
+    hits[0][2] = 1;
+    sampler.set_drum_modulation(hits, 0.01);
+    let output = block(&mut sampler, &lanes, 0.0, false);
+    assert!(sampler.modulation[0] > 0.999);
+    assert!(output[0].iter().any(|&sample| sample > 0.0));
+
+    for _ in 0..40 {
+        block(&mut sampler, &lanes, 0.0, false);
+    }
+    assert_eq!(sampler.gater_holds[0], 0.0);
+    assert_eq!(sampler.modulation[0], 0.0, "a consumed hit must not retrigger every block");
+}
+
+#[test]
+fn drum_gater_hold_counts_tempo_ticks_and_retriggers_without_envelope_reset() {
+    for ticks_per_frame in [0.01, 0.02] {
+        let (mut sampler, mut lanes) = setup(Mode::Loop);
+        lanes[0].gater_source = 4;
+        lanes[0].gater_instrument = 8;
+        lanes[0].gater_hold = 0.5;
+        lanes[0].gater_attack_ms = 0.1;
+        let mut hits = [[0; 12]; 2];
+        hits[1][8] = 1;
+        sampler.set_drum_modulation(hits, ticks_per_frame);
+        block(&mut sampler, &lanes, 0.0, false);
+        let remaining = 24.0 - 64.0 * ticks_per_frame;
+        assert!((sampler.gater_holds[0] - remaining).abs() < 1e-9);
+        for _ in 0..10 {
+            block(&mut sampler, &lanes, 0.0, false);
+        }
+        let before = sampler.modulation[0];
+        sampler.set_drum_modulation(hits, ticks_per_frame);
+        block(&mut sampler, &lanes, 0.0, false);
+        assert!((sampler.gater_holds[0] - remaining).abs() < 1e-9);
+        assert!(sampler.modulation[0] >= before, "retrigger extends Hold without closing the gate");
+        for _ in 0..60 {
+            block(&mut sampler, &lanes, 0.0, false);
+        }
+        assert_eq!(sampler.gater_holds[0], 0.0);
+    }
+}
+
+#[test]
+fn drum_gater_depth_and_smoothing_remain_independent_of_sidechain() {
+    let (mut sampler, mut lanes) = setup(Mode::Loop);
+    lanes[0].gater_source = 4;
+    lanes[0].gater_instrument = 8;
+    lanes[0].gater_hold = 16.0;
+    lanes[0].gater_depth = 0.65;
+    lanes[0].gater_release_ms = 1.0;
+    sampler.audition(0);
+    for _ in 0..80 {
+        block(&mut sampler, &lanes, 0.0, false);
+    }
+    assert!((sampler.modulation[0] - 0.35).abs() < 1e-10);
+    let mut hits = [[0; 12]; 2];
+    hits[1][8] = 1;
+    sampler.set_drum_modulation(hits, 0.01);
+    sampler.set_modulation([false; 2], [0.0; 64]);
+    let before = sampler.modulation[0];
+    let output = block(&mut sampler, &lanes, 0.0, false);
+    assert!(sampler.modulation[0] > before && sampler.modulation[0] < 1.0);
+    assert!(output[0].iter().all(|&x| x.is_finite() && x > 0.0));
+    for _ in 0..100 {
+        block(&mut sampler, &lanes, 0.0, false);
+    }
+    assert_eq!(sampler.modulation[0], 1.0);
+    lanes[0].sidechain = true;
+    let mut output = [[0.0; 64]; 2];
+    for _ in 0..80 {
+        output = block(&mut sampler, &lanes, 0.0, false);
+    }
+    assert!(output.iter().flatten().all(|x| x.abs() < 1e-10));
+    assert_eq!(sampler.modulation[0], 1.0, "sidechain does not change the gater envelope");
+}
+
+#[test]
+fn old_gater_projects_keep_tb_routes_and_new_fields_default_safely() {
+    for source in 0..=4 {
+        let mut value = serde_json::to_value(Lane::default()).unwrap();
+        value.as_object_mut().unwrap().remove("gater_instrument");
+        value.as_object_mut().unwrap().remove("gater_hold");
+        value["gater_source"] = serde_json::json!(source);
+        let mut lane: Lane = serde_json::from_value(value).unwrap();
+        lane.sanitize();
+        assert_eq!(lane.gater_source, source);
+        assert_eq!(lane.gater_instrument, 1);
+        assert_eq!(lane.gater_hold, 0.5);
+    }
+}
+
+#[test]
 fn choke_groups_cut_other_lanes_and_unload_tail_cannot_return_on_reload() {
     let (mut sampler, mut lanes) = setup(Mode::OneShot);
     sampler.replace(

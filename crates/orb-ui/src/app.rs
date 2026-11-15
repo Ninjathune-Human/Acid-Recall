@@ -654,12 +654,25 @@ impl App {
                 } else {
                     self.keyboard(ui);
                 }
-                self.focus_click(ui, &view);
+                if !self.studio.modern {
+                    self.focus_click(ui, &view);
+                }
             }
         } else {
             self.holds.clear();
         }
 
+        if self.studio.modern {
+            let enabled = self.browser.is_none() && self.prompt.is_none() && !self.error_open();
+            ui.add_enabled_ui(enabled, |ui| {
+                let (sampler, fx) = self.graphite_rack(ui, avail);
+                self.graphite_sampler(ui, sampler);
+                self.graphite_fx(ui, fx);
+                for (row, rect) in crate::graphite_rack::sidechain_areas(avail).into_iter().enumerate() {
+                    self.graphite_sidechain(ui, rect, row);
+                }
+            });
+        } else {
         for (name, x, y) in layout::backgrounds() {
             if self.studio.modern && x == 526.0 && y >= 148.0 {
                 continue;
@@ -712,6 +725,7 @@ impl App {
         self.arpeggiator_buttons(ui, &view);
         self.sidechain_button(ui, &view);
         self.studio_rack(ui, &view);
+        }
         self.studio_midi();
         self.sync_effects(ui.ctx());
 

@@ -174,6 +174,8 @@ pub struct Tr909 {
     closed_hat_level: Option<u8>,
     /// Optional sidechain event bookkeeping; independent of the original DSP state.
     kicks: u64,
+    /// Logical instrument hits, indexed by the native pattern column (0 is accent).
+    triggers: [u64; 12],
     /// `+4` (CDevice): the tick of the bar the pattern started at (song mode).
     pub pat_start: i32,
     /// `+0x30`: the pattern-mode parameter copy (the DLL's order).
@@ -238,6 +240,7 @@ impl Tr909 {
             independent_hats: false,
             closed_hat_level: None,
             kicks: 0,
+            triggers: [0; 12],
             pat_start: 0,
             params: DEFAULT_PARAMS,
             patterns,
@@ -285,6 +288,9 @@ impl Tr909 {
     /// the gain in [`Tr909::gain`].
     fn trigger(&mut self, i: usize) {
         let lv = self.live;
+        if (1..12).contains(&i) {
+            self.triggers[i] = self.triggers[i].wrapping_add(1);
+        }
         if i == BD && lv[BD_LEVEL] != 0 {
             self.kicks = self.kicks.wrapping_add(1);
         }
@@ -617,6 +623,9 @@ impl SongDevice for Tr909 {
 }
 
 impl ChannelDevice for Tr909 {
+    fn drum_trigger_count(&self, voice: usize) -> u64 {
+        self.triggers.get(voice).copied().unwrap_or(0)
+    }
     fn set_independent_hats(&mut self, independent: bool) {
         self.independent_hats = independent;
         if independent && self.closed_hat_level.is_none() {

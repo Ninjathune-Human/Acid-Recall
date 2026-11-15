@@ -27,6 +27,16 @@ pub fn controls() -> Vec<(String, String)> {
             format!("SPACE / {label} send"),
         ));
     }
+    for (id, label) in [
+        ("duck1.on", "TB-303 A / Sidechain enabled"),
+        ("duck1.depth", "TB-303 A / Sidechain depth"),
+        ("duck2.on", "TB-303 B / Sidechain enabled"),
+        ("duck2.depth", "TB-303 B / Sidechain depth"),
+        ("duck.release", "Sidechain / Release"),
+        ("duck.source", "Sidechain / Kick source"),
+    ] {
+        out.push((id.into(), label.into()));
+    }
     for i in 1..=8 {
         for name in [
             "level",
@@ -45,6 +55,8 @@ pub fn controls() -> Vec<(String, String)> {
             "audition",
             "choke",
             "gater_source",
+            "gater_instrument",
+            "gater_hold",
             "gater_depth",
             "gater_attack_ms",
             "gater_release_ms",
@@ -65,10 +77,23 @@ pub fn is_action(id: &str) -> bool {
 
 pub fn is_boolean(id: &str) -> bool {
     id == "studio.enabled"
+        || matches!(id, "duck1.on" | "duck2.on")
         || id.starts_with("sampler")
             && [".reverse", ".mute", ".solo", ".sidechain"]
                 .iter()
                 .any(|s| id.ends_with(s))
+}
+
+fn duck_value(settings: &crate::sidechain::Settings, id: &str) -> Option<f64> {
+    Some(match id {
+        "duck1.on" => f64::from(u8::from(settings.enabled && !settings.bypass[0])),
+        "duck2.on" => f64::from(u8::from(settings.enabled && !settings.bypass[1])),
+        "duck1.depth" => f64::from(settings.depth[0]) / 100.0,
+        "duck2.depth" => f64::from(settings.depth[1]) / 100.0,
+        "duck.release" => (f64::from(settings.release_ms) - 20.0) / 980.0,
+        "duck.source" => f64::from(settings.source) / 2.0,
+        _ => return None,
+    })
 }
 
 fn lane_field(id: &str) -> Option<(usize, &str)> {
@@ -84,6 +109,11 @@ fn mode(v: f64) -> Mode {
         2 => Mode::Gate,
         _ => Mode::Loop,
     }
+}
+
+fn gater_instrument(value: f64) -> u8 {
+    // Accent (index 0) is not a playable voice on either drum machine.
+    1 + (value * 10.0).round() as u8
 }
 
 fn lane_value(lane: &Lane, name: &str) -> f64 {
@@ -104,7 +134,9 @@ fn lane_value(lane: &Lane, name: &str) -> f64 {
             Mode::Loop => 1.0,
         },
         "choke" => f64::from(lane.choke) / 8.0,
-        "gater_source" => f64::from(lane.gater_source) / 2.0,
+        "gater_source" => f64::from(lane.gater_source) / 4.0,
+        "gater_instrument" => f64::from(lane.gater_instrument.saturating_sub(1)) / 10.0,
+        "gater_hold" => (lane.gater_hold - 0.125) / 15.875,
         "gater_depth" => lane.gater_depth,
         "gater_attack_ms" => (lane.gater_attack_ms - 0.1) / 99.9,
         "gater_release_ms" => (lane.gater_release_ms - 1.0) / 499.0,
@@ -142,10 +174,12 @@ fn value(settings: &Settings, id: &str) -> f64 {
 
 pub fn defaults() -> Vec<(String, u8)> {
     let settings = Settings::default();
+    let duck = crate::sidechain::Settings::default();
     controls()
         .into_iter()
         .map(|(id, _)| {
-            let cc = (value(&settings, &id).clamp(0.0, 1.0) * 127.0).round() as u8;
+            let v = duck_value(&duck, &id).unwrap_or_else(|| value(&settings, &id));
+            let cc = (v.clamp(0.0, 1.0) * 127.0).round() as u8;
             (id, cc)
         })
         .collect()
@@ -154,6 +188,7 @@ pub fn defaults() -> Vec<(String, u8)> {
 impl App {
     pub(crate) fn studio_midi(&mut self) {
         let before = self.studio.settings.clone();
+        let duck_before = self.settings.sidechain.clone();
         let mut auditions = Vec::new();
         for event in &self.panel.events {
             if let Event::Press { id } = event {
@@ -167,6 +202,19 @@ impl App {
             };
             let raw = (*value).clamp(0, 127);
             let v = f64::from(raw) / 127.0;
+            let duck = &mut self.settings.sidechain;
+            match id.as_str() {
+                "duck1.on" => duck.set_tb_enabled(0, raw >= 64),
+                "duck2.on" => duck.set_tb_enabled(1, raw >= 64),
+                "duck1.depth" => duck.depth[0] = (v * 100.0).round() as u8,
+                "duck2.depth" => duck.depth[1] = (v * 100.0).round() as u8,
+                "duck.release" => duck.release_ms = (20.0 + v * 980.0).round() as u16,
+                "duck.source" => duck.source = (v * 2.0).round() as u8,
+                _ => {}
+            }
+            if id.starts_with("duck") {
+                continue;
+            }
             let s = &mut self.studio.settings;
             match id.as_str() {
                 "studio.enabled" => s.enabled = raw >= 64,
@@ -200,7 +248,9 @@ impl App {
                             "gate" => lane.gate = 0.01 + v * 15.99,
                             "mode" => lane.mode = mode(v),
                             "choke" => lane.choke = (v * 8.0).round() as u8,
-                            "gater_source" => lane.gater_source = (v * 2.0).round() as u8,
+                            "gater_source" => lane.gater_source = (v * 4.0).round() as u8,
+                            "gater_instrument" => lane.gater_instrument = gater_instrument(v),
+                            "gater_hold" => lane.gater_hold = 0.125 + v * 15.875,
                             "gater_depth" => lane.gater_depth = v,
                             "gater_attack_ms" => lane.gater_attack_ms = 0.1 + v * 99.9,
                             "gater_release_ms" => lane.gater_release_ms = 1.0 + v * 499.0,
@@ -218,6 +268,9 @@ impl App {
             self.studio.changed();
             self.doc.modified = true;
         }
+        if self.settings.sidechain != duck_before {
+            self.sidechain_changed(&self.studio.context.clone());
+        }
         if !auditions.is_empty() {
             self.studio_poll(&self.studio.context.clone());
             for lane in auditions {
@@ -233,6 +286,25 @@ impl App {
             if is_action(&id) {
                 continue;
             }
+            if let Some(v) = duck_value(&self.settings.sidechain, &id) {
+                let duck = &self.settings.sidechain;
+                if let Some(raw) = self.panel.value(&id) {
+                    let normalized = f64::from(raw) / 127.0;
+                    let same = match id.as_str() {
+                        "duck1.depth" => (normalized * 100.0).round() as u8 == duck.depth[0],
+                        "duck2.depth" => (normalized * 100.0).round() as u8 == duck.depth[1],
+                        "duck.source" => (normalized * 2.0).round() as u8 == duck.source,
+                        "duck.release" => (20.0 + normalized * 980.0).round() as u16
+                            == duck.release_ms,
+                        _ => false,
+                    };
+                    if same {
+                        continue;
+                    }
+                }
+                self.panel.adopt(&id, (v.clamp(0.0, 1.0) * 127.0).round() as i32);
+                continue;
+            }
             if let Some((i, name)) = lane_field(&id)
                 && let Some(raw) = self.panel.value(&id)
             {
@@ -243,7 +315,8 @@ impl App {
                     "pitch" => (v * 48.0 - 24.0).round() as i8 == lane.pitch,
                     "mode" => mode(v) == lane.mode,
                     "choke" => (v * 8.0).round() as u8 == lane.choke,
-                    "gater_source" => (v * 2.0).round() as u8 == lane.gater_source,
+                    "gater_source" => (v * 4.0).round() as u8 == lane.gater_source,
+                    "gater_instrument" => gater_instrument(v) == lane.gater_instrument,
                     "end" => {
                         ((1e-9 + v * (1.0 - 1e-9)).max(lane.start + 1e-9) - lane.end).abs() < 1e-12
                     }
@@ -294,7 +367,7 @@ mod tests {
 
     #[test]
     fn all_studio_controls_are_registered_with_correct_midi_behavior() {
-        assert_eq!(controls().len(), 170);
+        assert_eq!(controls().len(), 192);
         for (id, _) in controls() {
             assert!(kind(&id).is_some(), "{id}");
             assert!(Panel::new().value(&id).is_some(), "{id}");
@@ -302,6 +375,7 @@ mod tests {
         assert_eq!(kind("sampler8.audition"), Some(Kind::Button));
         assert_eq!(kind("sampler1.mute"), Some(Kind::Switch));
         assert_eq!(kind("studio.enabled"), Some(Kind::Switch));
+        assert_eq!(kind("duck1.on"), Some(Kind::Switch));
     }
 
     #[test]
@@ -311,6 +385,7 @@ mod tests {
             "sampler1.mode",
             "sampler1.choke",
             "sampler1.gater_source",
+            "sampler1.gater_instrument",
         ] {
             let mut app = App::new(Panel::new(), None);
             let mut router = Router::default();
@@ -324,7 +399,8 @@ mod tests {
                 "sampler1.pitch" => assert_eq!(lane.pitch, 24),
                 "sampler1.mode" => assert_eq!(lane.mode, Mode::Loop),
                 "sampler1.choke" => assert_eq!(lane.choke, 8),
-                _ => assert_eq!(lane.gater_source, 2),
+                "sampler1.gater_source" => assert_eq!(lane.gater_source, 4),
+                _ => assert_eq!(lane.gater_instrument, 11),
             }
         }
     }
@@ -398,6 +474,71 @@ mod tests {
             assert_eq!(app.panel.value("sampler1.end"), Some(value));
             let lane = &app.studio.settings.lanes[0];
             assert!(lane.end > lane.start && lane.end <= 1.0);
+        }
+    }
+
+    #[test]
+    fn drum_gater_sources_instruments_and_hold_cover_the_full_cc_range() {
+        let mut app = App::new(Panel::new(), None);
+        let mut router = Router::default();
+        for (cc, source) in [(0, 0), (32, 1), (64, 2), (95, 3), (127, 4)] {
+            move_cc(&mut app, &mut router, "sampler8.gater_source", cc, false);
+            assert_eq!(app.studio.settings.lanes[7].gater_source, source);
+        }
+        move_cc(&mut app, &mut router, "sampler8.gater_instrument", 127, false);
+        assert_eq!(app.studio.settings.lanes[7].gater_instrument, 11);
+        for cc in (0..=127).rev() {
+            move_cc(&mut app, &mut router, "sampler8.gater_instrument", cc, true);
+            assert_eq!(app.panel.value("sampler8.gater_instrument"), Some(cc));
+        }
+        assert_eq!(app.studio.settings.lanes[7].gater_instrument, 1);
+        move_cc(&mut app, &mut router, "sampler8.gater_source", 95, false);
+        move_cc(&mut app, &mut router, "sampler8.gater_instrument", 127, false);
+        assert_eq!(app.studio.settings.lanes[7].gater_instrument, 11);
+        for (cc, hold) in [(0, 0.125), (127, 16.0)] {
+            move_cc(&mut app, &mut router, "sampler8.gater_hold", cc, false);
+            assert_eq!(app.studio.settings.lanes[7].gater_hold, hold);
+        }
+    }
+
+    #[test]
+    fn tb_duck_switches_are_independent_and_bypass_retains_depth() {
+        let mut app = App::new(Panel::new(), None);
+        let mut router = Router::default();
+        move_cc(&mut app, &mut router, "duck1.depth", 127, false);
+        move_cc(&mut app, &mut router, "duck1.on", 127, true);
+        assert!(app.settings.sidechain.enabled);
+        assert_eq!(app.settings.sidechain.bypass, [false, true]);
+        assert_eq!(app.settings.sidechain.engine_config().depth, [100, 0]);
+        assert_eq!(app.panel.value("duck2.on"), Some(0));
+        move_cc(&mut app, &mut router, "duck1.on", 0, true);
+        assert_eq!(app.settings.sidechain.depth, [100, 55]);
+        assert_eq!(app.settings.sidechain.engine_config().depth, [0, 0]);
+        move_cc(&mut app, &mut router, "duck2.on", 127, true);
+        assert_eq!(app.settings.sidechain.bypass, [true, false]);
+        assert_eq!(app.settings.sidechain.engine_config().depth, [0, 55]);
+        move_cc(&mut app, &mut router, "duck1.on", 127, true);
+        assert_eq!(app.settings.sidechain.engine_config().depth, [100, 55]);
+        move_cc(&mut app, &mut router, "duck.release", 0, false);
+        assert_eq!(app.settings.sidechain.release_ms, 20);
+        move_cc(&mut app, &mut router, "duck.release", 127, false);
+        assert_eq!(app.settings.sidechain.release_ms, 1000);
+        move_cc(&mut app, &mut router, "duck.source", 0, false);
+        assert_eq!(app.settings.sidechain.source, 0);
+        move_cc(&mut app, &mut router, "duck.source", 127, false);
+        assert_eq!(app.settings.sidechain.source, 2);
+    }
+
+    #[test]
+    fn duck_selectors_and_percentages_do_not_rearm_their_own_pickup() {
+        for id in ["duck1.depth", "duck2.depth", "duck.source", "duck.release"] {
+            let mut app = App::new(Panel::new(), None);
+            let mut router = Router::default();
+            let current = app.panel.value(id).unwrap();
+            for raw in (0..=current).rev().chain(1..=127) {
+                move_cc(&mut app, &mut router, id, raw, true);
+                assert_eq!(app.panel.value(id), Some(raw), "{id}: {raw}");
+            }
         }
     }
 }

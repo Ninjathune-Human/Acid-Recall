@@ -1,6 +1,7 @@
 //! Studio UI, asynchronous preparation and portable projects.
 
 mod editors;
+mod rack;
 pub mod midi;
 pub mod project;
 #[cfg(test)]
@@ -163,7 +164,7 @@ impl StudioUi {
         })
     }
 
-    fn changed(&mut self) {
+    pub(crate) fn changed(&mut self) {
         self.content = true;
         self.revision = self.revision.wrapping_add(1);
     }

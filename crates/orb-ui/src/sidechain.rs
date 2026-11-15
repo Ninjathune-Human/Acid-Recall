@@ -15,6 +15,7 @@ pub struct Settings {
     pub source: u8,
     pub depth: [u8; 2],
     pub release_ms: u16,
+    pub bypass: [bool; 2],
 }
 
 impl Default for Settings {
@@ -24,11 +25,20 @@ impl Default for Settings {
             source: 2,
             depth: [55, 55],
             release_ms: 180,
+            bypass: [false; 2],
         }
     }
 }
 
 impl Settings {
+    pub(crate) fn set_tb_enabled(&mut self, row: usize, on: bool) {
+        if on && !self.enabled {
+            self.bypass = [true; 2];
+            self.enabled = true;
+        }
+        self.bypass[row] = !on;
+    }
+
     pub fn sanitize(&mut self) {
         self.source = self.source.min(2);
         self.depth = self.depth.map(|v| v.min(100));
@@ -43,7 +53,7 @@ impl Settings {
                 1 => Source::Tr909,
                 _ => Source::Both,
             },
-            depth: self.depth,
+            depth: std::array::from_fn(|i| if self.bypass[i] { 0 } else { self.depth[i] }),
             release_ms: self.release_ms,
         }
         .sanitized()
@@ -71,6 +81,49 @@ impl Default for SidechainUi {
 }
 
 impl App {
+    pub(crate) fn sidechain_changed(&mut self, ctx: &Context) {
+        if self.studio.content {
+            self.doc.modified = true;
+        }
+        self.settings.sidechain.sanitize();
+        self.sidechain.save_at = Some(ctx.input(|i| i.time) + 0.35);
+        self.sync_effects(ctx);
+        ctx.request_repaint();
+    }
+
+    pub(crate) fn graphite_sidechain(&mut self, ui: &mut Ui, rect: egui::Rect, row: usize) {
+        let before = self.settings.sidechain.clone();
+        ui.scope_builder(egui::UiBuilder::new().max_rect(rect).id_salt(("tb-duck", row)), |ui| {
+            ui.set_clip_rect(rect);
+            ui.spacing_mut().item_spacing = egui::vec2(3.0, 2.0);
+            ui.spacing_mut().interact_size.y = 16.0;
+            let s = &mut self.settings.sidechain;
+            ui.horizontal(|ui| {
+                let on = s.enabled && !s.bypass[row];
+                if ui.selectable_label(on, "SIDECHAIN").clicked() {
+                    s.set_tb_enabled(row, !on);
+                }
+                ui.add(egui::DragValue::new(&mut s.depth[row]).range(0..=100).suffix("%"))
+                    .on_hover_text("Depth for this TB only; bypass retains this value");
+                if ui.small_button("...").clicked() { self.sidechain.open = true; }
+            });
+            ui.horizontal(|ui| {
+                egui::ComboBox::from_id_salt("kick-source").width(55.0)
+                    .selected_text(["808", "909", "BOTH"][usize::from(s.source.min(2))])
+                    .show_ui(ui, |ui| {
+                        for (value, label) in [(0, "808"), (1, "909"), (2, "BOTH")] {
+                            ui.selectable_value(&mut s.source, value, label);
+                        }
+                    });
+                ui.add(egui::DragValue::new(&mut s.release_ms).range(20..=1000).suffix("ms"))
+                    .on_hover_text("Kick source and return time are shared by both TBs and sampler");
+            });
+        });
+        if self.settings.sidechain != before {
+            self.sidechain_changed(ui.ctx());
+        }
+    }
+
     /// CH edits use the normal mouse/MIDI panel route; these extensions are sent through
     /// the same ordered queue and snapshot barrier as the original controls.
     pub fn sync_effects(&mut self, ctx: &Context) {
@@ -185,6 +238,11 @@ impl App {
                     }
                 });
                 for (row, label) in ["TB-303 A", "TB-303 B"].into_iter().enumerate() {
+                    let mut active = !s.bypass[row];
+                    if ui.checkbox(&mut active, format!("{label} active")).changed() {
+                        s.bypass[row] = !active;
+                        changed = true;
+                    }
                     changed |= ui
                         .add(
                             egui::Slider::new(&mut s.depth[row], 0..=100)

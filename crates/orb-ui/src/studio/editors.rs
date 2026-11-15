@@ -121,7 +121,7 @@ impl App {
         self.legacy_fx_editor(ctx);
         self.studio_mirror();
         self.studio_poll(ctx);
-        if self.studio.worker.is_some() {
+        if self.studio.worker.is_some() && !self.studio.modern {
             egui::Window::new("Preparing Studio")
                 .collapsible(false)
                 .resizable(false)
@@ -572,13 +572,7 @@ impl App {
                     slider(&mut columns[2], &mut lane.gate, 0.01, 16.0, "Gate / steps");
                 });
                 ui.separator();
-                ui.horizontal(|ui| {
-                    ui.strong("RHYTHMIC GATER");
-                    for (value, label) in [(0, "Off"), (1, "TB1"), (2, "TB2")] {
-                        ui.selectable_value(&mut lane.gater_source, value, label);
-                    }
-                    ui.checkbox(&mut lane.sidechain, "Kick sidechain");
-                });
+                super::rack::gater_controls(ui, lane);
                 ui.columns(3, |columns| {
                     slider(
                         &mut columns[0],
@@ -603,8 +597,8 @@ impl App {
                     );
                 });
                 ui.small(
-                    "Gater follows the selected TB's note gates, including slides, even with \
-                     its mixer volume down. Kick sidechain follows the global sidechain \
+                    "Gater follows the selected TR instrument, even with its mixer volume down. \
+                     Kick sidechain follows the global sidechain \
                      On, source and release (65% depth).",
                 );
                 ui.small(
@@ -723,7 +717,7 @@ impl App {
     }
 }
 
-fn waveform(
+pub(super) fn waveform(
     ui: &mut Ui,
     frames: &[[f32; 2]],
     height: f32,
@@ -785,7 +779,7 @@ fn waveform(
     response
 }
 
-fn trim_at(lane: &mut orb_engine::studio::sampler::Lane, entry: bool, at: f64, minimum: f64) {
+pub(super) fn trim_at(lane: &mut orb_engine::studio::sampler::Lane, entry: bool, at: f64, minimum: f64) {
     if entry {
         lane.start = at.clamp(0.0, (lane.end - minimum).max(0.0));
     } else {

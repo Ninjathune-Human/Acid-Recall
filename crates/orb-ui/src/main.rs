@@ -281,8 +281,8 @@ fn main() -> eframe::Result {
         .with_icon(Arc::new(orb_ui::art::app_icon(256)))
         // the menu bar is above the panel
         .with_inner_size([size[0], size[1] + MENU_H])
-        // The minimum is half the native panel size (decision task-040).
-        .with_min_inner_size([PANEL_W / 2.0, PANEL_H / 2.0 + MENU_H])
+        // Keep native rack controls readable when the window is restored from maximized.
+        .with_min_inner_size([1000.0, 650.0 + MENU_H])
         .with_maximized(!sized);
     let options = eframe::NativeOptions {
         viewport,

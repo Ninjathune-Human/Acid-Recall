@@ -11,6 +11,17 @@ mod tests;
 use convolution::Convolver;
 use sampler::{LANES, Lane, Sampler};
 
+/// One block's logical modulation events, captured around the native sequencer step.
+pub struct Modulation {
+    pub gates: [bool; 2],
+    /// New hits in this block, by machine and native pattern column (accent is unused).
+    pub drum_triggers: [[u64; 12]; 2],
+    pub kicks: [u64; 2],
+    pub audible: [bool; 2],
+    pub config: crate::sidechain::Config,
+    pub ticks_per_frame: f64,
+}
+
 pub(super) fn smooth(value: &mut f64, target: f64, factor: f64) {
     let delta = target - *value;
     if delta.abs() < 1e-12 {
@@ -141,19 +152,14 @@ impl Studio {
         self.send = [[0.0; 64]; 2];
     }
 
-    pub fn modulation(
-        &mut self,
-        gates: [bool; 2],
-        kicks: [u64; 2],
-        audible: [bool; 2],
-        mut config: crate::sidechain::Config,
-    ) {
+    pub fn modulation(&mut self, mut data: Modulation) {
         // Sampler ducking follows the global kick source and release, with its own depth.
         // TB depth controls stay independent from the sampler's opt-in lanes.
-        config.depth = [65; 2];
-        self.ducker.set_config(config);
-        let duck = self.ducker.gains(kicks, audible);
-        self.sampler.set_modulation(gates, duck[0]);
+        data.config.depth = [65; 2];
+        self.ducker.set_config(data.config);
+        let duck = self.ducker.gains(data.kicks, data.audible);
+        self.sampler.set_modulation(data.gates, duck[0]);
+        self.sampler.set_drum_modulation(data.drum_triggers, data.ticks_per_frame);
     }
 
     pub fn channel(&mut self, channel: usize, sample: usize, left: f64, right: f64) {

@@ -36,6 +36,10 @@ pub struct Lane {
     pub choke: u8,
     pub send: f64,
     pub gater_source: u8,
+    /// Native TR pattern column: 1 BD, 2 SD, and the other instruments through column 11.
+    pub gater_instrument: u8,
+    /// Opening duration in sixteenth notes, counted in the current tempo's ticks.
+    pub gater_hold: f64,
     pub gater_depth: f64,
     pub gater_attack_ms: f64,
     pub gater_release_ms: f64,
@@ -62,6 +66,8 @@ impl Default for Lane {
             choke: 0,
             send: 0.0,
             gater_source: 0,
+            gater_instrument: 1,
+            gater_hold: 0.5,
             gater_depth: 1.0,
             gater_attack_ms: 2.0,
             gater_release_ms: 35.0,
@@ -91,7 +97,9 @@ impl Lane {
         self.release_ms = finite(self.release_ms, 8.0, 1.0, 3000.0);
         self.gate = finite(self.gate, 0.8, 0.01, 16.0);
         self.send = finite(self.send, 0.0, 0.0, 1.0);
-        self.gater_source = self.gater_source.min(2);
+        self.gater_source = self.gater_source.min(4);
+        self.gater_instrument = self.gater_instrument.clamp(1, 11);
+        self.gater_hold = finite(self.gater_hold, 0.5, 0.125, 16.0);
         self.gater_depth = finite(self.gater_depth, 1.0, 0.0, 1.0);
         self.gater_attack_ms = finite(self.gater_attack_ms, 2.0, 0.1, 100.0);
         self.gater_release_ms = finite(self.gater_release_ms, 35.0, 1.0, 500.0);
@@ -124,6 +132,10 @@ pub struct Sampler {
     gains: [[f64; 2]; LANES],
     sends: [f64; LANES],
     source_gates: [bool; 2],
+    drum_triggers: [[u64; 12]; 2],
+    drum_ticks_per_frame: f64,
+    gater_holds: [f64; LANES],
+    gater_routes: [(u8, u8); LANES],
     duck: [f32; 64],
     modulation: [f64; LANES],
     duck_mix: [f64; LANES],
@@ -158,6 +170,10 @@ impl Default for Sampler {
             gains: [[0.0; 2]; LANES],
             sends: [0.0; LANES],
             source_gates: [false; 2],
+            drum_triggers: [[0; 12]; 2],
+            drum_ticks_per_frame: 0.0,
+            gater_holds: [0.0; LANES],
+            gater_routes: [(0, 1); LANES],
             duck: [1.0; 64],
             modulation: [1.0; LANES],
             duck_mix: [0.0; LANES],
@@ -171,6 +187,16 @@ impl Sampler {
         self.duck = duck;
     }
 
+    /// Each nonzero counter is a new native hit in this block, not an audio-level detector.
+    pub fn set_drum_modulation(&mut self, triggers: [[u64; 12]; 2], ticks_per_frame: f64) {
+        self.drum_triggers = triggers;
+        self.drum_ticks_per_frame = if ticks_per_frame.is_finite() {
+            ticks_per_frame.max(0.0)
+        } else {
+            0.0
+        };
+    }
+
     pub fn stop(&mut self) {
         for i in 0..LANES {
             self.cut(i);
@@ -178,6 +204,8 @@ impl Sampler {
         self.last_step = None;
         self.audition = [false; LANES];
         self.playing = false;
+        self.gater_holds = [0.0; LANES];
+        self.drum_triggers = [[0; 12]; 2];
     }
 
     fn cut(&mut self, lane: usize) {
@@ -373,8 +401,26 @@ impl Sampler {
                     }
                 }
                 let audible = !lane.muted && (!solo || lane.solo);
-                let gate_open = lane.gater_source == 0
-                    || self.source_gates[(lane.gater_source.saturating_sub(1) as usize).min(1)];
+                let route = (lane.gater_source, lane.gater_instrument);
+                if self.gater_routes[i] != route {
+                    self.gater_routes[i] = route;
+                    self.gater_holds[i] = 0.0;
+                }
+                if j == 0 && (3..=4).contains(&lane.gater_source) {
+                    let machine = usize::from(lane.gater_source - 3);
+                    let instrument = usize::from(lane.gater_instrument.min(11));
+                    if self.drum_triggers[machine][instrument] != 0 {
+                        self.gater_holds[i] = 48.0 * lane.gater_hold;
+                    }
+                }
+                let gate_open = match lane.gater_source {
+                    0 => true,
+                    1 | 2 => self.source_gates[usize::from(lane.gater_source - 1)],
+                    3 | 4 => self.gater_holds[i] > 0.0,
+                    _ => true,
+                };
+                let remaining = (self.gater_holds[i] - self.drum_ticks_per_frame).max(0.0);
+                self.gater_holds[i] = if remaining < 1e-10 { 0.0 } else { remaining };
                 let gate_target = if gate_open {
                     1.0
                 } else {
@@ -409,5 +455,6 @@ impl Sampler {
         }
         self.last_tick = tick;
         self.playing = playing;
+        self.drum_triggers = [[0; 12]; 2];
     }
 }

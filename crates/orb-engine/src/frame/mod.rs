@@ -264,6 +264,10 @@ pub trait ChannelDevice: SongDevice {
     fn kick_count(&self) -> u64 {
         0
     }
+    /// Logical drum hits by native pattern column: 1..11 instruments, 0 reserved for accent.
+    fn drum_trigger_count(&self, _voice: usize) -> u64 {
+        0
+    }
     /// Logical synth gate for optional modulation, independent of mixer volume.
     fn gate_open(&self) -> bool {
         false
@@ -953,6 +957,13 @@ impl Frame {
         if let Some(studio) = &mut self.studio {
             studio.begin();
         }
+        let drum_before: [[u64; 12]; 2] = if self.studio.is_some() {
+            std::array::from_fn(|d| {
+                std::array::from_fn(|voice| self.devices.channels[d + 2].drum_trigger_count(voice))
+            })
+        } else {
+            [[0; 12]; 2]
+        };
         if self.seq.tick(&mut self.devices) {
             // 0x1001F3B3: the tempo (globals +4) the step loop passes, into its local there
             self.stack_word = Some(self.seq.globals.tempo as i32);
@@ -1054,7 +1065,21 @@ impl Frame {
             let advance = f64::from(self.seq.globals.tempo) * f64::from_bits(0x3ED3_7A72_81B2_2126)
                 / BLOCK as f64;
             let gates = std::array::from_fn(|i| self.devices.channels[i].gate_open());
-            studio.modulation(gates, kicks, audible, self.sidechain.config());
+            let drum_triggers = std::array::from_fn(|d| {
+                std::array::from_fn(|voice| {
+                    self.devices.channels[d + 2]
+                        .drum_trigger_count(voice)
+                        .wrapping_sub(drum_before[d][voice])
+                })
+            });
+            studio.modulation(crate::studio::Modulation {
+                gates,
+                drum_triggers,
+                kicks,
+                audible,
+                config: self.sidechain.config(),
+                ticks_per_frame: advance,
+            });
             studio.process(self.seq.pos, advance, self.seq.globals.play != 0, l, r);
         }
         // 0x10013883: the compressor on the master

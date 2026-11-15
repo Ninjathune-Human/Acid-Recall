@@ -15,6 +15,7 @@ pub mod crash;
 pub mod document;
 pub mod error_box;
 pub mod generator;
+mod graphite_rack;
 pub mod info;
 pub mod key_help;
 pub mod keys;
