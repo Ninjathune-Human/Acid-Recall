@@ -14,6 +14,7 @@ fn config(target: &str, pickup: bool) -> Config {
         enabled: true,
         port: Some("UC-33 USB MIDI".into()),
         pickup,
+        minimum_one: false,
         bindings: vec![Binding {
             channel: 1,
             controller: 74,
@@ -78,6 +79,110 @@ fn continuous_controls_keep_the_full_range_and_ignore_other_channels() {
         r.apply(cc(2, 0), &c, &mut p, 0.0);
         assert_eq!(p.value(id), Some(127));
     }
+}
+
+#[test]
+fn minimum_one_calibration_reaches_both_endpoints_for_every_knob_and_fader() {
+    for (id, k) in targets() {
+        if !matches!(k, Kind::Knob | Kind::Fader) {
+            continue;
+        }
+        let mut p = Panel::new();
+        let mut router = Router::default();
+        let mut c = config(&id, false);
+        c.minimum_one = true;
+        for (raw, expected) in [(0, 0), (1, 0), (2, 1), (64, 64), (126, 126), (127, 127)] {
+            router.apply(cc(1, raw), &c, &mut p, 0.0);
+            assert_eq!(p.value(&id), Some(expected), "{id}: raw {raw}");
+        }
+        let mut values = std::collections::BTreeSet::new();
+        let mut previous = 0;
+        for raw in 1..=127 {
+            router.apply(cc(1, raw), &c, &mut p, 0.0);
+            let actual = p.value(&id).unwrap();
+            assert!(actual >= previous, "{id}");
+            previous = actual;
+            values.insert(actual);
+        }
+        assert_eq!(values.len(), 127, "{id}: no lost controller resolution");
+    }
+}
+
+#[test]
+fn calibration_keeps_pickup_and_button_edges_in_their_correct_domains() {
+    let mut p = Panel::new();
+    let mut router = Router::default();
+    let mut c = config("mixer1.level", true);
+    c.minimum_one = true;
+    p.adopt("mixer1.level", 64);
+    router.apply(cc(1, 1), &c, &mut p, 0.0);
+    assert_eq!(p.value("mixer1.level"), Some(64));
+    router.apply(cc(1, 100), &c, &mut p, 0.0);
+    router.apply(cc(1, 1), &c, &mut p, 0.0);
+    assert_eq!(p.value("mixer1.level"), Some(0));
+    let mut c = config("mixer1.dist", false);
+    c.minimum_one = true;
+    let initial = p.toggle_on("mixer1.dist");
+    router.apply(cc(1, 63), &c, &mut p, 0.0);
+    assert_eq!(p.toggle_on("mixer1.dist"), initial);
+    router.apply(cc(1, 64), &c, &mut p, 0.0);
+    assert_eq!(p.toggle_on("mixer1.dist"), !initial);
+    router.apply(cc(1, 64), &c, &mut p, 0.0);
+    assert_eq!(p.toggle_on("mixer1.dist"), !initial);
+}
+
+#[test]
+fn calibration_is_saved_locally_and_old_settings_keep_the_full_midi_range() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("ui.toml");
+    let mut settings = Settings::load_from(&file);
+    settings.midi.minimum_one = true;
+    settings.save().unwrap();
+    assert!(Settings::load_from(&file).midi.minimum_one);
+    std::fs::write(&file, "[midi]\nenabled = true\npickup = false\n").unwrap();
+    let old = Settings::load_from(&file);
+    assert!(old.midi.enabled);
+    assert!(!old.midi.minimum_one);
+    let mut p = Panel::new();
+    Router::default().apply(cc(1, 1), &config("master.fader", false), &mut p, 0.0);
+    assert_eq!(p.value("master.fader"), Some(1));
+}
+
+#[test]
+fn a_calibrated_master_minimum_reaches_the_engine_and_silences_a_playing_pattern() {
+    let samples = Some(rbm::standard::builtin_samples());
+    let (mut link, mut audio) = Link::new(Arc::new(Tables::new()), samples.clone());
+    let mut p = Panel::new();
+    link.load_new(samples, &mut p);
+    let mut pattern = vec![0; 98];
+    pattern[1] = 16;
+    p.replace_pattern(0, 0, pattern);
+    p.set_fader("mixer1.level", 999);
+    p.press("transport.play", 0.0);
+    let mut router = Router::default();
+    let mut c = config("master.fader", false);
+    c.minimum_one = true;
+    router.apply(cc(1, 127), &c, &mut p, 0.0);
+    link.sync(&mut p);
+    let mut out = vec![0i16; 2 * CALL_FRAMES];
+    let mut audible = false;
+    for _ in 0..12 {
+        audio.render_i16(&mut out);
+        audible |= out.iter().any(|&v| v.unsigned_abs() > 1);
+    }
+    assert!(audible, "the source must really play before testing mute");
+    router.apply(cc(1, 1), &c, &mut p, 0.0);
+    link.sync(&mut p);
+    for _ in 0..12 {
+        audio.render_i16(&mut out);
+    }
+    p.adopt("master.fader", 111);
+    link.sync(&mut p);
+    assert_eq!(p.value("master.fader"), Some(0));
+    assert!(
+        out.iter().all(|&v| v.unsigned_abs() <= 1),
+        "only quantization-floor silence may remain"
+    );
 }
 
 #[test]

@@ -67,3 +67,17 @@ delivery through the real player. The Windows preview also runs settings, wiring
 audio allocation tests and builds a portable executable; the PR CI runs the full workspace.
 A physical UC-33e test is still needed to verify USB enumeration,
 driver opening, button preset behavior and shutdown/reconnection on the user's PC.
+
+## A controller stops at value 1
+
+If **Last input** shows value **1** when a physical knob or fader is fully down, enable
+**Controller minimum is 1 (calibrate to zero)** in the MIDI Controller window. This maps the
+hardware range 1-127 onto the software range 0-127, retaining both endpoints and smooth
+movement. Incoming zero also remains zero. The calibration applies to continuous controls;
+button presses and switches retain their normal thresholds. Soft takeover uses the calibrated
+values. Last input continues to display the raw hardware message for diagnosis.
+
+The option is off by default for controllers that already send 0-127. It is saved automatically
+on this computer and stays local when importing/exporting routing, since it describes the
+connected hardware. It does not change mouse controls or the audio engine. A volume at zero
+cuts that volume path; other parameters such as Tune or Decay retain their musical meaning.

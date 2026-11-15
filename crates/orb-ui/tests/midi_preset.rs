@@ -6,6 +6,7 @@ fn config() -> Config {
         enabled: true,
         port: Some("UC-33 on first PC".into()),
         pickup: false,
+        minimum_one: false,
         bindings: targets()
             .into_iter()
             .enumerate()
@@ -26,6 +27,7 @@ fn all_assignments_round_trip_and_input_selection_remains_local() {
     assert!(!encoded.contains("enabled"));
     let mut other = Config {
         port: Some("Focusrite USB MIDI".into()),
+        minimum_one: true,
         ..Config::default()
     };
     let count = RoutingPreset::decode(&encoded)
@@ -37,6 +39,11 @@ fn all_assignments_round_trip_and_input_selection_remains_local() {
     assert_eq!(other.pickup, original.pickup);
     assert_eq!(other.port.as_deref(), Some("Focusrite USB MIDI"));
     assert!(!other.enabled);
+    assert!(
+        other.minimum_one,
+        "hardware calibration remains local on import"
+    );
+    assert!(!encoded.contains("minimum_one"));
 }
 
 #[test]

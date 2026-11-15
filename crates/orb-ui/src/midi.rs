@@ -85,6 +85,8 @@ pub struct Config {
     pub enabled: bool,
     pub port: Option<String>,
     pub pickup: bool,
+    /// Hardware calibration stays local, like the selected input port.
+    pub minimum_one: bool,
     pub bindings: Vec<Binding>,
 }
 
@@ -94,6 +96,7 @@ impl Default for Config {
             enabled: false,
             port: None,
             pickup: true,
+            minimum_one: false,
             bindings: Vec::new(),
         }
     }
@@ -244,16 +247,21 @@ impl Router {
             }
             Kind::Switch => panel.set_switch(id, u8::from(cc.value >= 64)),
             Kind::Knob | Kind::Fader | Kind::Number => {
+                let value = if config.minimum_one {
+                    ((u16::from(cc.value.min(127).saturating_sub(1)) * 127 + 63) / 126) as u8
+                } else {
+                    cc.value
+                };
                 let current = normalized(panel, id, k);
                 let state = self.pickup.entry(b.target.clone()).or_default();
-                if !state.accepts(cc.value, current, config.pickup) {
+                if !state.accepts(value, current, config.pickup) {
                     return;
                 }
-                let p = behavior::knob_from_engine(i32::from(cc.value));
+                let p = behavior::knob_from_engine(i32::from(value));
                 match k {
                     Kind::Knob => panel.set_knob(id, p),
                     Kind::Fader => panel.set_fader(id, p),
-                    Kind::Number => panel.set_midi_number(id, cc.value),
+                    Kind::Number => panel.set_midi_number(id, value),
                     _ => unreachable!(),
                 }
                 state.sent = Some(normalized(panel, id, k));
@@ -455,6 +463,17 @@ impl App {
                     self.midi.router.reset();
                     changed = true;
                 }
+                if ui
+                    .checkbox(
+                        &mut config.minimum_one,
+                        "Controller minimum is 1 (calibrate to zero)",
+                    )
+                    .changed()
+                {
+                    self.midi.router.reset();
+                    changed = true;
+                }
+                ui.small("Enable only if knobs/faders send 1 at minimum. Maps 1-127 to 0-127.");
                 if let Some(cc) = self.midi.last {
                     ui.label(format!(
                         "Last input: channel {} / CC {} / value {}",
