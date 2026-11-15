@@ -744,4 +744,3 @@ impl ChannelDevice for Tb303 {
         }
     }
 }
-

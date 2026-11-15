@@ -304,12 +304,19 @@ fn linked_generation_keeps_each_length_shares_tuning_and_undo_restores_both() {
 fn linked_polymeters_stay_harmonic_over_the_whole_common_cycle() {
     for lengths in [[8, 16], [16, 8], [7, 11], [11, 7]] {
         let [a_len, b_len] = lengths.map(usize::from);
-        let common = (1..=a_len * b_len).find(|n| n % a_len == 0 && n % b_len == 0).unwrap();
+        let common = (1..=a_len * b_len)
+            .find(|n| n % a_len == 0 && n % b_len == 0)
+            .unwrap();
         for style in DrumStyle::ALL {
             for root in 0..12 {
                 for scale in Scale::ALL {
                     for seed in 0..4 {
-                        let o = Options { root, scale, drum_style: style, ..Options::default() };
+                        let o = Options {
+                            root,
+                            scale,
+                            drum_style: style,
+                            ..Options::default()
+                        };
                         let pair = tb_pair_lengths(&o, lengths, seed);
                         assert_eq!([pair[0][1], pair[1][1]], lengths);
                         for (row, bytes) in pair.iter().enumerate() {
@@ -359,7 +366,10 @@ fn linked_polymeters_respect_density_accent_and_slide_extremes() {
             for density in [0, 100] {
                 for flags in [0, 100] {
                     let o = Options {
-                        density, accents: flags, slides: flags, drum_style: style,
+                        density,
+                        accents: flags,
+                        slides: flags,
+                        drum_style: style,
                         ..Options::default()
                     };
                     let pair = tb_pair_lengths(&o, lengths, 483);
@@ -389,7 +399,10 @@ fn linked_polymeters_respect_density_accent_and_slide_extremes() {
     }
     let o = Options::default();
     for length in 1..=16 {
-        assert_eq!(tb_pair_lengths(&o, [length; 2], 77), tb_pair(&o, length, 77));
+        assert_eq!(
+            tb_pair_lengths(&o, [length; 2], 77),
+            tb_pair(&o, length, 77)
+        );
     }
 }
 
@@ -407,11 +420,15 @@ fn linked_random_from_either_tb_preserves_both_periods_in_audio_save_and_undo() 
             app.generator.options.root = 5;
             app.generator.options.scale = Scale::Dorian;
             app.random_pattern_with_seed(clicked, 409);
-            assert_eq!([app.panel.rows[0].len[0], app.panel.rows[1].len[0]], lengths);
+            assert_eq!(
+                [app.panel.rows[0].len[0], app.panel.rows[1].len[0]],
+                lengths
+            );
             calls(&mut audio);
             for (row, length) in lengths.into_iter().enumerate() {
                 let actual = audio.current_mut().frame.devices.channels[row]
-                    .patterns_mut().unwrap();
+                    .patterns_mut()
+                    .unwrap();
                 assert_eq!(actual[1], length);
             }
             let saved = rbs::Song::parse(&app.song_bytes().unwrap()).unwrap();
@@ -419,7 +436,10 @@ fn linked_random_from_either_tb_preserves_both_periods_in_audio_save_and_undo() 
             assert_eq!(saved.tb303[1].patterns[0].length, lengths[1]);
             assert!(app.undo_random());
             assert_eq!(app.link.as_ref().unwrap().patterns(), &before);
-            assert_eq!([app.panel.rows[0].len[0], app.panel.rows[1].len[0]], lengths);
+            assert_eq!(
+                [app.panel.rows[0].len[0], app.panel.rows[1].len[0]],
+                lengths
+            );
         }
     }
 }

@@ -227,9 +227,7 @@ impl App {
                     self.generator.options.link_tb,
                     view.scale,
                 )
-                .on_hover_text(
-                    "LINK TB: shared key and tuning, independent pattern lengths.",
-                );
+                .on_hover_text("LINK TB: shared key and tuning, independent pattern lengths.");
                 if response.clicked() {
                     self.generator.options.link_tb = !self.generator.options.link_tb;
                 }

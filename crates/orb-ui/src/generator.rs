@@ -287,14 +287,19 @@ fn phase_candidates(
     phase: usize,
     stride: usize,
 ) -> Vec<u8> {
-    scale.iter().copied().filter(|&interval| {
-        (phase..length).step_by(stride).all(|s| {
-            bass[s].rest || matches!(
-                (root + i32::from(interval) - pitch(bass[s])).rem_euclid(12),
-                0 | 3 | 4 | 5 | 7 | 8 | 9
-            )
+    scale
+        .iter()
+        .copied()
+        .filter(|&interval| {
+            (phase..length).step_by(stride).all(|s| {
+                bass[s].rest
+                    || matches!(
+                        (root + i32::from(interval) - pitch(bass[s])).rem_euclid(12),
+                        0 | 3 | 4 | 5 | 7 | 8 | 9
+                    )
+            })
         })
-    }).collect()
+        .collect()
 }
 
 /// Linked lines with independent loop lengths. A step of A can meet a step of B only when
@@ -330,15 +335,22 @@ pub fn tb_pair_lengths(options: &Options, lengths: [u8; 2], seed: u64) -> [Vec<u
                 }
                 let previous = bass[s];
                 let old_pitch = pitch(previous);
-                let nearest = [0, third, 7].into_iter().flat_map(|interval| {
-                    (-1..=1).map(move |octave| (root + interval).rem_euclid(12) + 12 * octave)
-                }).min_by_key(|p| (*p - old_pitch).abs()).unwrap();
+                let nearest = [0, third, 7]
+                    .into_iter()
+                    .flat_map(|interval| {
+                        (-1..=1).map(move |octave| (root + interval).rem_euclid(12) + 12 * octave)
+                    })
+                    .min_by_key(|p| (*p - old_pitch).abs())
+                    .unwrap();
                 bass[s] = note(nearest, previous.accent);
                 bass[s].slide = previous.slide;
             }
             candidates = phase_candidates(scale, root, &bass, a_len, phase, divisor);
         }
-        let voiced = (phase..a_len).step_by(divisor).filter(|&s| !bass[s].rest).count();
+        let voiced = (phase..a_len)
+            .step_by(divisor)
+            .filter(|&s| !bass[s].rest)
+            .count();
         let total = (phase..a_len).step_by(divisor).count();
         activity.push((voiced, total));
         palettes.push(candidates);
@@ -351,7 +363,11 @@ pub fn tb_pair_lengths(options: &Options, lengths: [u8; 2], seed: u64) -> [Vec<u
         let high = (density + 20).min(100);
         let low = density / 4;
         let probability = high - (high - low) * voiced / total;
-        let probability = if s >= b_len / 2 { probability } else { probability / 2 };
+        let probability = if s >= b_len / 2 {
+            probability
+        } else {
+            probability / 2
+        };
         if density == 0 || !rng.chance(probability as u8) {
             continue;
         }
@@ -361,7 +377,10 @@ pub fn tb_pair_lengths(options: &Options, lengths: [u8; 2], seed: u64) -> [Vec<u
         } else {
             motif[s % motif.len()] % palette.len()
         };
-        answer[s] = note(root + i32::from(palette[index]) + 12, rng.chance(options.accents));
+        answer[s] = note(
+            root + i32::from(palette[index]) + 12,
+            rng.chance(options.accents),
+        );
     }
     if options.density > 0 && answer[..b_len].iter().all(|s| s.rest) {
         let s = b_len / 2;
