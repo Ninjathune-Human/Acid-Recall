@@ -1,8 +1,8 @@
 //! Musical pattern generation. Only pattern data changes; synthesis stays in orb-engine.
 //! Seeded generators are deterministic so musical constraints can be checked without audio I/O.
 
-mod ui;
 mod rhythms;
+mod ui;
 
 use crate::model::Step303;
 
@@ -58,7 +58,11 @@ impl DrumStyle {
     pub const ALL: [Self; 3] = [Self::Techno, Self::Idm, Self::Break];
 
     pub fn name(self) -> &'static str {
-        match self { Self::Techno => "Techno", Self::Idm => "IDM", Self::Break => "Break" }
+        match self {
+            Self::Techno => "Techno",
+            Self::Idm => "IDM",
+            Self::Break => "Break",
+        }
     }
 
     pub fn description(self) -> &'static str {

@@ -98,7 +98,8 @@ impl App {
                         if ui.button("Load IR...").clicked() { build = Some(true); }
                     });
                 });
-                ui.small("Built-in spaces use original synthetic impulse responses. Import a room/plate IR for its sound.");
+                ui.small("Built-in spaces use original synthetic impulse responses. \
+            Import a room/plate IR for its sound.");
                 ui.separator();
                 ui.columns(2, |columns| {
                     let s = &mut self.studio.settings;
@@ -113,7 +114,8 @@ impl App {
                 for (i, name) in ["TB-303 A", "TB-303 B", "TR-808", "TR-909"].iter().enumerate() {
                     slider(ui, &mut self.studio.settings.sends[i], 0.0, 1.0, name);
                 }
-                ui.small("Sampler lanes have individual sends. Turning a send down leaves the reverb tail.");
+                ui.small("Sampler lanes have individual sends. Turning a send down \
+            leaves the reverb tail.");
             });
         self.studio.reverb_open = open;
         if self.studio.settings != before { self.studio.changed(); self.doc.modified = true; }
@@ -215,17 +217,20 @@ impl App {
                 if let Some(wave) = &self.studio.waves[selected] {
                     waveform(ui, &wave.frames, 100.0, lane.start, lane.end);
                     ui.small(format!("{:.2} seconds / stereo / 44.1 kHz", wave.frames.len() as f64 / 44100.0));
-                } else { ui.label("Load a WAV or AIFF. Click steps to sequence; right-click a step for velocity."); }
+                } else { ui.label("Load a WAV or AIFF. Click steps to sequence; right-click a \
+            step for velocity."); }
                 ui.horizontal(|ui| {
                     for (mode, label) in [(Mode::OneShot, "One Shot"), (Mode::AutoCut, "Auto Cut"),
                         (Mode::Gate, "Gate"), (Mode::Loop, "Loop")] { ui.selectable_value(&mut lane.mode, mode, label); }
                     ui.checkbox(&mut lane.reverse, "Reverse");
                     ui.add(egui::DragValue::new(&mut lane.choke).range(0..=8).prefix("Choke "));
                 });
-                ui.small(match lane.mode { Mode::OneShot => "One Shot: each trigger plays to the end, up to four overlapping voices.",
+                ui.small(match lane.mode { Mode::OneShot => "One Shot: each trigger plays to the end, up to four \
+            overlapping voices.",
                     Mode::AutoCut => "Auto Cut: each new trigger cuts the previous voice with a short fade.",
                     Mode::Gate => "Gate: releases after the selected gate duration.",
-                    Mode::Loop => "Loop: repeats the selected region until retriggered, choked or transport stops." });
+                    Mode::Loop => "Loop: repeats the selected region until retriggered, choked \
+            or transport stops." });
                 ui.columns(3, |columns| {
                     slider(&mut columns[0], &mut lane.gain, 0.0, 2.0, "Level");
                     slider(&mut columns[0], &mut lane.pan, -1.0, 1.0, "Pan");
@@ -237,8 +242,10 @@ impl App {
                     slider(&mut columns[2], &mut lane.end, lane.start + 0.001, 1.0, "End");
                     slider(&mut columns[2], &mut lane.gate, 0.01, 16.0, "Gate / steps");
                 });
-                ui.small("Pitch changes playback speed. Choke 0 is independent; lanes sharing 1–8 cut each other.");
-                ui.small("File > Save stores samples, IR and all 64 bars together in a portable .orb338 project.");
+                ui.small("Pitch changes playback speed. Choke 0 is independent; lanes \
+            sharing 1–8 cut each other.");
+                ui.small("File > Save stores samples, IR and all 64 bars together in \
+            a portable .orb338 project.");
             });
         self.studio.sampler_open = open;
         if self.studio.settings != before { self.studio.changed(); self.doc.modified = true; }
@@ -267,6 +274,30 @@ impl App {
                                 self.panel.set_knob(&control.id, value);
                             }
                         }
+                        "fader" => {
+                            let mut value = self.panel.fader(&control.id);
+                            if ui.add(egui::Slider::new(&mut value, 0..=999).text(label)).changed() {
+                                self.panel.set_fader(&control.id, value);
+                            }
+                        }
+                        "vswitch" | "hswitch" => {
+                            let mut value = self.panel.switch(&control.id);
+                            ui.horizontal(|ui| {
+                                ui.label(&label);
+                                for (v, text) in [(0, "0"), (1, "1")] {
+                                    if ui.selectable_value(&mut value, v, text).changed() {
+                                        self.panel.set_switch(&control.id, value);
+                                    }
+                                }
+                            });
+                        }
+                        "display" => {
+                            ui.horizontal(|ui| {
+                                ui.label(format!("{}: {}", label, self.panel.display(&control.id).unwrap_or(0)));
+                                if ui.button("−").clicked() { self.panel.press(&format!("{}_down", control.id), 0.0); }
+                                if ui.button("+").clicked() { self.panel.press(&format!("{}_up", control.id), 0.0); }
+                            });
+                        }
                         "toggle" => {
                             let mut on = self.panel.toggle_on(&control.id);
                             if ui.checkbox(&mut on, label).changed() { self.panel.press(&control.id, 0.0); }
@@ -274,7 +305,8 @@ impl App {
                         _ => {}
                     }
                 }
-                ui.small("Route this effect using the machine's mixer buttons. Existing MIDI assignments stay active.");
+                ui.small("Route this effect using the machine's mixer buttons. \
+            Existing MIDI assignments stay active.");
             });
         if !open { self.studio.fx = None; }
     }

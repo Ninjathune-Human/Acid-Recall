@@ -77,7 +77,8 @@ pub(super) fn pattern(o: &Options, is808: bool, length: u8, seed: u64) -> Vec<u8
             }
         }
         if s == 0 { put(step, 1, 2); }
-        if step[1..].iter().any(|&v| v != 0) && (s % 4 == 0 || rng.chance(o.accents)) {
+        if o.accents > 0 && step[1..].iter().any(|&v| v != 0)
+            && (s % 4 == 0 || rng.chance(o.accents)) {
             step[0] = if is808 { 1 } else { 2 };
         }
     }

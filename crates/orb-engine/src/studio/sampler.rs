@@ -1,6 +1,8 @@
 //! Eight stereo lanes, fixed voice pools, sample-accurate sixteenth-note triggering.
 
 use super::audio_file::{Wave, sinc};
+#[cfg(test)]
+mod tests;
 
 pub const LANES: usize = 8;
 pub const STEPS: usize = 64 * 16;
@@ -77,6 +79,7 @@ pub struct Sampler {
     last_tick: f64,
     playing: bool,
     audition: [bool; LANES],
+    gains: [[f64; 2]; LANES],
 }
 
 impl Default for Sampler {
@@ -96,7 +99,7 @@ impl Default for Sampler {
         }
         Self { waves: std::array::from_fn(|_| None), voices: [[Voice::default(); 4]; LANES],
             tails: [[0.0; 2]; LANES], table, last_step: None, last_tick: 0.0,
-            playing: false, audition: [false; LANES] }
+            playing: false, audition: [false; LANES], gains: [[0.0; 2]; LANES] }
     }
 }
 
@@ -150,6 +153,7 @@ impl Sampler {
         if (!playing && self.playing) || (playing && (tick < self.last_tick
             || tick - self.last_tick > 12.0)) { self.stop(); }
         let solo = lanes.iter().any(|l| l.solo);
+        let rates: [f64; LANES] = std::array::from_fn(|i| 2.0f64.powf(f64::from(lanes[i].pitch) / 12.0));
         for j in 0..64 {
             let now = tick + j as f64 * ticks_per_frame;
             if playing {
@@ -170,21 +174,24 @@ impl Sampler {
                     self.audition[i] = false;
                     self.trigger(i, 127, now, lanes);
                 }
-                let Some(wave) = &self.waves[i] else { continue };
+                let mut sample = self.tails[i];
+                for x in &mut self.tails[i] { *x *= 0.9; if x.abs() < 1e-14 { *x = 0.0; } }
+                if let Some(wave) = &self.waves[i] {
                 let frames = wave.frames.len();
                 let start = (lane.start * frames as f64) as usize;
                 let end = ((lane.end * frames as f64) as usize).min(frames);
                 let length = end.saturating_sub(start);
-                if length < 2 { continue; }
-                let rate = 2.0f64.powf(f64::from(lane.pitch) / 12.0);
-                let mut sample = self.tails[i];
-                for x in &mut self.tails[i] { *x *= 0.9; if x.abs() < 1e-14 { *x = 0.0; } }
+                let rate = rates[i];
+                let seam = (length / 4).min(220) as f64;
                 for voice in &mut self.voices[i] {
-                    if !voice.active { continue; }
-                    let gate_end = lane.mode == Mode::Gate && now >= voice.until;
+                    if !voice.active || length < 2 { continue; }
+                    let gate_end = lane.mode == Mode::Gate && (if playing { now >= voice.until }
+                        else { voice.age as f64 * ticks_per_frame >= 48.0 * lane.gate });
                     if gate_end { voice.release += 1.0 / (lane.release_ms * 44.1); }
                     if voice.position >= length as f64 {
-                        if lane.mode == Mode::Loop { voice.position %= length as f64; }
+                        if lane.mode == Mode::Loop {
+                            voice.position = seam + (voice.position - length as f64) % (length as f64 - seam);
+                        }
                         else { voice.active = false; continue; }
                     }
                     let position = if lane.reverse { end as f64 - 1.0 - voice.position }
@@ -195,22 +202,39 @@ impl Sampler {
                     let mut value = [0.0; 2];
                     for (tap, &weight) in weights.iter().enumerate() {
                         let index = (center + tap as isize - 7).clamp(start as isize, end as isize - 1) as usize;
-                        for c in 0..2 { value[c] += f64::from(wave.frames[index][c]) * weight; }
+                        for (c, v) in value.iter_mut().enumerate() { *v += f64::from(wave.frames[index][c]) * weight; }
+                    }
+                    if lane.mode == Mode::Loop && seam > 0.0 && voice.position > length as f64 - seam {
+                        let offset = voice.position - (length as f64 - seam);
+                        let position = if lane.reverse { end as f64 - 1.0 - offset } else { start as f64 + offset };
+                        let center = position.floor() as isize;
+                        let phase = ((position - position.floor()) * 256.0) as usize;
+                        let weights = &self.table[(lane.pitch + 24) as usize * 256 + phase.min(255)];
+                        let mix = offset / seam;
+                        let mut head = [0.0; 2];
+                        for (tap, &weight) in weights.iter().enumerate() {
+                            let index = (center + tap as isize - 7).clamp(start as isize, end as isize - 1) as usize;
+                            for (c, v) in head.iter_mut().enumerate() { *v += f64::from(wave.frames[index][c]) * weight; }
+                        }
+                        for c in 0..2 { value[c] = value[c] * (1.0 - mix) + head[c] * mix; }
                     }
                     let attack = (voice.age as f64 / (lane.attack_ms * 44.1)).min(1.0);
                     let ending = if lane.mode == Mode::Loop { 1.0 }
                         else { ((length as f64 - voice.position) / (rate * lane.release_ms * 44.1)).min(1.0) };
                     let envelope = attack * ending * (1.0 - voice.release).max(0.0) * voice.velocity;
                     voice.last = value.map(|x| x * envelope);
-                    for c in 0..2 { sample[c] += voice.last[c]; }
+                    for (x, last) in sample.iter_mut().zip(voice.last) { *x += last; }
                     voice.age += 1;
                     voice.position += rate;
                     if voice.release >= 1.0 { voice.active = false; }
                 }
+                }
                 let audible = !lane.muted && (!solo || lane.solo);
                 let pan = [(1.0 - lane.pan).min(1.0), (1.0 + lane.pan).min(1.0)];
                 for c in 0..2 {
-                    let value = if audible { sample[c] * lane.gain * pan[c] } else { 0.0 };
+                    let target = if audible { lane.gain * pan[c] } else { 0.0 };
+                    self.gains[i][c] += (target - self.gains[i][c]) * 0.004;
+                    let value = sample[c] * self.gains[i][c];
                     output[c][j] += value;
                     send[c][j] += value * lane.send;
                 }

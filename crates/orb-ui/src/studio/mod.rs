@@ -19,7 +19,7 @@ enum Completed {
     Wave(usize, String, Arc<Wave>, Box<Wave>),
     Reverb(String, Arc<Wave>, Box<Convolver>),
     Open(PathBuf, Box<Project>, Box<Studio>),
-    Save(PathBuf, Vec<u8>, u64),
+    Save(PathBuf, Vec<u8>, u64, crate::sidechain::Settings, Option<u8>),
 }
 
 pub struct StudioUi {
@@ -40,6 +40,8 @@ pub struct StudioUi {
     pub fx: Option<String>,
     pub notice: Option<String>,
     pub content: bool,
+    pub(crate) opening: bool,
+    mix: Option<(crate::sidechain::Settings, Option<u8>)>,
     ready: bool,
     sent: Settings,
     revision: u64,
@@ -53,7 +55,7 @@ impl Default for StudioUi {
             settings: Settings::default(), names: std::array::from_fn(|i| format!("Sample {:02}", i + 1)),
             waves: std::array::from_fn(|_| None), ir: None, ir_name: "Concrete chamber".into(),
             selected: 0, bar: 0, follow: true, preset: 1, decay: 1.8, fx: None,
-            notice: None, content: false, ready: false, sent: Settings::default(),
+            notice: None, content: false, opening: false, mix: None, ready: false, sent: Settings::default(),
             revision: 0, worker: None, clipboard: None }
     }
 }
@@ -102,6 +104,7 @@ impl App {
         });
         if let Some(result) = result {
             self.studio.worker = None;
+            self.studio.opening = false;
             match result {
                 Err(e) => { self.after_save = None; self.studio.notice = Some(e); }
                 Ok(Completed::Init(studio, ir)) => {
@@ -129,7 +132,9 @@ impl App {
                     match crate::session::open_bytes(&project.song, &path.display().to_string()) {
                         Err(e) => self.studio.notice = Some(e),
                         Ok(opened) => {
+                            let settlement = self.settlement;
                             self.adopt(&path, opened);
+                            if self.settlement == settlement { return; }
                             self.studio.settings = project.metadata.settings.clone();
                             self.studio.sent = self.studio.settings.clone();
                             self.studio.names = project.metadata.names.clone();
@@ -145,8 +150,9 @@ impl App {
                         }
                     }
                 }
-                Ok(Completed::Save(path, song, revision)) => {
+                Ok(Completed::Save(path, song, revision, sidechain, closed_hat)) => {
                     let unchanged = self.studio.revision == revision
+                        && self.settings.sidechain == sidechain && self.settings.closed_hat_level == closed_hat
                         && self.song_bytes().ok().as_ref() == Some(&song);
                     self.doc.path = Some(path.clone());
                     if unchanged { self.doc.modified = false; }
@@ -156,6 +162,11 @@ impl App {
                 }
             }
         }
+        let mix = (self.settings.sidechain.clone(), self.settings.closed_hat_level);
+        if self.studio.content && self.studio.mix.as_ref().is_some_and(|was| was != &mix) {
+            self.studio.changed(); self.doc.modified = true;
+        }
+        self.studio.mix = Some(mix);
         if self.studio.worker.is_none() && !self.studio.ready && self.studio.modern {
             self.studio.work(ctx, || {
                 let ir = Arc::new(Wave { frames: convolution::synthetic(1, 1.8) });
@@ -174,6 +185,7 @@ impl App {
     pub(crate) fn studio_open(&mut self, path: &Path, ctx: &Context) {
         if self.studio.worker.is_some() { self.fail("Studio is busy; wait for the current operation."); return; }
         let path = path.to_path_buf();
+        self.studio.opening = true;
         self.studio.work(ctx, move || {
             if std::fs::metadata(&path).map_err(|e| e.to_string())?.len() > 256 * 1024 * 1024 {
                 return Err("Studio project exceeds 256 MiB".into());
@@ -186,17 +198,19 @@ impl App {
     }
 
     pub(crate) fn studio_save(&mut self, path: &Path, ctx: &Context) {
-        if self.studio.worker.is_some() { self.fail("Studio is busy; wait before saving."); return; }
-        let song = match self.song_bytes() { Ok(song) => song, Err(e) => { self.fail(e); return; } };
+        if self.studio.worker.is_some() { self.after_save = None; self.fail("Studio is busy; wait before saving."); return; }
+        let song = match self.song_bytes() { Ok(song) => song, Err(e) => { self.after_save = None; self.fail(e); return; } };
         let Some(project) = self.studio.project(song.clone(), self.settings.sidechain.clone(),
-            self.settings.closed_hat_level) else { self.fail("Studio is still preparing; try again."); return; };
+            self.settings.closed_hat_level) else { self.after_save = None; self.fail("Studio is still preparing; try again."); return; };
         let mut path = path.to_path_buf();
         path.set_extension("orb338");
         let revision = self.studio.revision;
+        let sidechain = project.metadata.sidechain.clone();
+        let closed_hat = project.metadata.closed_hat;
         self.studio.work(ctx, move || {
             let bytes = project.encode()?;
             crate::session::write_file(&path, &bytes)?;
-            Ok(Completed::Save(path, song, revision))
+            Ok(Completed::Save(path, song, revision, sidechain, closed_hat))
         });
     }
 

@@ -379,7 +379,9 @@ impl Panel {
         }
         p.numbers.insert("delay.steps".into(), 3);
         p.numbers.insert("pcf.pattern".into(), 0);
-        for (id, _) in crate::studio::midi::controls() { p.knobs.insert(id, 0); }
+        for (id, _) in crate::studio::midi::controls() {
+            p.knobs.insert(id, 0);
+        }
         p
     }
 

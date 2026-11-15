@@ -163,7 +163,11 @@ pub fn targets() -> Vec<(String, Kind)> {
     }
     out.push(("delay.steps".into(), Kind::Number));
     out.push(("pcf.pattern".into(), Kind::Number));
-    out.extend(crate::studio::midi::controls().into_iter().map(|(id, _)| (id, Kind::Knob)));
+    out.extend(
+        crate::studio::midi::controls()
+            .into_iter()
+            .map(|(id, _)| (id, Kind::Knob)),
+    );
     out
 }
 
@@ -176,7 +180,10 @@ pub fn kind(id: &str) -> Option<Kind> {
 }
 
 pub fn label(id: &str) -> String {
-    if let Some((_, label)) = crate::studio::midi::controls().into_iter().find(|(target, _)| target == id) {
+    if let Some((_, label)) = crate::studio::midi::controls()
+        .into_iter()
+        .find(|(target, _)| target == id)
+    {
         return label;
     }
     match id {
@@ -404,9 +411,11 @@ impl Midi {
         let matches: Vec<_> = self.ports.iter().filter(|p| &p.name == name).collect();
         if matches.len() != 1 {
             self.error = Some(if matches.is_empty() {
-                format!("MIDI input '{name}' is unavailable. Connect it, then Refresh / reconnect.")
+                format!("MIDI input '{name}' is unavailable. Connect it, then \
+            Refresh / reconnect.")
             } else {
-                "Several MIDI inputs have the same name. Give the device a unique name.".into()
+                "Several MIDI inputs have the same name. Give the device a \
+            unique name.".into()
             });
             return;
         }
@@ -437,7 +446,8 @@ impl App {
         if dropped > self.midi.dropped_seen {
             self.midi.dropped_seen = dropped;
             self.midi.error = Some(format!(
-                "MIDI input overflow: {dropped} messages dropped. Reconnect to reset the counter."
+                "MIDI input overflow: {dropped} messages dropped. Reconnect \
+            to reset the counter."
             ));
             self.midi.router.reset();
         }
@@ -480,7 +490,8 @@ impl App {
                     export = ui.button("Export routing...").clicked();
                 });
                 ui.small(
-                    "Portable file: assignments + soft takeover. Import replaces assignments.",
+                    "Portable file: assignments + soft takeover. Import replaces \
+            assignments.",
                 );
                 ui.small("Choose the MIDI input locally on each computer.");
                 if let Some(notice) = &self.midi.notice {
@@ -551,7 +562,8 @@ impl App {
                     ui.colored_label(egui::Color32::LIGHT_RED, error);
                 }
                 ui.separator();
-                ui.label("Choose a parameter, click Learn, then move a controller knob or fader.");
+                ui.label("Choose a parameter, click Learn, then move a controller \
+            knob or fader.");
                 ui.label("Buttons use a CC value of 64-127 to press, 0-63 to release.");
                 ui.horizontal(|ui| {
                     ui.label("Filter:");
@@ -620,9 +632,11 @@ impl App {
                     });
                 ui.separator();
                 ui.label(
-                    "Suggested faders 1-4: four mixer levels; 5-8: four delay sends; 9: master.",
+                    "Suggested faders 1-4: four mixer levels; 5-8: four delay \
+            sends; 9: master.",
                 );
-                ui.label("No factory CC preset is assumed: MIDI Learn follows your UC-33e setup.");
+                ui.label("No factory CC preset is assumed: MIDI Learn follows your \
+            UC-33e setup.");
             });
         self.midi.open = open;
         if !open {

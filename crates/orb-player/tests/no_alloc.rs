@@ -108,6 +108,31 @@ fn the_callback_does_not_allocate() {
     send(&mut p, Command::Play);
     events += render(&mut a, &mut buf, 40);
     assert!(p.snapshot().playing && p.snapshot().generation == 1);
+    let ir = orb_engine::studio::convolution::synthetic(0, 0.15);
+    let convolver = || Box::new(orb_engine::studio::convolution::Convolver::new(&ir).unwrap());
+    let mut studio = Box::new(orb_engine::studio::Studio::new(convolver()));
+    studio.settings.sends = [0.3; 4];
+    for (i, lane) in studio.settings.lanes.iter_mut().enumerate() {
+        lane.mode = [orb_engine::studio::sampler::Mode::OneShot,
+            orb_engine::studio::sampler::Mode::AutoCut, orb_engine::studio::sampler::Mode::Gate,
+            orb_engine::studio::sampler::Mode::Loop][i % 4];
+        lane.steps[0] = 100;
+        lane.steps[3] = 80;
+        lane.send = 0.2;
+        studio.sampler.waves[i] = Some(Box::new(orb_engine::studio::audio_file::Wave {
+            frames: vec![[0.03; 2]; 8000],
+        }));
+    }
+    send(&mut p, Command::Studio(studio));
+    send(&mut p, Command::Locate(0));
+    events += render(&mut a, &mut buf, 32);
+    for _ in 0..3 {
+        send(&mut p, Command::StudioReverb(convolver()));
+        events += render(&mut a, &mut buf, 1);
+    }
+    send(&mut p, Command::StudioWave { lane: 0, wave: None });
+    send(&mut p, Command::StudioSettings(Box::default()));
+    events += render(&mut a, &mut buf, 8);
     let mixer = |ctrl, value| Command::Param {
         device: Device::Mixer,
         ctrl,

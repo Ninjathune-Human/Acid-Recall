@@ -455,7 +455,8 @@ impl Browser {
             self.finish(p, settings)
         } else if p.is_file() {
             self.error = Some(format!(
-                "{text} is a file; type its name in the Name field, or enter a folder here."
+                "{text} is a file; type its name in the Name field, or enter \
+            a folder here."
             ));
             Poll::Open
         } else {
@@ -501,7 +502,9 @@ impl Browser {
                 if self.studio {
                     return Ok(self.dir.join(Path::new(name).with_extension("orb338")));
                 }
-                if ext.is_some_and(|e| e.eq_ignore_ascii_case("rbs") || e.eq_ignore_ascii_case("orb338")) {
+                if ext.is_some_and(|e| {
+                    e.eq_ignore_ascii_case("rbs") || e.eq_ignore_ascii_case("orb338")
+                }) {
                     name.to_string()
                 } else {
                     format!("{name}.rbs")
@@ -1072,4 +1075,3 @@ fn human_size(n: u64) -> String {
         format!("{:.1} MB", n as f64 / 1e6)
     }
 }
-

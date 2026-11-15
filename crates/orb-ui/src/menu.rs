@@ -568,6 +568,7 @@ impl App {
             self.mod_opened();
         }
         self.settled = true;
+        self.settlement = self.settlement.wrapping_add(1);
         self.reset_studio();
         self.doc = Document {
             source,

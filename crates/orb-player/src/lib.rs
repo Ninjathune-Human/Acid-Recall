@@ -550,6 +550,14 @@ impl Player {
     /// past it).
     pub fn send(&mut self, c: Command) -> Result<(), Command> {
         self.collect_garbage();
+        let settings = match &c {
+            Command::StudioSettings(s) => Some(&**s),
+            Command::Studio(s) => Some(&*s.settings),
+            _ => None,
+        };
+        if settings.is_some_and(|s| s.lanes.iter().any(|l| l.steps.len() != 1024)) {
+            return Err(c);
+        }
         if let Command::DeviceData { device, payload } = &c
             && payload.len() != device.data_len()
         {
@@ -730,8 +738,14 @@ impl Audio {
                     self.current.play();
                 }
             }
-            Command::Stop => self.target().stop(),
-            Command::Locate(t) => self.target().locate(t),
+            Command::Stop => {
+                self.target().stop();
+                if let Some(studio) = &mut self.current.frame.studio { studio.sampler.stop(); }
+            }
+            Command::Locate(t) => {
+                self.target().locate(t);
+                if let Some(studio) = &mut self.current.frame.studio { studio.sampler.stop(); }
+            }
             Command::SongMode(on) => self.target().set_song_mode(on as u8),
             Command::Record(on) => self.target().set_record(on as u8),
             Command::LoopOn(on) => self.target().set_loop_on(on as u8),

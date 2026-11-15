@@ -222,7 +222,8 @@ impl App {
                     view.scale,
                 )
                 .on_hover_text(
-                    "LINK TB: generate both bass lines in one key, with shared length and tuning.",
+                    "LINK TB: generate both bass lines in one key, with shared \
+            length and tuning.",
                 );
                 if response.clicked() {
                     self.generator.options.link_tb = !self.generator.options.link_tb;
@@ -274,7 +275,8 @@ impl App {
                 });
                 ui.checkbox(&mut o.link_tb, "LINK TB - two complementary lines");
                 ui.small(
-                    "Linked TBs use the clicked TB's length and tuning, in the selected key/scale.",
+                    "Linked TBs use the clicked TB's length and tuning, in the \
+            selected key/scale.",
                 );
                 ui.add(egui::Slider::new(&mut o.density, 0..=100).text("Notes (%)"));
                 ui.add(egui::Slider::new(&mut o.accents, 0..=100).text("Accents (%)"));

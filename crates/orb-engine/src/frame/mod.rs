@@ -111,7 +111,8 @@ impl std::fmt::Display for Fault {
         match self {
             Fault::PcfZeroLength { wave } => write!(
                 f,
-                "the PCF's wave {wave} has pattern length 0 and divides by zero (0x10016811)"
+                "the PCF's wave {wave} has pattern length 0 and divides by \
+            zero (0x10016811)"
             ),
         }
     }
@@ -936,7 +937,6 @@ impl Frame {
             self.stack_word = Some(self.devices.mixer.live.comp_id as i32);
         }
         self.state.counter = self.state.counter.wrapping_add(1);
-        let studio_tick = self.seq.pos;
         if let Some(studio) = &mut self.studio { studio.begin(); }
         if self.seq.tick(&mut self.devices) {
             // 0x1001F3B3: the tempo (globals +4) the step loop passes, into its local there
@@ -1036,8 +1036,9 @@ impl Frame {
         self.devices.delay.process(&mut self.state.send, l, r, &ctx);
         self.stack_word = self.devices.delay.stack_word(self.out_end, self.stack_word);
         if let Some(studio) = &mut self.studio {
-            let advance = (self.seq.pos - studio_tick).max(0.0) / BLOCK as f64;
-            studio.process(studio_tick, advance, self.seq.globals.play != 0, l, r);
+            let advance = f64::from(self.seq.globals.tempo)
+                * f64::from_bits(0x3ED3_7A72_81B2_2126) / BLOCK as f64;
+            studio.process(self.seq.pos, advance, self.seq.globals.play != 0, l, r);
         }
         // 0x10013883: the compressor on the master
         if self.state.master_comp {

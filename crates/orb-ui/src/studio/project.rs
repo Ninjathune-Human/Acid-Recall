@@ -11,11 +11,11 @@ const MAX_BYTES: usize = 256 * 1024 * 1024;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Metadata {
-    pub settings: Settings,
     pub names: [String; 8],
     pub ir_name: String,
-    pub sidechain: crate::sidechain::Settings,
     pub closed_hat: Option<u8>,
+    pub sidechain: crate::sidechain::Settings,
+    pub settings: Settings,
 }
 
 #[derive(Clone)]

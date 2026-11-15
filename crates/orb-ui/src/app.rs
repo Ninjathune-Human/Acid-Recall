@@ -113,6 +113,7 @@ impl Shot {
 }
 
 pub struct App {
+    pub(crate) settlement: u64,
     pub studio: crate::studio::StudioUi,
     pub panel: Panel,
     /// The player the panel drives (task-045); without one the model's events pile up in
@@ -216,6 +217,7 @@ impl App {
     pub fn new(panel: Panel, shot: Option<Shot>) -> Self {
         Self {
             studio: crate::studio::StudioUi::default(),
+            settlement: 0,
             panel,
             link: None,
             samples: None,
@@ -599,6 +601,13 @@ impl App {
     pub fn show(&mut self, ui: &mut Ui) {
         self.studio.context = ui.ctx().clone();
         self.studio_poll(ui.ctx());
+        if self.studio.opening {
+            egui::Modal::new(egui::Id::unique("studio-opening")).show(ui.ctx(), |ui| {
+                ui.heading("Opening Studio project");
+                ui.horizontal(|ui| { ui.spinner(); ui.label("Preparing samples and impulse response..."); });
+            });
+            return;
+        }
         self.check_audio();
         self.midi_tick(ui.ctx());
         // The theme is always dark (task-127): the colors of the windows assume it. Set on
@@ -673,6 +682,14 @@ impl App {
         let ctls = std::mem::take(&mut self.ctls);
         for c in &ctls {
             if self.studio.modern && c.x >= 526.0 && c.y >= 148.0 { continue; }
+            if self.studio.modern && c.section.starts_with("mixer")
+                && let Some(index) = ["dist", "pcf", "comp"].iter().position(|&id| id == c.name()) {
+                let mut compact = c.clone();
+                compact.y = c.y - [112.0, 128.0, 144.0][index] + 114.0 + index as f32 * 12.0;
+                compact.h = 10.0;
+                self.control(ui, &view, &compact, now);
+                continue;
+            }
             self.control(ui, &view, c, now);
         }
         self.ctls = ctls;

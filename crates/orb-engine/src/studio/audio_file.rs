@@ -9,18 +9,26 @@ pub struct Wave {
 }
 
 fn word(b: &[u8], at: usize, n: usize, big: bool) -> Result<u64, String> {
-    let s = b.get(at..at.checked_add(n).ok_or("Invalid audio offset")?)
+    let s = b
+        .get(at..at.checked_add(n).ok_or("Invalid audio offset")?)
         .ok_or("Truncated audio file")?;
-    Ok(if big { s.iter().fold(0, |v, &x| (v << 8) | u64::from(x)) }
-    else { s.iter().rev().fold(0, |v, &x| (v << 8) | u64::from(x)) })
+    Ok(if big {
+        s.iter().fold(0, |v, &x| (v << 8) | u64::from(x))
+    } else {
+        s.iter().rev().fold(0, |v, &x| (v << 8) | u64::from(x))
+    })
 }
 
 impl Wave {
     pub fn decode(bytes: &[u8]) -> Result<Self, String> {
-        if bytes.len() > 256 * 1024 * 1024 { return Err("Audio file exceeds 256 MiB".into()); }
+        if bytes.len() > 256 * 1024 * 1024 {
+            return Err("Audio file exceeds 256 MiB".into());
+        }
         let wav = bytes.get(..4) == Some(b"RIFF") && bytes.get(8..12) == Some(b"WAVE");
         let aiff = bytes.get(..4) == Some(b"FORM") && bytes.get(8..12) == Some(b"AIFF");
-        if !wav && !aiff { return Err("Choose a PCM/float WAV or uncompressed AIFF file".into()); }
+        if !wav && !aiff {
+            return Err("Choose a PCM/float WAV or uncompressed AIFF file".into());
+        }
         let mut channels = 0usize;
         let mut bits = 0usize;
         let mut rate = 0usize;
@@ -28,11 +36,15 @@ impl Wave {
         let mut data = None;
         let mut at = 12usize;
         let declared = word(bytes, 4, 4, aiff)? as usize + 8;
-        if declared > bytes.len() { return Err("Truncated RIFF/FORM container".into()); }
+        if declared > bytes.len() {
+            return Err("Truncated RIFF/FORM container".into());
+        }
         while at + 8 <= declared {
             let len = word(bytes, at + 4, 4, aiff)? as usize;
             let end = at.checked_add(8 + len).ok_or("Invalid audio chunk")?;
-            if end > declared { return Err("Truncated audio chunk".into()); }
+            if end > declared {
+                return Err("Truncated audio chunk".into());
+            }
             let chunk = &bytes[at + 8..end];
             match &bytes[at..at + 4] {
                 b"fmt " if wav => {
@@ -40,8 +52,12 @@ impl Wave {
                     channels = word(chunk, 2, 2, false)? as usize;
                     rate = word(chunk, 4, 4, false)? as usize;
                     bits = word(chunk, 14, 2, false)? as usize;
-                    if format == 0xfffe { format = word(chunk, 24, 2, false)?; }
-                    if format != 1 && format != 3 { return Err("Compressed WAV is unsupported".into()); }
+                    if format == 0xfffe {
+                        format = word(chunk, 24, 2, false)?;
+                    }
+                    if format != 1 && format != 3 {
+                        return Err("Compressed WAV is unsupported".into());
+                    }
                     float = format == 3;
                     if word(chunk, 12, 2, false)? as usize != channels * bits.div_ceil(8) {
                         return Err("Invalid WAV block alignment".into());
@@ -67,17 +83,22 @@ impl Wave {
             }
             at = end + (len & 1);
         }
-        if !(1..=2).contains(&channels) || !(8000..=192000).contains(&rate)
+        if !(1..=2).contains(&channels)
+            || !(8000..=192000).contains(&rate)
             || !matches!(bits, 8 | 16 | 24 | 32 | 64)
-            || (float && !matches!(bits, 32 | 64)) || (!float && bits == 64) {
+            || (float && !matches!(bits, 32 | 64))
+            || (!float && bits == 64)
+        {
             return Err("Use mono/stereo PCM 8/16/24/32-bit or float 32/64-bit audio".into());
         }
         let data = data.ok_or("Audio file has no sound data")?;
         let width = bits / 8;
         let stride = width * channels;
         let count = data.len() / stride;
-        if count == 0 || !data.len().is_multiple_of(stride)
-            || count as u64 * RATE as u64 > MAX_FRAMES as u64 * rate as u64 {
+        if count == 0
+            || !data.len().is_multiple_of(stride)
+            || count as u64 * RATE as u64 > MAX_FRAMES as u64 * rate as u64
+        {
             return Err("Sample must contain audio and be no longer than 180 seconds".into());
         }
         let mut input = Vec::with_capacity(count);
@@ -86,18 +107,30 @@ impl Wave {
             for (c, value) in frame.iter_mut().enumerate().take(channels) {
                 let raw = word(data, i * stride + c * width, width, aiff)?;
                 let x = if float {
-                    if bits == 32 { f64::from(f32::from_bits(raw as u32)) }
-                    else { f64::from_bits(raw) }
-                } else if bits == 8 && wav { (raw as f64 - 128.0) / 128.0 }
-                else { ((raw << (64 - bits)) as i64 >> (64 - bits)) as f64
-                    / (1u64 << (bits - 1)) as f64 };
-                if !x.is_finite() { return Err("Sample contains NaN or infinite audio".into()); }
+                    if bits == 32 {
+                        f64::from(f32::from_bits(raw as u32))
+                    } else {
+                        f64::from_bits(raw)
+                    }
+                } else if bits == 8 && wav {
+                    (raw as f64 - 128.0) / 128.0
+                } else {
+                    ((raw << (64 - bits)) as i64 >> (64 - bits)) as f64
+                        / (1u64 << (bits - 1)) as f64
+                };
+                if !x.is_finite() {
+                    return Err("Sample contains NaN or infinite audio".into());
+                }
                 *value = x.clamp(-8.0, 8.0) as f32;
             }
-            if channels == 1 { frame[1] = frame[0]; }
+            if channels == 1 {
+                frame[1] = frame[0];
+            }
             input.push(frame);
         }
-        if rate == RATE { return Ok(Self { frames: input }); }
+        if rate == RATE {
+            return Ok(Self { frames: input });
+        }
         let count = (input.len() as u64 * RATE as u64 / rate as u64) as usize;
         let mut frames = Vec::with_capacity(count);
         let cutoff = (RATE as f64 / rate as f64).min(1.0) * 0.95;
@@ -108,9 +141,12 @@ impl Wave {
             let mut norm = 0.0;
             for tap in -31..=32 {
                 let distance = (center + tap) as f64 - position;
-                let w = sinc(distance * cutoff) * (0.5 + 0.5 * (distance * std::f64::consts::PI / 33.0).cos());
+                let w = sinc(distance * cutoff)
+                    * (0.5 + 0.5 * (distance * std::f64::consts::PI / 33.0).cos());
                 let index = (center + tap).clamp(0, input.len() as isize - 1) as usize;
-                for c in 0..2 { sum[c] += f64::from(input[index][c]) * w; }
+                for c in 0..2 {
+                    sum[c] += f64::from(input[index][c]) * w;
+                }
                 norm += w;
             }
             frames.push(sum.map(|x| (x / norm) as f32));
@@ -120,8 +156,12 @@ impl Wave {
 }
 
 pub(super) fn sinc(x: f64) -> f64 {
-    if x.abs() < 1e-12 { 1.0 }
-    else { let a = x * std::f64::consts::PI; a.sin() / a }
+    if x.abs() < 1e-12 {
+        1.0
+    } else {
+        let a = x * std::f64::consts::PI;
+        a.sin() / a
+    }
 }
 
 #[cfg(test)]
@@ -150,6 +190,8 @@ mod tests {
         assert_eq!(w.frames[0], [-1.0; 2]);
         assert_eq!(w.frames[1], [32767.0 / 32768.0; 2]);
         assert!(Wave::decode(&wav(32, 3, &f32::NAN.to_le_bytes())).is_err());
-        for n in 0..44 { assert!(Wave::decode(&wav(16, 1, &[0, 0])[..n]).is_err()); }
+        for n in 0..44 {
+            assert!(Wave::decode(&wav(16, 1, &[0, 0])[..n]).is_err());
+        }
     }
 }

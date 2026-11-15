@@ -10,7 +10,6 @@ use sampler::{LANES, Lane, Sampler};
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Settings {
-    pub lanes: [Lane; LANES],
     pub sends: [f64; 4],
     pub enabled: bool,
     pub return_gain: f64,
@@ -18,6 +17,7 @@ pub struct Settings {
     pub low_cut: f64,
     pub high_cut: f64,
     pub width: f64,
+    pub lanes: [Lane; LANES],
 }
 
 impl Default for Settings {

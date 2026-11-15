@@ -159,7 +159,6 @@ fn usage(e: Exit) -> ! {
         }
     }
 }
-
 /// Gives a GUI-subsystem process the console of the program that started it (task-111).
 ///
 /// Such a process has no console, so `eprintln!` (the usage text, a song that does not open, the
