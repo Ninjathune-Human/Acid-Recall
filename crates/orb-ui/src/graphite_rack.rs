@@ -36,14 +36,20 @@ mod tests {
         app.studio.modern = true;
         app.menu = true;
         let mut menu_bottom = 0.0;
-        let mut output = ctx.run_ui(egui::RawInput {
-            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(WIDTH, HEIGHT))),
-            ..Default::default()
-        }, |ui| {
-            app.show(ui);
-            menu_bottom = ui.cursor().top();
-        });
-        assert!(menu_bottom < 70.0, "The menu must remain at the top of its parent UI");
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(WIDTH, HEIGHT))),
+                ..Default::default()
+            },
+            |ui| {
+                app.show(ui);
+                menu_bottom = ui.cursor().top();
+            },
+        );
+        assert!(
+            menu_bottom < 70.0,
+            "The menu must remain at the top of its parent UI"
+        );
         output.textures_delta.clear();
     }
 

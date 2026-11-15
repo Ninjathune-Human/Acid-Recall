@@ -664,22 +664,31 @@ impl App {
 
         if self.studio.modern {
             let enabled = self.browser.is_none() && self.prompt.is_none() && !self.error_open();
-            let mut rack_ui = ui.new_child(egui::UiBuilder::new().max_rect(avail).id_salt("native-rack"));
+            let mut rack_ui = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(avail)
+                    .id_salt("native-rack"),
+            );
             rack_ui.add_enabled_ui(enabled, |ui| {
-                egui::ScrollArea::both().id_salt("rack-viewport").auto_shrink([false, false])
+                egui::ScrollArea::both()
+                    .id_salt("rack-viewport")
+                    .auto_shrink([false, false])
                     .show(ui, |ui| {
-                let size = Vec2::new(ui.available_width().max(1584.0), ui.available_height().max(990.0));
-                let (canvas, _) = ui.allocate_exact_size(size, Sense::hover());
-                let (sampler, fx) = self.graphite_rack(ui, canvas);
-                self.graphite_sampler(ui, sampler);
-                self.graphite_fx(ui, fx);
-                for (row, rect) in crate::graphite_rack::sidechain_areas(canvas)
-                    .into_iter()
-                    .enumerate()
-                {
-                    self.graphite_sidechain(ui, rect, row);
-                }
-                });
+                        let size = Vec2::new(
+                            ui.available_width().max(1584.0),
+                            ui.available_height().max(990.0),
+                        );
+                        let (canvas, _) = ui.allocate_exact_size(size, Sense::hover());
+                        let (sampler, fx) = self.graphite_rack(ui, canvas);
+                        self.graphite_sampler(ui, sampler);
+                        self.graphite_fx(ui, fx);
+                        for (row, rect) in crate::graphite_rack::sidechain_areas(canvas)
+                            .into_iter()
+                            .enumerate()
+                        {
+                            self.graphite_sidechain(ui, rect, row);
+                        }
+                    });
             });
         } else {
             for (name, x, y) in layout::backgrounds() {
