@@ -337,6 +337,7 @@ impl Link {
     pub fn new(tables: Arc<Tables>, samples: Option<Arc<SampleSet>>) -> (Link, Audio) {
         let kit = samples.clone();
         let (player, mut audio) = Player::new(tables, samples);
+        audio.set_independent_hats(true);
         // the new empty song's patterns, as its constructor made them
         let patterns = std::array::from_fn(|c| {
             audio.current_mut().frame.devices.channels[c]

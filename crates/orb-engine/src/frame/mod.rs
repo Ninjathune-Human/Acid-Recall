@@ -254,6 +254,7 @@ pub trait SongDevice: Send {
 
 /// A mixer channel's sound source: TB-303 #1, #2, TR-808 or TR-909.
 pub trait ChannelDevice: SongDevice {
+    fn set_independent_hats(&mut self, _independent: bool) {}
     /// Optional extension: a separate closed-hat level, None for the legacy shared control.
     fn set_closed_hat_level(&mut self, _level: Option<u8>) {}
     fn closed_hat_level(&self) -> u8 {
@@ -785,6 +786,8 @@ pub struct EngineState {
 
 /// The mixer and its devices: everything one block touches.
 pub struct Frame {
+    /// Desktop extension: CH and OH have independent voices and levels.
+    pub independent_hats: bool,
     /// Optional Studio instruments/effects, prepared outside the audio callback.
     pub studio: Option<Box<crate::studio::Studio>>,
     /// Optional TB ducking; the default state preserves the original rendering exactly.
@@ -847,6 +850,7 @@ fn meter_byte(x: f64, full: bool) -> u8 {
 impl Frame {
     pub fn new(tables: Arc<Tables>, devices: Devices) -> Self {
         Frame {
+            independent_hats: false,
             studio: None,
             sidechain: crate::sidechain::Ducker::default(),
             state: MixerState::default(),
@@ -929,6 +933,9 @@ impl Frame {
     /// [`Fault`] ends it where the original's exception does, right after the faulting insert:
     /// the rest of the block (later channels, the send, the master) does not run.
     pub fn block(&mut self, l: &mut Block, r: &mut Block) -> Result<(), Fault> {
+        if self.independent_hats {
+            for channel in &mut self.devices.channels[2..] { channel.set_independent_hats(true); }
+        }
         self.blocks += 1;
         if self.state.counter & (UPDATE_PERIOD - 1) == 0 {
             self.mixer_update();

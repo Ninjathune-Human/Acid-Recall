@@ -13,8 +13,11 @@ use sampler::{LANES, Lane, Sampler};
 
 pub(super) fn smooth(value: &mut f64, target: f64, factor: f64) {
     let delta = target - *value;
-    if delta.abs() < 1e-12 { *value = target; }
-    else { *value += delta * factor; }
+    if delta.abs() < 1e-12 {
+        *value = target;
+    } else {
+        *value += delta * factor;
+    }
 }
 
 fn clean(value: f64) -> f64 {
@@ -80,6 +83,7 @@ pub struct Studio {
     low_state: [f64; 2],
     smooth_sends: [f64; 4],
     smooth_return: f64,
+    wet_remaining: usize,
 }
 
 impl Studio {
@@ -100,6 +104,7 @@ impl Studio {
             low_state: [0.0; 2],
             smooth_sends: [0.0; 4],
             smooth_return: 0.0,
+            wet_remaining: 0,
         }
     }
 
@@ -183,7 +188,14 @@ impl Studio {
             }
         }
         let mut wet = [[0.0; 64]; 2];
-        self.convolver.process(&self.send, &mut wet);
+        if self.send.iter().flatten().any(|&x| x != 0.0) {
+            // Include the maximum supported IR and partition padding before sleeping.
+            self.wet_remaining = 6 * 44100 + 4096;
+        }
+        if self.wet_remaining > 0 {
+            self.convolver.process(&self.send, &mut wet);
+            self.wet_remaining = self.wet_remaining.saturating_sub(64);
+        }
         if self.fade > 0 {
             let mut old = [[0.0; 64]; 2];
             if let Some(previous) = &mut self.previous {

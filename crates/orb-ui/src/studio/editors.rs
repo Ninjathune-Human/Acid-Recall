@@ -163,8 +163,15 @@ impl App {
                 });
                 ui.label(&self.studio.ir_name);
                 if let Some(ir) = &self.studio.ir {
-                    waveform(ui, &ir.frames, 70.0, 0.0, 1.0, self.studio.waveform_epoch,
-                        &mut self.studio.wave_views[8]);
+                    waveform(
+                        ui,
+                        &ir.frames,
+                        70.0,
+                        0.0,
+                        1.0,
+                        self.studio.waveform_epoch,
+                        &mut self.studio.wave_views[8],
+                    );
                 }
                 ui.add_enabled_ui(!busy, |ui| {
                     ui.horizontal(|ui| {
@@ -448,8 +455,8 @@ impl App {
                     ));
                 } else {
                     ui.label(
-                        "Load a WAV or AIFF. Click steps to sequence; right-click a \
-            step for velocity.",
+                        "Load WAV, AIFF or MP3. Click steps to sequence; \
+                         right-click for velocity.",
                     );
                 }
                 ui.horizontal(|ui| {
@@ -627,8 +634,15 @@ impl App {
     }
 }
 
-fn waveform(ui: &mut Ui, frames: &[[f32; 2]], height: f32, start: f64, end: f64, epoch: u64,
-    cache: &mut super::WaveformCache) {
+fn waveform(
+    ui: &mut Ui,
+    frames: &[[f32; 2]],
+    height: f32,
+    start: f64,
+    end: f64,
+    epoch: u64,
+    cache: &mut super::WaveformCache,
+) {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::hover());
     ui.painter().rect_filled(rect, 4.0, Color32::from_gray(17));
     if frames.is_empty() {

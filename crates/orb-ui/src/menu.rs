@@ -801,6 +801,7 @@ impl App {
             let mut r = Renderer::new(mods);
             r.sidechain = sidechain;
             r.closed_hat_level = closed_hat_level;
+            r.independent_hats = true;
             if let Some(studio) = studio {
                 match studio.prepare() {
                     Ok(prepared) => r.studio = Some(prepared),

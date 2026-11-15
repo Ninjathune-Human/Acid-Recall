@@ -121,3 +121,15 @@ fn loop_seam_preserves_duration_and_mute_reaches_exact_silence() {
             .all(|&x| x == 0.0)
     );
 }
+
+#[test]
+fn native_pitch_reads_pcm_without_resampling() {
+    let (mut sampler, mut lanes) = setup(Mode::OneShot);
+    lanes[0].gain = 1.0;
+    sampler.gains[0] = [1.0; 2];
+    sampler.audition(0);
+    block(&mut sampler, &lanes, 0.0, false);
+    let out = block(&mut sampler, &lanes, 0.0, false);
+    assert!(out[0].iter().all(|&x| x == f64::from(0.2f32)));
+    assert!(out[1].iter().all(|&x| x == f64::from(-0.1f32)));
+}

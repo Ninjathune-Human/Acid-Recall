@@ -443,6 +443,7 @@ pub struct Player {
 
 /// The callback side.
 pub struct Audio {
+    independent_hats: bool,
     closed_hat_level: Option<u8>,
     sidechain: orb_engine::sidechain::Config,
     current: Box<Engine>,
@@ -484,6 +485,7 @@ impl Player {
         let (si, so) = triple_buffer::triple_buffer(&Snapshot::default());
         let (ti, to) = triple_buffer::triple_buffer(&Tracks::default());
         let mut audio = Audio {
+            independent_hats: false,
             closed_hat_level: None,
             sidechain: orb_engine::sidechain::Config::default(),
             current,
@@ -623,6 +625,15 @@ impl Player {
 }
 
 impl Audio {
+    /// Configure before handing Audio to its callback; retained across song changes.
+    pub fn set_independent_hats(&mut self, independent: bool) {
+        self.independent_hats = independent;
+        self.current.frame.independent_hats = independent;
+        for channel in &mut self.current.frame.devices.channels[2..] {
+            channel.set_independent_hats(independent);
+        }
+        if let Some(pending) = &mut self.pending { pending.frame.independent_hats = independent; }
+    }
     /// Fills `out` (interleaved stereo int16 at 44.1 kHz, `out.len() / 2` frames) with the
     /// engine's output, running an engine call whenever the last one is used up.
     pub fn render_i16(&mut self, out: &mut [i16]) {
@@ -887,7 +898,11 @@ impl Audio {
     /// only the delay's refill of the shared line outlives the song) and the new song becomes
     /// current (`sub_1001BD24`).
     fn activate(&mut self, mut new: Box<Engine>) {
+        new.frame.independent_hats = self.independent_hats;
         new.frame.devices.channels[3].set_closed_hat_level(self.closed_hat_level);
+        for channel in &mut new.frame.devices.channels[2..] {
+            channel.set_independent_hats(self.independent_hats);
+        }
         new.frame.sidechain.set_config(self.sidechain);
         if let Some(old) = self.pending.take() {
             self.throw(Garbage::Engine(old));

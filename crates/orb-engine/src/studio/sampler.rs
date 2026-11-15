@@ -295,17 +295,17 @@ impl Sampler {
                         let weights =
                             &self.table[(lane.pitch + 24) as usize * 256 + phase.min(255)];
                         let mut value = [0.0; 2];
-                        if lane.pitch == 0 {
+                        if lane.pitch == 0 && position == center as f64 {
                             value = wave.frames[center as usize].map(f64::from);
                         } else {
-                        for (tap, &weight) in weights.iter().enumerate() {
-                            let index = (center + tap as isize - 7)
-                                .clamp(start as isize, end as isize - 1)
-                                as usize;
-                            for (c, v) in value.iter_mut().enumerate() {
-                                *v += f64::from(wave.frames[index][c]) * weight;
+                            for (tap, &weight) in weights.iter().enumerate() {
+                                let index = (center + tap as isize - 7)
+                                    .clamp(start as isize, end as isize - 1)
+                                    as usize;
+                                for (c, v) in value.iter_mut().enumerate() {
+                                    *v += f64::from(wave.frames[index][c]) * weight;
+                                }
                             }
-                        }
                         }
                         if lane.mode == Mode::Loop && seam > 0.0 {
                             let fade = (voice.position / seam).min(1.0)

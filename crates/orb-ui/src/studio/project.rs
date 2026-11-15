@@ -130,7 +130,7 @@ impl Project {
                 if frame.iter().any(|x| !x.is_finite() || x.abs() > 8.0) {
                     return Err("Invalid embedded audio value".into());
                 }
-                frames.push(frame);
+                frames.push(frame.map(|x| if x.abs() < 1e-20 { 0.0 } else { x }));
             }
             *slot = Some(Arc::new(Wave { frames }));
         }

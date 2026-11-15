@@ -1,9 +1,11 @@
 //! MP3 decoding runs entirely on the import worker. Only decoded PCM reaches the callback.
 
-use std::io::{Cursor, ErrorKind};
-use symphonia::core::{audio::SampleBuffer, codecs::DecoderOptions, errors::Error,
-    formats::FormatOptions, io::MediaSourceStream, meta::MetadataOptions, probe::Hint};
 use super::audio_file::Wave;
+use std::io::{Cursor, ErrorKind};
+use symphonia::core::{
+    audio::SampleBuffer, codecs::DecoderOptions, errors::Error, formats::FormatOptions,
+    io::MediaSourceStream, meta::MetadataOptions, probe::Hint,
+};
 
 pub(super) fn decode(bytes: &[u8]) -> Result<Wave, String> {
     if bytes.len() > 32 * 1024 * 1024 {
@@ -12,7 +14,10 @@ pub(super) fn decode(bytes: &[u8]) -> Result<Wave, String> {
     let stream = MediaSourceStream::new(Box::new(Cursor::new(bytes.to_vec())), Default::default());
     let mut hint = Hint::new();
     hint.with_extension("mp3");
-    let options = FormatOptions { enable_gapless: true, ..Default::default() };
+    let options = FormatOptions {
+        enable_gapless: true,
+        ..Default::default()
+    };
     let probed = symphonia::default::get_probe()
         .format(&hint, stream, &options, &MetadataOptions::default())
         .map_err(|e| format!("Choose a valid WAV, AIFF or MP3: {e}"))?;
@@ -20,7 +25,8 @@ pub(super) fn decode(bytes: &[u8]) -> Result<Wave, String> {
     let track = format.default_track().ok_or("MP3 has no audio track")?;
     let id = track.id;
     let mut decoder = symphonia::default::get_codecs()
-        .make(&track.codec_params, &DecoderOptions::default()).map_err(|e| e.to_string())?;
+        .make(&track.codec_params, &DecoderOptions::default())
+        .map_err(|e| e.to_string())?;
     let mut frames = Vec::new();
     let mut rate = 0;
     let mut channels = 0;
@@ -31,11 +37,18 @@ pub(super) fn decode(bytes: &[u8]) -> Result<Wave, String> {
             Err(Error::IoError(e)) if e.kind() == ErrorKind::UnexpectedEof => break,
             Err(e) => return Err(format!("MP3 read failed: {e}")),
         };
-        while !format.metadata().is_latest() { format.metadata().pop(); }
-        if packet.track_id() != id { continue; }
+        while !format.metadata().is_latest() {
+            format.metadata().pop();
+        }
+        if packet.track_id() != id {
+            continue;
+        }
         let decoded = match decoder.decode(&packet) {
             Ok(decoded) => decoded,
-            Err(Error::DecodeError(_)) if errors < 16 => { errors += 1; continue; }
+            Err(Error::DecodeError(_)) if errors < 16 => {
+                errors += 1;
+                continue;
+            }
             Err(e) => return Err(format!("MP3 decode failed: {e}")),
         };
         let spec = *decoded.spec();
@@ -55,8 +68,16 @@ pub(super) fn decode(bytes: &[u8]) -> Result<Wave, String> {
         }
         for samples in buffer.samples().chunks(channels) {
             let frame = [samples[0], samples[channels - 1]];
-            if frame.iter().any(|x| !x.is_finite()) { return Err("Invalid MP3 audio value".into()); }
-            frames.push(frame.map(|x| if x.abs() < 1e-20 { 0.0 } else { x.clamp(-8.0, 8.0) }));
+            if frame.iter().any(|x| !x.is_finite()) {
+                return Err("Invalid MP3 audio value".into());
+            }
+            frames.push(frame.map(|x| {
+                if x.abs() < 1e-20 {
+                    0.0
+                } else {
+                    x.clamp(-8.0, 8.0)
+                }
+            }));
         }
     }
     Wave::from_frames(frames, rate)

@@ -126,6 +126,7 @@ fn st(x: f64) -> f32 {
 /// A TR-808.
 #[derive(Debug, Clone)]
 pub struct Tr808 {
+    independent_hats: bool,
     /// Optional sidechain event bookkeeping; independent of the original DSP state.
     kicks: u64,
     /// `+4` (CDevice): the tick of the bar the pattern started at (song mode).
@@ -182,6 +183,7 @@ impl Tr808 {
             p[1] = 16;
         }
         Tr808 {
+            independent_hats: false,
             kicks: 0,
             pat_start: 0,
             params: DEFAULT_PARAMS,
@@ -271,8 +273,8 @@ impl Tr808 {
                 let g = st(self.level(((2 * lv[CH_LEVEL] as i32) / 3) as u8, LEVEL_SCALE));
                 let s = self.sample(slot::CH);
                 self.simple[SIMPLE_CH].trigger(s, g, NO_DECAY, 0);
-                for v in &mut self.simple {
-                    v.set_hold(0);
+                for (i, v) in self.simple.iter_mut().enumerate() {
+                    if !self.independent_hats || i != SIMPLE_OH { v.set_hold(0); }
                 }
             }
             _ => {}
@@ -509,6 +511,7 @@ impl SongDevice for Tr808 {
 }
 
 impl ChannelDevice for Tr808 {
+    fn set_independent_hats(&mut self, independent: bool) { self.independent_hats = independent; }
     fn kick_count(&self) -> u64 {
         self.kicks
     }

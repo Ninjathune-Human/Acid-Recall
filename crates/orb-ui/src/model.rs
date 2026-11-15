@@ -1031,7 +1031,7 @@ impl Panel {
         }
     }
 
-    /// Sets a TR-909 step of the selected instrument; a hi-hat step clears the other hi-hat.
+    /// Sets a TR-909 step of the selected instrument. CH and OH are independent lanes.
     pub fn set_step909(&mut self, step: usize, value: u8) {
         self.put_step909(self.inst909, step, value);
     }
@@ -1046,17 +1046,6 @@ impl Panel {
             step,
             value,
         });
-        if value != 0 && (i == 8 || i == 9) {
-            let other = 17 - i;
-            if self.steps909[other][step] != 0 {
-                self.steps909[other][step] = 0;
-                self.emit(Event::Step909 {
-                    instrument: other,
-                    step,
-                    value: 0,
-                });
-            }
-        }
     }
 
     /// The new value a mouse down on a 909 step gives, from the current step and modifiers.
@@ -1458,14 +1447,21 @@ mod tests {
     }
 
     #[test]
-    fn tr909_hihats_exclude_each_other() {
+    fn tr909_hihats_are_independent() {
         let mut p = Panel::new();
         p.inst909 = 8;
         p.set_step909(3, 1);
         p.inst909 = 9;
         p.set_step909(3, 2);
-        assert_eq!(p.steps909[8][3], 0);
+        assert_eq!(p.steps909[8][3], 1);
         assert_eq!(p.steps909[9][3], 2);
+        p.set_step909(3, 0);
+        assert_eq!((p.steps909[8][3], p.steps909[9][3]), (1, 0));
+        for instrument in [10, 11] {
+            p.inst808 = instrument;
+            p.set_step808(3, true);
+        }
+        assert!(p.steps808[10][3] && p.steps808[11][3]);
         p.inst909 = 1;
         assert_eq!(p.step909_new_value(3, Mods::default()), 1);
     }

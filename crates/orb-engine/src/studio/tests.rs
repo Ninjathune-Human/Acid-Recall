@@ -87,8 +87,12 @@ fn fading_states_reach_zero_instead_of_entering_subnormal_arithmetic() {
 
 #[test]
 fn release_long_running_sampler_and_silence_soak() {
-    if cfg!(debug_assertions) { return; }
-    let mut studio = Studio::new(Box::new(Convolver::new(&convolution::synthetic(1, 1.8)).unwrap()));
+    if cfg!(debug_assertions) {
+        return;
+    }
+    let mut studio = Studio::new(Box::new(
+        Convolver::new(&convolution::synthetic(1, 1.8)).unwrap(),
+    ));
     for i in 0..8 {
         studio.sampler.waves[i] = Some(Box::new(audio_file::Wave {
             frames: vec![[0.1, -0.1]; 44100],
@@ -105,7 +109,10 @@ fn release_long_running_sampler_and_silence_soak() {
         studio.process(block as f64 * 0.64, 0.01, playing, &mut left, &mut right);
         assert!(left.iter().chain(&right).all(|x| x.is_finite()));
     }
-    eprintln!("STUDIO_SOAK: 120 seconds audio / {:.3} seconds CPU", start.elapsed().as_secs_f64());
+    eprintln!(
+        "STUDIO_SOAK: 120 seconds audio / {:.3} seconds CPU",
+        start.elapsed().as_secs_f64()
+    );
 }
 
 #[test]

@@ -22,10 +22,7 @@ jobs:
           cache-on-failure: true
       - name: Install formatting toolchain
         run: rustup toolchain install nightly-2026-10-18 --profile minimal --component rustfmt
-      - name: Resolve MP3 decoder dependencies
-        run: cargo check -p orb-engine
       - name: Format check (print any required patch)
-        continue-on-error: true
         shell: pwsh
         run: |
           cargo +nightly-2026-10-18 fmt --all
@@ -82,6 +79,7 @@ jobs:
           Copy-Item docs/graphite.md midi-preview/README-GRAPHITE.md
           Copy-Item docs/sidechain.md midi-preview/README-SIDECHAIN.md
           Copy-Item docs/studio.md midi-preview/README-STUDIO.md
+          Copy-Item docs/LICENSE-SYMPHONIA.txt midi-preview/LICENSE-SYMPHONIA.txt
           foreach ($studioView in @('sampler', 'space')) {
             $studioPreviewPath = 'graphite-preview/' + $studioView + '.png'
             if (Test-Path -LiteralPath $studioPreviewPath) { Copy-Item -LiteralPath $studioPreviewPath -Destination midi-preview/ }

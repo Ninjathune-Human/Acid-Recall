@@ -170,6 +170,7 @@ fn st(x: f64) -> f32 {
 /// A TR-909.
 #[derive(Debug, Clone)]
 pub struct Tr909 {
+    independent_hats: bool,
     closed_hat_level: Option<u8>,
     /// Optional sidechain event bookkeeping; independent of the original DSP state.
     kicks: u64,
@@ -234,6 +235,7 @@ impl Tr909 {
             p[1] = 16;
         }
         Tr909 {
+            independent_hats: false,
             closed_hat_level: None,
             kicks: 0,
             pat_start: 0,
@@ -341,7 +343,7 @@ impl Tr909 {
                 let x4 = x2 * x2;
                 let x8 = x4 * x4;
                 // 0x1002D958: sub_1001E3D0(0.996) on the OH voice
-                self.simple[SIMPLE_OH].set_m(CHOKE);
+                if !self.independent_hats { self.simple[SIMPLE_OH].set_m(CHOKE); }
                 (SIMPLE_CH, C_CH, st(x8))
             }
             _ => (SIMPLE_OH, C_RS_OH, dt),
@@ -613,8 +615,16 @@ impl SongDevice for Tr909 {
 }
 
 impl ChannelDevice for Tr909 {
+    fn set_independent_hats(&mut self, independent: bool) {
+        self.independent_hats = independent;
+        if independent && self.closed_hat_level.is_none() {
+            self.closed_hat_level = Some(self.live[HH_LEVEL]);
+        }
+    }
     fn set_closed_hat_level(&mut self, level: Option<u8>) {
-        self.closed_hat_level = level.map(|v| v.min(127));
+        self.closed_hat_level = level.map(|v| v.min(127)).or_else(|| {
+            self.independent_hats.then(|| self.closed_hat_level.unwrap_or(self.live[HH_LEVEL]))
+        });
     }
     fn closed_hat_level(&self) -> u8 {
         self.closed_hat_level.unwrap_or(self.live[HH_LEVEL])

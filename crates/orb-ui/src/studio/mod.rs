@@ -49,10 +49,13 @@ impl WaveformCache {
         if self.key != Some(key) {
             self.peaks.clear();
             for chunk in frames.chunks(frames.len().div_ceil(2048).max(1)) {
-                self.peaks.push(chunk.iter().flatten().fold(0.0f32, |m, v| m.max(v.abs())));
+                self.peaks
+                    .push(chunk.iter().flatten().fold(0.0f32, |m, v| m.max(v.abs())));
             }
             let maximum = self.peaks.iter().copied().fold(0.0f32, f32::max).max(1e-12);
-            for peak in &mut self.peaks { *peak /= maximum; }
+            for peak in &mut self.peaks {
+                *peak /= maximum;
+            }
             self.key = Some(key);
         }
         &self.peaks
