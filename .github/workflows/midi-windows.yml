@@ -30,7 +30,7 @@ jobs:
       - name: Lint
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Tests
-        run: cargo test --locked -p orb-ui --lib --test sidechain --test theme --test arpeggiator --test generator --test midi_preset --test midi --test settings --test wired --test repaint
+        run: cargo test --locked -p orb-ui --lib --test sidechain --test theme --test arpeggiator --test generator --test midi_preset --test midi --test settings --test wired --test repaint --test menu
       - name: Engine and sidechain regression tests
         run: cargo test --locked -p orb-engine
       - name: Check default skin and render preview
