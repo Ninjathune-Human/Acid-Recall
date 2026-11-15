@@ -153,6 +153,8 @@ pub fn load_mod(path: &Path, builtin: &SampleSet) -> Result<SampleSet, Fail> {
 /// sets: the built-in drum samples (the embedded standard mod's, `rbm::standard`) and one set
 /// per mod file used.
 pub struct Renderer {
+    /// Optional prepared Studio session, consumed by the next offline render.
+    pub studio: Option<Box<orb_engine::studio::Studio>>,
     pub closed_hat_level: Option<u8>,
     /// Optional app extension; the default CLI and reference renders keep it disabled.
     pub sidechain: orb_engine::sidechain::Config,
@@ -164,6 +166,7 @@ pub struct Renderer {
 impl Renderer {
     pub fn new(mods: ModOpts) -> Self {
         Renderer {
+            studio: None,
             closed_hat_level: None,
             sidechain: orb_engine::sidechain::Config::default(),
             tables: Arc::new(Tables::new()),
@@ -179,6 +182,7 @@ impl Renderer {
         let mut engine = Engine::new(self.tables.clone(), Devices::implemented(samples));
         engine.frame.sidechain.set_config(self.sidechain);
         engine.frame.devices.channels[3].set_closed_hat_level(self.closed_hat_level);
+        engine.frame.studio = self.studio.take();
         let samples = export::export_song(&mut engine, song, idle_blocks)
             .map_err(|r| fail(1, format!("{label}: {r}")))?;
         // A render call that faults in the original (the PCF's divide by zero) writes nothing;

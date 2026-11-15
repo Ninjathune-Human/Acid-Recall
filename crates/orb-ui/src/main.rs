@@ -312,6 +312,7 @@ fn main() -> eframe::Result {
             app.samples = app_samples;
             app.audio_health = audio_health;
             app.menu = true;
+            app.studio.modern = true;
             app.enable_logo_anim();
             app.settings = Settings::load();
             // the song (or the new empty song) and its mod's startup sound; nothing in the demo,
@@ -425,3 +426,4 @@ mod tests {
         }
     }
 }
+

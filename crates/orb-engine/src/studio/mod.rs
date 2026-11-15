@@ -8,7 +8,7 @@ pub mod sampler;
 use convolution::Convolver;
 use sampler::{LANES, Lane, Sampler};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Settings {
     pub lanes: [Lane; LANES],
     pub sends: [f64; 4],

@@ -1037,7 +1037,7 @@ impl Frame {
         self.stack_word = self.devices.delay.stack_word(self.out_end, self.stack_word);
         if let Some(studio) = &mut self.studio {
             let advance = (self.seq.pos - studio_tick).max(0.0) / BLOCK as f64;
-            studio.process(studio_tick, advance, self.seq.globals.playing != 0, l, r);
+            studio.process(studio_tick, advance, self.seq.globals.play != 0, l, r);
         }
         // 0x10013883: the compressor on the master
         if self.state.master_comp {

@@ -163,6 +163,7 @@ pub fn targets() -> Vec<(String, Kind)> {
     }
     out.push(("delay.steps".into(), Kind::Number));
     out.push(("pcf.pattern".into(), Kind::Number));
+    out.extend(crate::studio::midi::controls().into_iter().map(|(id, _)| (id, Kind::Knob)));
     out
 }
 
@@ -175,6 +176,9 @@ pub fn kind(id: &str) -> Option<Kind> {
 }
 
 pub fn label(id: &str) -> String {
+    if let Some((_, label)) = crate::studio::midi::controls().into_iter().find(|(target, _)| target == id) {
+        return label;
+    }
     match id {
         "tr909.ch_level" => return "TR-909 / CH level (Closed Hat)".into(),
         "tr909.hh_level" => return "TR-909 / OH level (Open Hat)".into(),

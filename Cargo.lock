@@ -2946,6 +2946,7 @@ dependencies = [
  "orb-testkit",
  "rbm",
  "rbs",
+ "serde",
  "serde_json",
  "sha2",
 ]
@@ -5733,3 +5734,4 @@ dependencies = [
  "syn 3.0.9",
  "winnow 1.0.4",
 ]
+

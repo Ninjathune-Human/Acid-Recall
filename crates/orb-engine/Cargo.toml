@@ -6,6 +6,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+serde = { version = "1", features = ["derive"] }
 rbs = { path = "../rbs" }
 # The tables' transcendentals, pinned so the tables are the same everywhere (task-048).
 libm = "=0.2.16"
@@ -21,3 +22,4 @@ claxon = "0.4.3"
 rbm = { path = "../rbm" }
 # The gated tests' external inputs (task-121): the DLL from the CD image. Another cycle.
 orb-testkit = { path = "../orb-testkit" }
+

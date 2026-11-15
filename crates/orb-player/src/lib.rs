@@ -137,6 +137,7 @@ impl std::fmt::Display for LoadError {
 pub enum Command {
     /// Prepared Studio runtime, settings and assets. All large drops return through Garbage.
     Studio(Box<orb_engine::studio::Studio>),
+    StudioClear,
     StudioSettings(Box<orb_engine::studio::Settings>),
     StudioWave { lane: usize, wave: Option<Box<orb_engine::studio::audio_file::Wave>> },
     StudioReverb(Box<orb_engine::studio::convolution::Convolver>),
@@ -679,6 +680,9 @@ impl Audio {
 
     fn apply(&mut self, c: Command) {
         match c {
+            Command::StudioClear => {
+                if let Some(old) = self.current.frame.studio.take() { self.throw(Garbage::Studio(old)); }
+            }
             Command::Studio(studio) => {
                 if let Some(old) = self.current.frame.studio.replace(studio) {
                     self.throw(Garbage::Studio(old));

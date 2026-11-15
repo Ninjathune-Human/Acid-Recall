@@ -5,12 +5,12 @@ use super::audio_file::{Wave, sinc};
 pub const LANES: usize = 8;
 pub const STEPS: usize = 64 * 16;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Mode { #[default] OneShot, AutoCut, Gate, Loop }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Lane {
-    pub steps: [u8; STEPS],
+    pub steps: Vec<u8>,
     pub bars: u8,
     pub mode: Mode,
     pub muted: bool,
@@ -30,7 +30,7 @@ pub struct Lane {
 
 impl Default for Lane {
     fn default() -> Self {
-        Self { steps: [0; STEPS], bars: 1, mode: Mode::OneShot, muted: false, solo: false,
+        Self { steps: vec![0; STEPS], bars: 1, mode: Mode::OneShot, muted: false, solo: false,
             gain: 0.7, pan: 0.0, pitch: 0, reverse: false, start: 0.0, end: 1.0,
             attack_ms: 1.0, release_ms: 8.0, gate: 0.8, choke: 0, send: 0.0 }
     }
@@ -38,6 +38,7 @@ impl Default for Lane {
 
 impl Lane {
     pub fn sanitize(&mut self) {
+        // Size is validated before settings enter the callback; this does not allocate.
         self.bars = self.bars.clamp(1, 64);
         self.pitch = self.pitch.clamp(-24, 24);
         self.choke = self.choke.min(8);
@@ -156,7 +157,7 @@ impl Sampler {
                 if self.last_step != Some(step) {
                     for (i, lane) in lanes.iter().enumerate() {
                         let position = step.rem_euclid(i64::from(lane.bars) * 16) as usize;
-                        let velocity = lane.steps[position];
+                        let velocity = lane.steps.get(position).copied().unwrap_or(0);
                         if velocity > 0 && !lane.muted && (!solo || lane.solo) {
                             self.trigger(i, velocity, now, lanes);
                         }

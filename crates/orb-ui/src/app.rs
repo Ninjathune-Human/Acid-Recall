@@ -113,6 +113,7 @@ impl Shot {
 }
 
 pub struct App {
+    pub studio: crate::studio::StudioUi,
     pub panel: Panel,
     /// The player the panel drives (task-045); without one the model's events pile up in
     /// `Panel::events`.
@@ -214,6 +215,7 @@ pub struct App {
 impl App {
     pub fn new(panel: Panel, shot: Option<Shot>) -> Self {
         Self {
+            studio: crate::studio::StudioUi::default(),
             panel,
             link: None,
             samples: None,
@@ -271,7 +273,9 @@ impl App {
     /// Opens the file browser for `mode` over the panel (the menu calls this). Ctrl/Cmd+O opens it
     /// for a song.
     pub fn open_browser(&mut self, mode: Mode) {
-        self.browser = Some(Browser::new(mode, &self.settings));
+        let mut browser = Browser::new(mode, &self.settings);
+        if mode == Mode::SaveSong && self.studio.content { browser = browser.with_studio(); }
+        self.browser = Some(browser);
     }
 
     /// Where the open browser drew its part `name` last (for tests; `Browser::hit`).
@@ -593,6 +597,8 @@ impl App {
 
     /// Draws the whole panel in the free area of `ui` and handles the input.
     pub fn show(&mut self, ui: &mut Ui) {
+        self.studio.context = ui.ctx().clone();
+        self.studio_poll(ui.ctx());
         self.check_audio();
         self.midi_tick(ui.ctx());
         // The theme is always dark (task-127): the colors of the windows assume it. Set on
@@ -641,6 +647,7 @@ impl App {
         }
 
         for (name, x, y) in layout::backgrounds() {
+            if self.studio.modern && x == 526.0 && y >= 148.0 { continue; }
             let (w, h) = part_size(name);
             if name == logo_anim::LOGO_PART {
                 // once per app start, from the first frame the logo is drawn
@@ -665,6 +672,7 @@ impl App {
 
         let ctls = std::mem::take(&mut self.ctls);
         for c in &ctls {
+            if self.studio.modern && c.x >= 526.0 && c.y >= 148.0 { continue; }
             self.control(ui, &view, c, now);
         }
         self.ctls = ctls;
@@ -673,6 +681,8 @@ impl App {
         self.generator_buttons(ui, &view);
         self.arpeggiator_buttons(ui, &view);
         self.sidechain_button(ui, &view);
+        self.studio_rack(ui, &view);
+        self.studio_midi();
         self.sync_effects(ui.ctx());
 
         // Send what was done, take what the engine did (the panel follows playback).
@@ -712,6 +722,7 @@ impl App {
         self.generator_ui(&ctx);
         self.arpeggiator_ui(&ctx);
         self.sidechain_ui(&ctx);
+        self.studio_ui(&ctx);
         self.poll_export(&ctx);
         self.update_title(&ctx);
         self.close_if_allowed(&ctx);
