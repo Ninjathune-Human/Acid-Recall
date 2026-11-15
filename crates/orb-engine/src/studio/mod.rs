@@ -3,6 +3,8 @@
 pub mod audio_file;
 pub mod convolution;
 mod fft;
+#[cfg(test)]
+mod tests;
 pub mod sampler;
 
 use convolution::Convolver;
@@ -48,10 +50,12 @@ pub struct Studio {
     pub sampler: Sampler,
     convolver: Box<Convolver>,
     previous: Option<Box<Convolver>>,
+    pending: Option<Box<Convolver>>,
     fade: usize,
     send: [[f64; 64]; 2],
     predelay: Vec<[f64; 2]>,
     delay_position: usize,
+    smooth_delay: f64,
     high_state: [f64; 2],
     low_state: [f64; 2],
     smooth_sends: [f64; 4],
@@ -62,8 +66,8 @@ impl Studio {
     /// Prepare on a worker/UI thread, then transfer the box to the player.
     pub fn new(convolver: Box<Convolver>) -> Self {
         Self { settings: Box::default(), sampler: Sampler::default(), convolver,
-            previous: None, fade: 0, send: [[0.0; 64]; 2],
-            predelay: vec![[0.0; 2]; 16384], delay_position: 0,
+            previous: None, pending: None, fade: 0, send: [[0.0; 64]; 2],
+            predelay: vec![[0.0; 2]; 16384], delay_position: 0, smooth_delay: 18.0 * 44.1,
             high_state: [0.0; 2], low_state: [0.0; 2], smooth_sends: [0.0; 4],
             smooth_return: 0.0 }
     }
@@ -75,12 +79,19 @@ impl Studio {
 
     /// Returns any already-retiring processor to be destroyed on the UI thread.
     pub fn replace_reverb(&mut self, next: Box<Convolver>) -> Option<Box<Convolver>> {
+        if self.fade > 0 || self.pending.is_some() { return self.pending.replace(next); }
         self.fade = 4410;
         self.previous.replace(std::mem::replace(&mut self.convolver, next))
     }
 
     pub fn retired(&mut self) -> Option<Box<Convolver>> {
-        if self.fade == 0 { self.previous.take() } else { None }
+        if self.fade > 0 { return None; }
+        let old = self.previous.take();
+        if let Some(next) = self.pending.take() {
+            self.previous = Some(std::mem::replace(&mut self.convolver, next));
+            self.fade = 4410;
+        }
+        old
     }
 
     pub fn begin(&mut self) { self.send = [[0.0; 64]; 2]; }
@@ -97,12 +108,17 @@ impl Studio {
         let mut dry = [[0.0; 64]; 2];
         self.sampler.process(&self.settings.lanes, tick, ticks_per_frame, playing,
             &mut dry, &mut self.send);
-        let delay = (self.settings.predelay_ms * 44.1).round() as usize;
+        let delay = self.settings.predelay_ms * 44.1;
         let hp = (-std::f64::consts::TAU * self.settings.low_cut / 44100.0).exp();
         let lp = (-std::f64::consts::TAU * self.settings.high_cut / 44100.0).exp();
         for j in 0..64 {
             self.predelay[self.delay_position] = [self.send[0][j], self.send[1][j]];
-            let input = self.predelay[(self.delay_position + 16384 - delay) & 16383];
+            self.smooth_delay += (delay - self.smooth_delay) * 0.001;
+            let whole = self.smooth_delay.floor() as usize;
+            let fraction = self.smooth_delay - whole as f64;
+            let a = self.predelay[(self.delay_position + 16384 - whole) & 16383];
+            let b = self.predelay[(self.delay_position + 16383 - whole) & 16383];
+            let input: [f64; 2] = std::array::from_fn(|c| a[c] * (1.0 - fraction) + b[c] * fraction);
             self.delay_position = (self.delay_position + 1) & 16383;
             for (c, &sample) in input.iter().enumerate() {
                 self.high_state[c] = hp * self.high_state[c] + (1.0 - hp) * sample;

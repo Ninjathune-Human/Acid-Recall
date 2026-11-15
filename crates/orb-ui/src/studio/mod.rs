@@ -1,13 +1,15 @@
 //! Studio UI, asynchronous preparation and portable projects.
 
 mod editors;
+#[cfg(test)]
+mod tests;
 pub mod midi;
 pub mod project;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, mpsc};
 
-use eframe::egui::{self, Context};
+use eframe::egui::Context;
 use orb_engine::studio::{Settings, Studio, audio_file::Wave, convolution::{self, Convolver}};
 use orb_player::Command;
 
@@ -61,6 +63,7 @@ impl Default for StudioUi {
 }
 
 impl StudioUi {
+    pub(crate) fn busy(&self) -> bool { self.worker.is_some() }
     fn work(&mut self, ctx: &Context, job: impl FnOnce() -> Result<Completed, String> + Send + 'static) {
         let (tx, rx) = mpsc::sync_channel(1);
         self.worker = Some(rx);

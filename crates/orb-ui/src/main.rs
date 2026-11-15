@@ -54,11 +54,12 @@ use orb_ui::settings::Settings;
 
 /// The visible help: only the song. The developer options are hidden (task-137).
 const USAGE: &str = "usage: OpenRB-338 [SONG]\n\
-                     SONG is a ReBirth song (.rbs, RBS 4.x or ReBirth 1.x) to open";
+                     SONG is a ReBirth song (.rbs) or a Studio project (.orb338) to open";
 
 /// The command line, parsed.
 #[derive(Debug, PartialEq)]
 struct Args {
+    studio_view: Option<String>,
     demo: bool,
     about: bool,
     info: bool,
@@ -96,6 +97,7 @@ enum Exit {
 /// Parses the arguments after the program name. `-psn_...` (Finder on old macOS) is ignored.
 fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Args, Exit> {
     let mut r = Args {
+        studio_view: None,
         demo: false,
         about: false,
         info: false,
@@ -116,6 +118,13 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Args, Exit> {
             "--about" => r.about = true,
             "--info" => r.info = true,
             "--play" => r.play = true,
+            "--studio-view" => {
+                r.studio_view = Some(match args.next().as_deref() {
+                    Some("sampler") => "sampler".into(),
+                    Some("space") => "space".into(),
+                    _ => return Err(Exit::Bad),
+                });
+            }
             "--debug-panic" => r.debug_panic = Some(DebugPanic::Start),
             "--debug-panic-window" => r.debug_panic = Some(DebugPanic::Window),
             "--debug-panic-thread" => r.debug_panic = Some(DebugPanic::Thread),
@@ -205,6 +214,7 @@ fn main() -> eframe::Result {
     // before anything that can panic: a panic writes a crash log and shows a box (task-157)
     orb_ui::crash::install(orb_ui::about::VERSION);
     let Args {
+        studio_view,
         demo,
         about,
         info,
@@ -235,7 +245,8 @@ fn main() -> eframe::Result {
         app_samples = samples.clone();
         let (l, audio) = Link::new(Arc::new(Tables::new()), samples.clone());
         // The song named on the command line is opened by the app (with its mod).
-        if let Some(path) = &song {
+        if let Some(path) = &song
+            && !path.extension().is_some_and(|e| e.eq_ignore_ascii_case("orb338")) {
             match session::open_song(path) {
                 Ok(o) => startup = Some((path.clone(), o)),
                 // the app starts on the new song, with the error in its message box
@@ -318,11 +329,19 @@ fn main() -> eframe::Result {
             // which has no player
             // (the errors of the start are one box)
             app.action(|app| {
-                app.start(startup);
+                if !demo { app.start(startup); }
+                if let Some(path) = &song
+                    && path.extension().is_some_and(|e| e.eq_ignore_ascii_case("orb338")) {
+                    app.open_now(path);
+                }
                 for e in start_errors {
                     app.fail(e);
                 }
             });
+            if let Some(view) = studio_view {
+                app.studio.sampler_open = view == "sampler";
+                app.studio.reverb_open = view == "space";
+            }
             if let Some(mode) = browse {
                 app.open_browser(mode);
             }

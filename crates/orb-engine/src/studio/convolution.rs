@@ -183,15 +183,18 @@ mod tests {
             *x = [((i * 7 % 19) as f32 - 9.0) * 0.001, (i % 7) as f32 * -0.002];
         }
         let mut convolver = Convolver::new(&ir).unwrap();
-        let signal: Vec<_> = (0..5504)
+        let signal: Vec<_> = (0..15040)
             .map(|i| {
                 if i < 160 {
                     ((i * 13 % 23) as f64 - 11.0) * 0.03
+                } else if [2047, 2048, 4095, 4096, 8193].contains(&i) {
+                    0.2
                 } else {
                     0.0
                 }
             })
             .collect();
+        let events: Vec<_> = signal.iter().copied().enumerate().filter(|(_, x)| *x != 0.0).collect();
         for block in 0..signal.len() / 64 {
             let input = std::array::from_fn(|c| {
                 std::array::from_fn(|j| signal[block * 64 + j] * if c == 0 { 1.0 } else { -0.4 })
@@ -199,13 +202,13 @@ mod tests {
             let mut output = [[0.0; 64]; 2];
             convolver.process(&input, &mut output);
             for c in 0..2 {
-                for j in 0..64 {
+                for (j, &sample) in output[c].iter().enumerate() {
                     let n = block * 64 + j;
-                    let direct: f64 = (0..160.min(n + 1))
-                        .filter_map(|k| ir.get(n - k).map(|h| signal[k] * f64::from(h[c])))
+                    let direct: f64 = events.iter().filter(|(k, _)| *k <= n)
+                        .filter_map(|&(k, x)| ir.get(n - k).map(|h| x * f64::from(h[c])))
                         .sum::<f64>()
                         * if c == 0 { 1.0 } else { -0.4 };
-                    assert!((output[c][j] - direct).abs() < 1e-10, "{n} / {c}");
+                    assert!((sample - direct).abs() < 1e-10, "{n} / {c}");
                 }
             }
         }

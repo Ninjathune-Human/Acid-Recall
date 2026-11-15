@@ -139,7 +139,10 @@ pub enum Command {
     Studio(Box<orb_engine::studio::Studio>),
     StudioClear,
     StudioSettings(Box<orb_engine::studio::Settings>),
-    StudioWave { lane: usize, wave: Option<Box<orb_engine::studio::audio_file::Wave>> },
+    StudioWave {
+        lane: usize,
+        wave: Option<Box<orb_engine::studio::audio_file::Wave>>,
+    },
     StudioReverb(Box<orb_engine::studio::convolution::Convolver>),
     StudioAudition(usize),
     /// Independent closed-hat level; None preserves the legacy shared control.
@@ -173,27 +176,48 @@ pub enum Command {
     /// [`Command::MixerGlobal`] ids 1 and 2, [`Command::MixerChannel`] fields 1..4). The pattern
     /// (controller 1) and the on/off switch (0) of a 303, 808 or 909 are latched by the device
     /// at the next bar line.
-    Param { device: Device, ctrl: u8, value: u8 },
+    Param {
+        device: Device,
+        ctrl: u8,
+        value: u8,
+    },
     /// The mixer's master level (msg 145 `{0,v}`), not a controller.
     Master(u8),
     /// A mixer channel's on/off (mute) switch (msg 147 `{c,0,v}`), not a controller.
-    ChannelEnabled { channel: u8, on: bool },
+    ChannelEnabled {
+        channel: u8,
+        on: bool,
+    },
     /// A device's whole data block (song msg 41, [`Song::device_payload`]): the parameters and
     /// the patterns. It goes into the pattern-mode copy, and live only in pattern mode (so in
     /// pattern mode it also resets the live parameters to the block's: a pattern edit goes as
     /// one of the pattern commands below).
-    DeviceData { device: Device, payload: Box<[u8]> },
+    DeviceData {
+        device: Device,
+        payload: Box<[u8]>,
+    },
     /// The panel's knob or switch message `{ctrl, v}` of a 303, 808, 909 or effect
     /// ([`Engine::device_param`]: 303 msg 41 sub 40, 808 57, 909 74, delay 84, dist 92,
     /// compressor 102, PCF 114). The same as [`Command::Param`] for the controllers slot 11
     /// takes, plus the device's one extra live byte. Ignored for the mixer.
-    DeviceParam { device: Device, ctrl: u8, value: u8 },
+    DeviceParam {
+        device: Device,
+        ctrl: u8,
+        value: u8,
+    },
     /// Mixer msg 145 `{id, v}` ([`Engine::mixer_global`]): 0 the master, 1 the compressor id,
     /// 2 the PCF id.
-    MixerGlobal { id: u8, value: u8 },
+    MixerGlobal {
+        id: u8,
+        value: u8,
+    },
     /// Mixer msg 147 `{c, k, v}` ([`Engine::mixer_channel`]): channel c's field k, 0 enabled,
     /// 1 level, 2 pan, 3 delay send, 4 dist.
-    MixerChannel { channel: u8, field: u8, value: u8 },
+    MixerChannel {
+        channel: u8,
+        field: u8,
+        value: u8,
+    },
     /// A pattern's shuffle flag (field 0) or length (1) ([`Engine::pattern_field`]: 303 sub 42,
     /// 808 59, 909 76).
     PatternField {
@@ -689,7 +713,9 @@ impl Audio {
     fn apply(&mut self, c: Command) {
         match c {
             Command::StudioClear => {
-                if let Some(old) = self.current.frame.studio.take() { self.throw(Garbage::Studio(old)); }
+                if let Some(old) = self.current.frame.studio.take() {
+                    self.throw(Garbage::Studio(old));
+                }
             }
             Command::Studio(studio) => {
                 if let Some(old) = self.current.frame.studio.replace(studio) {
@@ -699,23 +725,37 @@ impl Audio {
             Command::StudioSettings(settings) => {
                 let old = if let Some(studio) = &mut self.current.frame.studio {
                     studio.replace_settings(settings)
-                } else { settings };
+                } else {
+                    settings
+                };
                 self.throw(Garbage::StudioSettings(old));
             }
             Command::StudioWave { lane, wave } => {
-                let old = if lane < 8 && let Some(studio) = &mut self.current.frame.studio {
+                let old = if lane < 8
+                    && let Some(studio) = &mut self.current.frame.studio
+                {
                     studio.sampler.replace(lane, wave)
-                } else { wave };
-                if let Some(old) = old { self.throw(Garbage::StudioWave(old)); }
+                } else {
+                    wave
+                };
+                if let Some(old) = old {
+                    self.throw(Garbage::StudioWave(old));
+                }
             }
             Command::StudioReverb(next) => {
                 let old = if let Some(studio) = &mut self.current.frame.studio {
                     studio.replace_reverb(next)
-                } else { Some(next) };
-                if let Some(old) = old { self.throw(Garbage::StudioReverb(old)); }
+                } else {
+                    Some(next)
+                };
+                if let Some(old) = old {
+                    self.throw(Garbage::StudioReverb(old));
+                }
             }
             Command::StudioAudition(lane) => {
-                if let Some(studio) = &mut self.current.frame.studio { studio.sampler.audition(lane); }
+                if let Some(studio) = &mut self.current.frame.studio {
+                    studio.sampler.audition(lane);
+                }
             }
             Command::ClosedHatLevel(level) => {
                 self.closed_hat_level = level.map(|v| v.min(127));
@@ -740,11 +780,15 @@ impl Audio {
             }
             Command::Stop => {
                 self.target().stop();
-                if let Some(studio) = &mut self.current.frame.studio { studio.sampler.stop(); }
+                if let Some(studio) = &mut self.current.frame.studio {
+                    studio.sampler.stop();
+                }
             }
             Command::Locate(t) => {
                 self.target().locate(t);
-                if let Some(studio) = &mut self.current.frame.studio { studio.sampler.stop(); }
+                if let Some(studio) = &mut self.current.frame.studio {
+                    studio.sampler.stop();
+                }
             }
             Command::SongMode(on) => self.target().set_song_mode(on as u8),
             Command::Record(on) => self.target().set_record(on as u8),
@@ -871,7 +915,9 @@ impl Audio {
     fn make_current(&mut self, mut new: Box<Engine>) {
         if new.frame.studio.is_none() {
             new.frame.studio = self.current.frame.studio.take();
-            if let Some(studio) = &mut new.frame.studio { studio.sampler.stop(); }
+            if let Some(studio) = &mut new.frame.studio {
+                studio.sampler.stop();
+            }
         }
         let old = std::mem::replace(&mut self.current, new);
         self.throw(Garbage::Engine(old));

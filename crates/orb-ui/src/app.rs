@@ -276,7 +276,9 @@ impl App {
     /// for a song.
     pub fn open_browser(&mut self, mode: Mode) {
         let mut browser = Browser::new(mode, &self.settings);
-        if mode == Mode::SaveSong && self.studio.content { browser = browser.with_studio(); }
+        if mode == Mode::SaveSong && self.studio.content {
+            browser = browser.with_studio();
+        }
         self.browser = Some(browser);
     }
 
@@ -604,7 +606,10 @@ impl App {
         if self.studio.opening {
             egui::Modal::new(egui::Id::unique("studio-opening")).show(ui.ctx(), |ui| {
                 ui.heading("Opening Studio project");
-                ui.horizontal(|ui| { ui.spinner(); ui.label("Preparing samples and impulse response..."); });
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label("Preparing samples and impulse response...");
+                });
             });
             return;
         }
@@ -656,7 +661,9 @@ impl App {
         }
 
         for (name, x, y) in layout::backgrounds() {
-            if self.studio.modern && x == 526.0 && y >= 148.0 { continue; }
+            if self.studio.modern && x == 526.0 && y >= 148.0 {
+                continue;
+            }
             let (w, h) = part_size(name);
             if name == logo_anim::LOGO_PART {
                 // once per app start, from the first frame the logo is drawn
@@ -681,9 +688,15 @@ impl App {
 
         let ctls = std::mem::take(&mut self.ctls);
         for c in &ctls {
-            if self.studio.modern && c.x >= 526.0 && c.y >= 148.0 { continue; }
-            if self.studio.modern && c.section.starts_with("mixer")
-                && let Some(index) = ["dist", "pcf", "comp"].iter().position(|&id| id == c.name()) {
+            if self.studio.modern && c.x >= 526.0 && c.y >= 148.0 {
+                continue;
+            }
+            if self.studio.modern
+                && c.section.starts_with("mixer")
+                && let Some(index) = ["dist", "pcf", "comp"]
+                    .iter()
+                    .position(|&id| id == c.name())
+            {
                 let mut compact = c.clone();
                 compact.y = c.y - [112.0, 128.0, 144.0][index] + 114.0 + index as f32 * 12.0;
                 compact.h = 10.0;
@@ -1191,6 +1204,10 @@ impl App {
     /// With `--screenshot`: after a few frames (the SVGs are loaded and rasterized) save the
     /// window to the file and quit.
     fn screenshot(&mut self, ctx: &egui::Context) {
+        if self.studio.busy() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(40));
+            return;
+        }
         let Some(shot) = &mut self.shot else {
             return;
         };

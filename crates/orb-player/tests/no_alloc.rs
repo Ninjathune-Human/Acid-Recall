@@ -113,9 +113,12 @@ fn the_callback_does_not_allocate() {
     let mut studio = Box::new(orb_engine::studio::Studio::new(convolver()));
     studio.settings.sends = [0.3; 4];
     for (i, lane) in studio.settings.lanes.iter_mut().enumerate() {
-        lane.mode = [orb_engine::studio::sampler::Mode::OneShot,
-            orb_engine::studio::sampler::Mode::AutoCut, orb_engine::studio::sampler::Mode::Gate,
-            orb_engine::studio::sampler::Mode::Loop][i % 4];
+        lane.mode = [
+            orb_engine::studio::sampler::Mode::OneShot,
+            orb_engine::studio::sampler::Mode::AutoCut,
+            orb_engine::studio::sampler::Mode::Gate,
+            orb_engine::studio::sampler::Mode::Loop,
+        ][i % 4];
         lane.steps[0] = 100;
         lane.steps[3] = 80;
         lane.send = 0.2;
@@ -130,7 +133,13 @@ fn the_callback_does_not_allocate() {
         send(&mut p, Command::StudioReverb(convolver()));
         events += render(&mut a, &mut buf, 1);
     }
-    send(&mut p, Command::StudioWave { lane: 0, wave: None });
+    send(
+        &mut p,
+        Command::StudioWave {
+            lane: 0,
+            wave: None,
+        },
+    );
     send(&mut p, Command::StudioSettings(Box::default()));
     events += render(&mut a, &mut buf, 8);
     let mixer = |ctrl, value| Command::Param {

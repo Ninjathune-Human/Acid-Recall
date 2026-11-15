@@ -149,7 +149,7 @@ impl Wave {
                 }
                 norm += w;
             }
-            frames.push(sum.map(|x| (x / norm) as f32));
+            frames.push(sum.map(|x| (x / norm).clamp(-8.0, 8.0) as f32));
         }
         Ok(Self { frames })
     }

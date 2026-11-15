@@ -107,6 +107,8 @@ impl Sampler {
     pub fn stop(&mut self) {
         for i in 0..LANES { self.cut(i); }
         self.last_step = None;
+        self.audition = [false; LANES];
+        self.playing = false;
     }
 
     fn cut(&mut self, lane: usize) {
@@ -182,7 +184,7 @@ impl Sampler {
                 let end = ((lane.end * frames as f64) as usize).min(frames);
                 let length = end.saturating_sub(start);
                 let rate = rates[i];
-                let seam = (length / 4).min(220) as f64;
+                let seam = (length / 4).min(88) as f64;
                 for voice in &mut self.voices[i] {
                     if !voice.active || length < 2 { continue; }
                     let gate_end = lane.mode == Mode::Gate && (if playing { now >= voice.until }
@@ -190,7 +192,7 @@ impl Sampler {
                     if gate_end { voice.release += 1.0 / (lane.release_ms * 44.1); }
                     if voice.position >= length as f64 {
                         if lane.mode == Mode::Loop {
-                            voice.position = seam + (voice.position - length as f64) % (length as f64 - seam);
+                            voice.position %= length as f64;
                         }
                         else { voice.active = false; continue; }
                     }
@@ -204,19 +206,10 @@ impl Sampler {
                         let index = (center + tap as isize - 7).clamp(start as isize, end as isize - 1) as usize;
                         for (c, v) in value.iter_mut().enumerate() { *v += f64::from(wave.frames[index][c]) * weight; }
                     }
-                    if lane.mode == Mode::Loop && seam > 0.0 && voice.position > length as f64 - seam {
-                        let offset = voice.position - (length as f64 - seam);
-                        let position = if lane.reverse { end as f64 - 1.0 - offset } else { start as f64 + offset };
-                        let center = position.floor() as isize;
-                        let phase = ((position - position.floor()) * 256.0) as usize;
-                        let weights = &self.table[(lane.pitch + 24) as usize * 256 + phase.min(255)];
-                        let mix = offset / seam;
-                        let mut head = [0.0; 2];
-                        for (tap, &weight) in weights.iter().enumerate() {
-                            let index = (center + tap as isize - 7).clamp(start as isize, end as isize - 1) as usize;
-                            for (c, v) in head.iter_mut().enumerate() { *v += f64::from(wave.frames[index][c]) * weight; }
-                        }
-                        for c in 0..2 { value[c] = value[c] * (1.0 - mix) + head[c] * mix; }
+                    if lane.mode == Mode::Loop && seam > 0.0 {
+                        let fade = (voice.position / seam).min(1.0)
+                            * ((length as f64 - voice.position) / seam).min(1.0);
+                        for value in &mut value { *value *= fade; }
                     }
                     let attack = (voice.age as f64 / (lane.attack_ms * 44.1)).min(1.0);
                     let ending = if lane.mode == Mode::Loop { 1.0 }
@@ -234,6 +227,7 @@ impl Sampler {
                 for c in 0..2 {
                     let target = if audible { lane.gain * pan[c] } else { 0.0 };
                     self.gains[i][c] += (target - self.gains[i][c]) * 0.004;
+                    if target == 0.0 && self.gains[i][c].abs() < 1e-10 { self.gains[i][c] = 0.0; }
                     let value = sample[c] * self.gains[i][c];
                     output[c][j] += value;
                     send[c][j] += value * lane.send;

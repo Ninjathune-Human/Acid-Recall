@@ -427,7 +427,10 @@ impl App {
     }
 
     fn open_now_inner(&mut self, path: &Path) {
-        if path.extension().is_some_and(|x| x.eq_ignore_ascii_case("orb338")) {
+        if path
+            .extension()
+            .is_some_and(|x| x.eq_ignore_ascii_case("orb338"))
+        {
             self.studio_open(path, &self.studio.context.clone());
             return;
         }
@@ -679,7 +682,13 @@ impl App {
 
     /// Save: to the song's file, or Save As for a song that has none.
     pub fn save(&mut self) {
-        if self.studio.content && self.doc.path.as_ref().is_none_or(|p| p.extension().is_none_or(|e| e != "orb338")) {
+        if self.studio.content
+            && self
+                .doc
+                .path
+                .as_ref()
+                .is_none_or(|p| p.extension().is_none_or(|e| e != "orb338"))
+        {
             self.open_browser(Mode::SaveSong);
             return;
         }
@@ -696,7 +705,11 @@ impl App {
     }
 
     fn save_to_inner(&mut self, path: &Path) {
-        if self.studio.content || path.extension().is_some_and(|x| x.eq_ignore_ascii_case("orb338")) {
+        if self.studio.content
+            || path
+                .extension()
+                .is_some_and(|x| x.eq_ignore_ascii_case("orb338"))
+        {
             self.studio_save(path, &self.studio.context.clone());
             return;
         }
@@ -778,7 +791,11 @@ impl App {
         let label = self.doc.name();
         let sidechain = self.settings.sidechain.engine_config();
         let closed_hat_level = self.settings.closed_hat_level;
-        let studio = self.studio.project(Vec::new(), self.settings.sidechain.clone(), closed_hat_level);
+        let studio = self.studio.project(
+            Vec::new(),
+            self.settings.sidechain.clone(),
+            closed_hat_level,
+        );
         let (tx, rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             let mut r = Renderer::new(mods);
@@ -787,7 +804,10 @@ impl App {
             if let Some(studio) = studio {
                 match studio.prepare() {
                     Ok(prepared) => r.studio = Some(prepared),
-                    Err(e) => { let _ = tx.send(Err(e)); return; }
+                    Err(e) => {
+                        let _ = tx.send(Err(e));
+                        return;
+                    }
                 }
             }
             let result = r

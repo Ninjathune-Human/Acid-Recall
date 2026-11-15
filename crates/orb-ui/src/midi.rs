@@ -411,11 +411,14 @@ impl Midi {
         let matches: Vec<_> = self.ports.iter().filter(|p| &p.name == name).collect();
         if matches.len() != 1 {
             self.error = Some(if matches.is_empty() {
-                format!("MIDI input '{name}' is unavailable. Connect it, then \
-            Refresh / reconnect.")
+                format!(
+                    "MIDI input '{name}' is unavailable. Connect it, then \
+            Refresh / reconnect."
+                )
             } else {
                 "Several MIDI inputs have the same name. Give the device a \
-            unique name.".into()
+            unique name."
+                    .into()
             });
             return;
         }
@@ -562,8 +565,10 @@ impl App {
                     ui.colored_label(egui::Color32::LIGHT_RED, error);
                 }
                 ui.separator();
-                ui.label("Choose a parameter, click Learn, then move a controller \
-            knob or fader.");
+                ui.label(
+                    "Choose a parameter, click Learn, then move a controller \
+            knob or fader.",
+                );
                 ui.label("Buttons use a CC value of 64-127 to press, 0-63 to release.");
                 ui.horizontal(|ui| {
                     ui.label("Filter:");
@@ -635,8 +640,10 @@ impl App {
                     "Suggested faders 1-4: four mixer levels; 5-8: four delay \
             sends; 9: master.",
                 );
-                ui.label("No factory CC preset is assumed: MIDI Learn follows your \
-            UC-33e setup.");
+                ui.label(
+                    "No factory CC preset is assumed: MIDI Learn follows your \
+            UC-33e setup.",
+                );
             });
         self.midi.open = open;
         if !open {

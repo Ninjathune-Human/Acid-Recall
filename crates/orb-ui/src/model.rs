@@ -380,7 +380,17 @@ impl Panel {
         p.numbers.insert("delay.steps".into(), 3);
         p.numbers.insert("pcf.pattern".into(), 0);
         for (id, _) in crate::studio::midi::controls() {
-            p.knobs.insert(id, 0);
+            let value = match id.as_str() {
+                "studio.return" => 32,
+                "studio.predelay" => 11,
+                "studio.width" => 64,
+                "studio.low_cut" => 8,
+                "studio.high_cut" => 56,
+                _ if id.ends_with(".level") => 44,
+                _ if id.ends_with(".pan") || id.ends_with(".pitch") => 64,
+                _ => 0,
+            };
+            p.knobs.insert(id, behavior::knob_from_engine(value));
         }
         p
     }

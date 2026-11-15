@@ -174,7 +174,11 @@ fn genres_have_distinct_pulses_and_accents_have_true_zero_and_full_extremes() {
     let mut totals = [0usize; 3];
     for (style_index, style) in DrumStyle::ALL.into_iter().enumerate() {
         for seed in 0..256 {
-            let o = Options { drum_style: style, drum_density: 48, ..Options::default() };
+            let o = Options {
+                drum_style: style,
+                drum_density: 48,
+                ..Options::default()
+            };
             let bytes = drum_pattern(&o, false, 16, seed);
             for s in 0..16 {
                 if bytes[2 + s * 12 + 1] > 0 {
@@ -183,22 +187,32 @@ fn genres_have_distinct_pulses_and_accents_have_true_zero_and_full_extremes() {
                 }
             }
             if style == DrumStyle::Break {
-                for s in [4, 12] { assert_eq!(bytes[2 + s * 12 + 2], 2); }
+                for s in [4, 12] {
+                    assert_eq!(bytes[2 + s * 12 + 2], 2);
+                }
             }
             for accents in [0, 100] {
                 for is808 in [true, false] {
-                    let o = Options { accents, ..o.clone() };
+                    let o = Options {
+                        accents,
+                        ..o.clone()
+                    };
                     let bytes = drum_pattern(&o, is808, 16, seed);
                     for step in bytes[2..].as_chunks::<12>().0 {
-                        if accents == 0 { assert_eq!(step[0], 0); }
-                        else if step[1..].iter().any(|&v| v > 0) { assert!(step[0] > 0); }
+                        if accents == 0 {
+                            assert_eq!(step[0], 0);
+                        } else if step[1..].iter().any(|&v| v > 0) {
+                            assert!(step[0] > 0);
+                        }
                     }
                 }
             }
         }
     }
     assert!(quarter_share[0] as f64 / totals[0] as f64 > 0.85);
-    for i in [1, 2] { assert!(quarter_share[i] as f64 / (totals[i] as f64) < 0.6); }
+    for i in [1, 2] {
+        assert!(quarter_share[i] as f64 / (totals[i] as f64) < 0.6);
+    }
 }
 
 fn calls(audio: &mut Audio) {

@@ -42,6 +42,8 @@ jobs:
           Write-Output ('GRAPHITE_PREVIEW:' + [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $PWD 'graphite-preview/panel.png'))))
       - name: Audio callback allocation guard
         run: cargo test --locked -p orb-player --test no_alloc
+      - name: Studio release performance
+        run: cargo test --release --locked -p orb-engine studio::tests::release_performance -- --nocapture
       - name: Portable Windows build
         run: cargo build --release --locked -p orb-ui
       - name: Capture the desktop interface
@@ -55,6 +57,14 @@ jobs:
           } else {
             Write-Output 'Desktop screenshot unavailable on this runner; vector preview is included.'
           }
+          foreach ($studioView in @('sampler', 'space')) {
+            $studioPreviewPath = Join-Path $PWD ('graphite-preview/' + $studioView + '.png')
+            $studioProcess = Start-Process -FilePath target/release/OpenRB-338.exe -WindowStyle Hidden -PassThru -ArgumentList @('--demo', '--size', '1200x900', '--studio-view', $studioView, '--screenshot', $studioPreviewPath)
+            if (-not $studioProcess.WaitForExit(45000)) { Stop-Process -Id $studioProcess.Id }
+            if (Test-Path -LiteralPath $studioPreviewPath) {
+              Write-Output ('STUDIO_' + $studioView.ToUpper() + '_PREVIEW:' + [Convert]::ToBase64String([IO.File]::ReadAllBytes($studioPreviewPath)))
+            }
+          }
       - name: Prepare preview
         shell: pwsh
         run: |
@@ -67,6 +77,11 @@ jobs:
           Copy-Item graphite-preview/panel.png midi-preview/Graphite-preview.png
           Copy-Item docs/graphite.md midi-preview/README-GRAPHITE.md
           Copy-Item docs/sidechain.md midi-preview/README-SIDECHAIN.md
+          Copy-Item docs/studio.md midi-preview/README-STUDIO.md
+          foreach ($studioView in @('sampler', 'space')) {
+            $studioPreviewPath = 'graphite-preview/' + $studioView + '.png'
+            if (Test-Path -LiteralPath $studioPreviewPath) { Copy-Item -LiteralPath $studioPreviewPath -Destination midi-preview/ }
+          }
           if (Test-Path graphite-preview/desktop.png) { Copy-Item graphite-preview/desktop.png midi-preview/Graphite-desktop.png }
       - uses: actions/upload-artifact@v4
         with:

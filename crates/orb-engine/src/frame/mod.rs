@@ -937,7 +937,9 @@ impl Frame {
             self.stack_word = Some(self.devices.mixer.live.comp_id as i32);
         }
         self.state.counter = self.state.counter.wrapping_add(1);
-        if let Some(studio) = &mut self.studio { studio.begin(); }
+        if let Some(studio) = &mut self.studio {
+            studio.begin();
+        }
         if self.seq.tick(&mut self.devices) {
             // 0x1001F3B3: the tempo (globals +4) the step loop passes, into its local there
             self.stack_word = Some(self.seq.globals.tempo as i32);
@@ -1036,8 +1038,8 @@ impl Frame {
         self.devices.delay.process(&mut self.state.send, l, r, &ctx);
         self.stack_word = self.devices.delay.stack_word(self.out_end, self.stack_word);
         if let Some(studio) = &mut self.studio {
-            let advance = f64::from(self.seq.globals.tempo)
-                * f64::from_bits(0x3ED3_7A72_81B2_2126) / BLOCK as f64;
+            let advance = f64::from(self.seq.globals.tempo) * f64::from_bits(0x3ED3_7A72_81B2_2126)
+                / BLOCK as f64;
             studio.process(self.seq.pos, advance, self.seq.globals.play != 0, l, r);
         }
         // 0x10013883: the compressor on the master

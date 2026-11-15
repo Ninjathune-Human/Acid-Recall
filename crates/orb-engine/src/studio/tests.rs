@@ -1,0 +1,68 @@
+use super::*;
+use std::sync::Arc;
+use crate::{frame::{Devices, Engine}, tables::Tables};
+
+#[test]
+fn an_empty_studio_is_sample_exact_with_the_legacy_engine() {
+    let tables = Arc::new(Tables::new());
+    let mut legacy = Engine::new(tables.clone(), Devices::implemented(None));
+    let mut extended = Engine::new(tables, Devices::implemented(None));
+    extended.frame.studio = Some(Box::new(Studio::new(Box::new(
+        Convolver::new(&[[0.1; 2]; 64]).unwrap()))));
+    legacy.play(); extended.play();
+    let mut a = vec![0i16; 2048];
+    let mut b = a.clone();
+    for _ in 0..20 {
+        legacy.render(&mut a, 1024); extended.render(&mut b, 1024);
+        assert_eq!(a, b);
+    }
+}
+
+#[test]
+fn queued_ir_requests_keep_latest_and_retire_every_root() {
+    let make = || Box::new(Convolver::new(&[[0.5; 2]; 64]).unwrap());
+    let mut studio = Studio::new(make());
+    assert!(studio.replace_reverb(make()).is_none());
+    assert!(studio.replace_reverb(make()).is_none());
+    assert!(studio.replace_reverb(make()).is_some());
+    studio.fade = 0;
+    // Retirement can be delayed by a full garbage queue; a new request supersedes pending.
+    assert!(studio.replace_reverb(make()).is_some());
+    assert!(studio.retired().is_some());
+    assert!(studio.pending.is_none());
+    assert_eq!(studio.fade, 4410);
+    studio.fade = 0;
+    assert!(studio.retired().is_some());
+    assert!(studio.previous.is_none());
+}
+
+#[test]
+fn release_performance_with_six_second_ir_and_32_sampler_voices() {
+    if cfg!(debug_assertions) { return; }
+    let ir = convolution::synthetic(2, 6.0);
+    let mut studio = Studio::new(Box::new(Convolver::new(&ir).unwrap()));
+    studio.settings.sends = [0.3; 4];
+    for (i, lane) in studio.settings.lanes.iter_mut().enumerate() {
+        lane.gain = 0.1;
+        lane.send = 0.2;
+        studio.sampler.waves[i] = Some(Box::new(audio_file::Wave { frames: vec![[0.1; 2]; 100000] }));
+    }
+    for _ in 0..4 {
+        for i in 0..8 { studio.sampler.audition(i); }
+        studio.begin();
+        studio.process(0.0, 0.01, false, &mut [0.0; 64], &mut [0.0; 64]);
+    }
+    let mut left = [0.0; 64];
+    let mut right = [0.0; 64];
+    let start = std::time::Instant::now();
+    for _ in 0..690 {
+        studio.begin();
+        for i in 0..64 { studio.channel(0, i, 0.02, -0.01); }
+        studio.process(0.0, 0.01, false, &mut left, &mut right);
+        assert!(left.iter().chain(&right).all(|x| x.is_finite()));
+        left.fill(0.0); right.fill(0.0);
+    }
+    let elapsed = start.elapsed().as_secs_f64();
+    eprintln!("STUDIO_PERFORMANCE: 1.001 s audio, {elapsed:.3} s processing / 6 s IR / 32 voices");
+    assert!(elapsed < 4.0, "Studio render is unexpectedly slow: {elapsed:.3} s");
+}
