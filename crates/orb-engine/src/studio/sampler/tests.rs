@@ -25,7 +25,13 @@ fn block(sampler: &mut Sampler, lanes: &[Lane; LANES], tick: f64, playing: bool)
 fn older_lane_settings_default_new_modulation_to_bypass() {
     let mut old = serde_json::to_value(Lane::default()).unwrap();
     let map = old.as_object_mut().unwrap();
-    for key in ["gater_source", "gater_depth", "gater_attack_ms", "gater_release_ms", "sidechain"] {
+    for key in [
+        "gater_source",
+        "gater_depth",
+        "gater_attack_ms",
+        "gater_release_ms",
+        "sidechain",
+    ] {
         map.remove(key);
     }
     let lane: Lane = serde_json::from_value(old).unwrap();
@@ -113,14 +119,20 @@ fn gater_follows_selected_tb_and_sidechain_is_opt_in() {
     for _ in 0..100 {
         block(&mut sampler, &lanes, 0.0, false);
     }
-    assert!(sampler.modulation[0] > 0.99, "unchecked sidechain must bypass");
+    assert!(
+        sampler.modulation[0] > 0.99,
+        "unchecked sidechain must bypass"
+    );
     lanes[0].sidechain = true;
     let mut out = [[0.0; 64]; 2];
     for _ in 0..80 {
         out = block(&mut sampler, &lanes, 0.0, false);
     }
     assert!(out.iter().flatten().all(|v| v.abs() < 1e-10));
-    assert!(sampler.modulation[0] > 0.99, "sidechain must not alter the gater envelope");
+    assert!(
+        sampler.modulation[0] > 0.99,
+        "sidechain must not alter the gater envelope"
+    );
     lanes[0].gater_source = 0;
     lanes[0].sidechain = false;
     for _ in 0..100 {

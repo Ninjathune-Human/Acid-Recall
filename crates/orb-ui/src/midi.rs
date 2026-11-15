@@ -127,8 +127,11 @@ impl Config {
     pub fn sanitize(&mut self) {
         let bindings = std::mem::take(&mut self.bindings);
         for b in bindings {
-            if b.input < 16 && (1..=16).contains(&b.channel)
-                && b.controller < 128 && kind(&b.target).is_some() {
+            if b.input < 16
+                && (1..=16).contains(&b.channel)
+                && b.controller < 128
+                && kind(&b.target).is_some()
+            {
                 self.assign(b);
             }
         }
@@ -145,22 +148,35 @@ impl Config {
 
     pub fn assign(&mut self, b: Binding) {
         self.bindings.retain(|old| {
-            old.target != b.target && (old.input != b.input
-                || old.channel != b.channel || old.controller != b.controller)
+            old.target != b.target
+                && (old.input != b.input
+                    || old.channel != b.channel
+                    || old.controller != b.controller)
         });
         self.bindings.push(b);
     }
 
     fn inputs(&self) -> Vec<(u8, &str)> {
-        self.port.as_deref().map(|p| (0, p)).into_iter().chain(
-            self.additional_inputs.iter().take(15).enumerate()
-                .filter_map(|(i, s)| s.port.as_deref().map(|p| ((i + 1) as u8, p)))
-        ).collect()
+        self.port
+            .as_deref()
+            .map(|p| (0, p))
+            .into_iter()
+            .chain(
+                self.additional_inputs
+                    .iter()
+                    .take(15)
+                    .enumerate()
+                    .filter_map(|(i, s)| s.port.as_deref().map(|p| ((i + 1) as u8, p))),
+            )
+            .collect()
     }
 
     fn calibrated(&self, input: u8) -> bool {
-        if input == 0 { self.minimum_one } else {
-            self.additional_inputs.get(usize::from(input - 1))
+        if input == 0 {
+            self.minimum_one
+        } else {
+            self.additional_inputs
+                .get(usize::from(input - 1))
                 .is_some_and(|s| s.minimum_one)
         }
     }
@@ -202,16 +218,16 @@ pub fn targets() -> Vec<(String, Kind)> {
     }
     out.push(("delay.steps".into(), Kind::Number));
     out.push(("pcf.pattern".into(), Kind::Number));
-    out.extend(
-        crate::studio::midi::controls()
-            .into_iter()
-            .map(|(id, _)| {
-                let k = if crate::studio::midi::is_action(&id) { Kind::Button }
-                    else if crate::studio::midi::is_boolean(&id) { Kind::Switch }
-                    else { Kind::Knob };
-                (id, k)
-            }),
-    );
+    out.extend(crate::studio::midi::controls().into_iter().map(|(id, _)| {
+        let k = if crate::studio::midi::is_action(&id) {
+            Kind::Button
+        } else if crate::studio::midi::is_boolean(&id) {
+            Kind::Switch
+        } else {
+            Kind::Knob
+        };
+        (id, k)
+    }));
     out
 }
 
@@ -294,8 +310,7 @@ impl Router {
         self.apply_from(0, cc, config, panel, now);
     }
 
-    pub fn apply_from(&mut self, input: u8, cc: Cc, config: &Config,
-        panel: &mut Panel, now: f64) {
+    pub fn apply_from(&mut self, input: u8, cc: Cc, config: &Config, panel: &mut Panel, now: f64) {
         let Some(b) = config
             .bindings
             .iter()
@@ -308,16 +323,22 @@ impl Router {
         match k {
             Kind::Button => {
                 let down = cc.value >= 64;
-                let previous = self.buttons.insert((input, cc.channel, cc.controller), down);
+                let previous = self
+                    .buttons
+                    .insert((input, cc.channel, cc.controller), down);
                 if down && previous != Some(true) {
                     panel.press(id, now);
                 }
             }
             Kind::Switch => {
                 if crate::studio::midi::is_boolean(id) {
-                    panel.set_knob(id, behavior::knob_from_engine(
-                        i32::from(u8::from(cc.value >= 64)) * 127));
-                } else { panel.set_switch(id, u8::from(cc.value >= 64)); }
+                    panel.set_knob(
+                        id,
+                        behavior::knob_from_engine(i32::from(u8::from(cc.value >= 64)) * 127),
+                    );
+                } else {
+                    panel.set_switch(id, u8::from(cc.value >= 64));
+                }
             }
             Kind::Knob | Kind::Fader | Kind::Number => {
                 let value = if config.calibrated(input) {
@@ -421,8 +442,14 @@ impl Midi {
         self.handle_cc_from(0, cc, config, panel, now)
     }
 
-    fn handle_cc_from(&mut self, input: u8, cc: Cc, config: &mut Config,
-        panel: &mut Panel, now: f64) -> bool {
+    fn handle_cc_from(
+        &mut self,
+        input: u8,
+        cc: Cc,
+        config: &mut Config,
+        panel: &mut Panel,
+        now: f64,
+    ) -> bool {
         self.last = Some(cc);
         self.last_input = input;
         if let Some(target) = self.learning.take() {
@@ -430,8 +457,10 @@ impl Midi {
                 .bindings
                 .iter()
                 .find(|b| {
-                    b.input == input && b.channel == cc.channel
-                        && b.controller == cc.controller && b.target != target
+                    b.input == input
+                        && b.channel == cc.channel
+                        && b.controller == cc.controller
+                        && b.target != target
                 })
                 .map(|b| label(&b.target));
             self.notice = Some(format!(
@@ -478,34 +507,42 @@ impl Midi {
         let mut errors = Vec::new();
         let mut opened = std::collections::HashSet::new();
         for (slot, name) in config.inputs() {
-        let matches: Vec<_> = self.ports.iter().filter(|p| p.name == name).collect();
-        if matches.len() != 1 {
-            errors.push(if matches.is_empty() {
-                format!(
-                    "MIDI input '{name}' is unavailable. Connect it, then \
+            let matches: Vec<_> = self.ports.iter().filter(|p| p.name == name).collect();
+            if matches.len() != 1 {
+                errors.push(if matches.is_empty() {
+                    format!(
+                        "MIDI input '{name}' is unavailable. Connect it, then \
             Refresh / reconnect."
-                )
-            } else {
-                "Several MIDI inputs have the same name. Give the device a \
+                    )
+                } else {
+                    "Several MIDI inputs have the same name. Give the device a \
             unique name."
-                    .into()
-            });
-            continue;
-        }
-        if !opened.insert(matches[0].id) {
-            errors.push(format!("Input {} duplicates '{name}'; choose a different device.", slot + 1));
-            continue;
-        }
-        match backend::Input::open(matches[0].id) {
-            Ok(input) => {
-                self.inputs.push(ActiveInput {
-                    slot, name: name.to_string(), input, dropped_seen: 0,
+                        .into()
                 });
+                continue;
             }
-            Err(e) => errors.push(format!("Input {}: {e}", slot + 1)),
+            if !opened.insert(matches[0].id) {
+                errors.push(format!(
+                    "Input {} duplicates '{name}'; choose a different device.",
+                    slot + 1
+                ));
+                continue;
+            }
+            match backend::Input::open(matches[0].id) {
+                Ok(input) => {
+                    self.inputs.push(ActiveInput {
+                        slot,
+                        name: name.to_string(),
+                        input,
+                        dropped_seen: 0,
+                    });
+                }
+                Err(e) => errors.push(format!("Input {}: {e}", slot + 1)),
+            }
         }
+        if !errors.is_empty() {
+            self.error = Some(errors.join("\n"));
         }
-        if !errors.is_empty() { self.error = Some(errors.join("\n")); }
     }
 }
 
@@ -521,12 +558,20 @@ impl App {
         }
         let mut words = Vec::new();
         for active in &mut self.midi.inputs {
-            words.extend(active.input.drain().into_iter().map(|word| (active.slot, word)));
+            words.extend(
+                active
+                    .input
+                    .drain()
+                    .into_iter()
+                    .map(|word| (active.slot, word)),
+            );
             let dropped = active.input.dropped();
             if dropped > active.dropped_seen {
                 active.dropped_seen = dropped;
-                self.midi.error = Some(format!("Input {} overflow: {dropped} messages dropped.",
-                    active.slot + 1));
+                self.midi.error = Some(format!(
+                    "Input {} overflow: {dropped} messages dropped.",
+                    active.slot + 1
+                ));
                 self.midi.router.reset();
             }
         }
@@ -534,12 +579,13 @@ impl App {
         ctx.request_repaint_after(std::time::Duration::from_millis(8));
         let now = ctx.input(|i| i.time);
         let mut learned = false;
-        for (input, cc) in words.into_iter().filter_map(|(slot, word)| {
-            Cc::decode(word).map(|cc| (slot, cc))
-        }) {
-            learned |= self
-                .midi
-                .handle_cc_from(input, cc, &mut self.settings.midi, &mut self.panel, now);
+        for (input, cc) in words
+            .into_iter()
+            .filter_map(|(slot, word)| Cc::decode(word).map(|cc| (slot, cc)))
+        {
+            learned |=
+                self.midi
+                    .handle_cc_from(input, cc, &mut self.settings.midi, &mut self.panel, now);
         }
         if learned {
             self.save_midi();
@@ -602,7 +648,10 @@ impl App {
                 egui::ComboBox::from_id_salt("midi-port")
                     .selected_text(config.port.as_deref().unwrap_or("Choose MIDI input..."))
                     .show_ui(ui, |ui| {
-                        if ui.selectable_value(&mut config.port, None, "Disconnected").changed() {
+                        if ui
+                            .selectable_value(&mut config.port, None, "Disconnected")
+                            .changed()
+                        {
                             changed = true;
                             reconnect = true;
                         }
@@ -621,8 +670,10 @@ impl App {
                     ui.label("Disconnected");
                 } else {
                     for input in &self.midi.inputs {
-                        ui.colored_label(egui::Color32::LIGHT_GREEN,
-                            format!("Input {} connected: {}", input.slot + 1, input.name));
+                        ui.colored_label(
+                            egui::Color32::LIGHT_GREEN,
+                            format!("Input {} connected: {}", input.slot + 1, input.name),
+                        );
                     }
                 }
                 if ui
@@ -650,32 +701,48 @@ impl App {
                             egui::ComboBox::from_id_salt("device")
                                 .selected_text(input.port.as_deref().unwrap_or("Disconnected"))
                                 .show_ui(ui, |ui| {
-                                    if ui.selectable_value(&mut input.port, None, "Disconnected")
-                                        .changed() { reconnect = true; changed = true; }
+                                    if ui
+                                        .selectable_value(&mut input.port, None, "Disconnected")
+                                        .changed()
+                                    {
+                                        reconnect = true;
+                                        changed = true;
+                                    }
                                     for p in &self.midi.ports {
-                                        if ui.selectable_value(&mut input.port,
-                                            Some(p.name.clone()), &p.name).changed() {
-                                            reconnect = true; changed = true;
+                                        if ui
+                                            .selectable_value(
+                                                &mut input.port,
+                                                Some(p.name.clone()),
+                                                &p.name,
+                                            )
+                                            .changed()
+                                        {
+                                            reconnect = true;
+                                            changed = true;
                                         }
                                     }
                                 });
                         });
-                        if ui.checkbox(&mut input.minimum_one,
-                            "This input sends 1 at minimum").changed() {
+                        if ui
+                            .checkbox(&mut input.minimum_one, "This input sends 1 at minimum")
+                            .changed()
+                        {
                             self.midi.router.reset();
                             changed = true;
                         }
                     });
                 }
-                if config.additional_inputs.len() < 15
-                    && ui.button("Add MIDI input").clicked() {
+                if config.additional_inputs.len() < 15 && ui.button("Add MIDI input").clicked() {
                     config.additional_inputs.push(InputSettings::default());
                     changed = true;
                 }
                 if let Some(cc) = self.midi.last {
                     ui.label(format!(
                         "Last input: device {} / channel {} / CC {} / value {}",
-                        self.midi.last_input + 1, cc.channel, cc.controller, cc.value
+                        self.midi.last_input + 1,
+                        cc.channel,
+                        cc.controller,
+                        cc.value
                     ));
                 }
                 if let Some(error) = &self.midi.error {
@@ -744,8 +811,12 @@ impl App {
                     .show(ui, |ui| {
                         for (i, b) in config.bindings.iter().enumerate() {
                             ui.horizontal(|ui| {
-                                ui.label(format!("Input {} / Ch {} / CC {}",
-                                    b.input + 1, b.channel, b.controller));
+                                ui.label(format!(
+                                    "Input {} / Ch {} / CC {}",
+                                    b.input + 1,
+                                    b.channel,
+                                    b.controller
+                                ));
                                 ui.label(label(&b.target));
                                 if ui.small_button("Remove").clicked() {
                                     remove = Some(i);

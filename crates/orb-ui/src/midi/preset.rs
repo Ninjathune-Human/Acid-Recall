@@ -48,7 +48,8 @@ impl RoutingPreset {
                 return Err(format!("Unknown MIDI target: {}", b.target));
             }
             if !sources.insert((b.input, b.channel, b.controller))
-                || !targets.insert(b.target.as_str()) {
+                || !targets.insert(b.target.as_str())
+            {
                 return Err("The file contains conflicting MIDI assignments.".into());
             }
         }

@@ -722,7 +722,6 @@ impl SongDevice for Tb303 {
         }
     }
 }
-
 impl ChannelDevice for Tb303 {
     fn gate_open(&self) -> bool {
         self.gate != 0.0 && self.enabled != 0

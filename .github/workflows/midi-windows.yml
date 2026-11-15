@@ -23,7 +23,6 @@ jobs:
       - name: Install formatting toolchain
         run: rustup toolchain install nightly-2026-10-18 --profile minimal --component rustfmt
       - name: Format check (print any required patch)
-        continue-on-error: true
         shell: pwsh
         run: |
           cargo +nightly-2026-10-18 fmt --all

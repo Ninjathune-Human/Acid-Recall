@@ -12,6 +12,13 @@ These are musical grammars, not copies of any artist's tracks. The selected key 
 pattern length, LINK TB harmony, accents, slides and Undo Random continue to work.
 The TR patterns retain the original machine's 1–16-step limit.
 
+LINK TB preserves each TB's own pattern length (for example A=8, B=16), while sharing
+key/scale and tuning. Set each length in Musical Random before generating from either TB.
+The answer considers every bass note it will meet over the complete shared cycle, including
+non-dividing lengths such as 7 and 11. In the rare case with no consonant answer, the affected
+bass phase moves to the nearest tonic-triad notes while preserving rhythm and accents.
+Undo restores both patterns with their original, separate lengths.
+
 ## SPACE — stereo convolution reverb
 
 Click **SPACE** in the right FX column, or Options > SPACE / Convolution Reverb.

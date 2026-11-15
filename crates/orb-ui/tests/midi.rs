@@ -242,21 +242,21 @@ fn learn_replaces_conflicts_and_settings_survive_restart() {
     let mut s = Settings::load_from(&file);
     s.midi = config("mixer3.level", true);
     s.midi.assign(Binding {
-            input: 0,
+        input: 0,
         channel: 1,
         controller: 74,
         target: "dist.amount".into(),
     });
     assert_eq!(s.midi.bindings.len(), 1);
     s.midi.assign(Binding {
-            input: 0,
+        input: 0,
         channel: 2,
         controller: 10,
         target: "dist.amount".into(),
     });
     assert_eq!(s.midi.bindings.len(), 1);
     s.midi.bindings.push(Binding {
-            input: 0,
+        input: 0,
         channel: 0,
         controller: 255,
         target: "bad".into(),

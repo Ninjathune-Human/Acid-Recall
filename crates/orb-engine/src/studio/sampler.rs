@@ -264,12 +264,10 @@ impl Sampler {
         let solo = lanes.iter().any(|l| l.solo);
         let rates: [f64; LANES] =
             std::array::from_fn(|i| 2.0f64.powf(f64::from(lanes[i].pitch) / 12.0));
-        let attacks: [f64; LANES] = std::array::from_fn(|i| {
-            1.0 - (-1.0 / (lanes[i].gater_attack_ms * 44.1)).exp()
-        });
-        let releases: [f64; LANES] = std::array::from_fn(|i| {
-            1.0 - (-1.0 / (lanes[i].gater_release_ms * 44.1)).exp()
-        });
+        let attacks: [f64; LANES] =
+            std::array::from_fn(|i| 1.0 - (-1.0 / (lanes[i].gater_attack_ms * 44.1)).exp());
+        let releases: [f64; LANES] =
+            std::array::from_fn(|i| 1.0 - (-1.0 / (lanes[i].gater_release_ms * 44.1)).exp());
         for j in 0..64 {
             let now = tick + j as f64 * ticks_per_frame;
             if playing {
@@ -377,11 +375,23 @@ impl Sampler {
                 let audible = !lane.muted && (!solo || lane.solo);
                 let gate_open = lane.gater_source == 0
                     || self.source_gates[(lane.gater_source.saturating_sub(1) as usize).min(1)];
-                let gate_target = if gate_open { 1.0 } else { 1.0 - lane.gater_depth };
+                let gate_target = if gate_open {
+                    1.0
+                } else {
+                    1.0 - lane.gater_depth
+                };
                 let target = gate_target;
-                let factor = if target > self.modulation[i] { attacks[i] } else { releases[i] };
+                let factor = if target > self.modulation[i] {
+                    attacks[i]
+                } else {
+                    releases[i]
+                };
                 super::smooth(&mut self.modulation[i], target, factor);
-                super::smooth(&mut self.duck_mix[i], if lane.sidechain { 1.0 } else { 0.0 }, 0.01);
+                super::smooth(
+                    &mut self.duck_mix[i],
+                    if lane.sidechain { 1.0 } else { 0.0 },
+                    0.01,
+                );
                 let duck = 1.0 - self.duck_mix[i] * (1.0 - f64::from(self.duck[j]));
                 let pan = [(1.0 - lane.pan).min(1.0), (1.0 + lane.pan).min(1.0)];
                 super::smooth(&mut self.sends[i], lane.send, 0.004);

@@ -1,24 +1,59 @@
 //! Studio controls share MIDI pickup and per-device calibration.
-use orb_engine::studio::{Settings, sampler::{Lane, Mode}};
-use orb_player::Command;
 use crate::{app::App, model::Event};
+use orb_engine::studio::{
+    Settings,
+    sampler::{Lane, Mode},
+};
+use orb_player::Command;
 
 pub fn controls() -> Vec<(String, String)> {
     let mut out = Vec::new();
-    for (name, label) in [("enabled", "Enabled"), ("return", "Return"),
-        ("predelay", "Pre-delay"), ("width", "Stereo width"), ("low_cut", "Low cut"),
-        ("high_cut", "High cut")] {
+    for (name, label) in [
+        ("enabled", "Enabled"),
+        ("return", "Return"),
+        ("predelay", "Pre-delay"),
+        ("width", "Stereo width"),
+        ("low_cut", "Low cut"),
+        ("high_cut", "High cut"),
+    ] {
         out.push((format!("studio.{name}"), format!("SPACE / {label}")));
     }
-    for (i, label) in ["TB-303 A", "TB-303 B", "TR-808", "TR-909"].iter().enumerate() {
-        out.push((format!("studio.send{}", i + 1), format!("SPACE / {label} send")));
+    for (i, label) in ["TB-303 A", "TB-303 B", "TR-808", "TR-909"]
+        .iter()
+        .enumerate()
+    {
+        out.push((
+            format!("studio.send{}", i + 1),
+            format!("SPACE / {label} send"),
+        ));
     }
     for i in 1..=8 {
-        for name in ["level", "pan", "pitch", "send", "start", "end", "attack", "release",
-            "gate", "mode", "reverse", "mute", "solo", "audition", "choke", "gater_source",
-            "gater_depth", "gater_attack_ms", "gater_release_ms", "sidechain"] {
-            out.push((format!("sampler{i}.{name}"),
-                format!("Sampler / Lane {i} / {}", name.replace('_', " "))));
+        for name in [
+            "level",
+            "pan",
+            "pitch",
+            "send",
+            "start",
+            "end",
+            "attack",
+            "release",
+            "gate",
+            "mode",
+            "reverse",
+            "mute",
+            "solo",
+            "audition",
+            "choke",
+            "gater_source",
+            "gater_depth",
+            "gater_attack_ms",
+            "gater_release_ms",
+            "sidechain",
+        ] {
+            out.push((
+                format!("sampler{i}.{name}"),
+                format!("Sampler / Lane {i} / {}", name.replace('_', " ")),
+            ));
         }
     }
     out
@@ -29,8 +64,11 @@ pub fn is_action(id: &str) -> bool {
 }
 
 pub fn is_boolean(id: &str) -> bool {
-    id == "studio.enabled" || id.starts_with("sampler")
-        && [".reverse", ".mute", ".solo", ".sidechain"].iter().any(|s| id.ends_with(s))
+    id == "studio.enabled"
+        || id.starts_with("sampler")
+            && [".reverse", ".mute", ".solo", ".sidechain"]
+                .iter()
+                .any(|s| id.ends_with(s))
 }
 
 fn lane_field(id: &str) -> Option<(usize, &str)> {
@@ -41,7 +79,10 @@ fn lane_field(id: &str) -> Option<(usize, &str)> {
 
 fn mode(v: f64) -> Mode {
     match (v * 3.0).round() as u8 {
-        0 => Mode::OneShot, 1 => Mode::AutoCut, 2 => Mode::Gate, _ => Mode::Loop,
+        0 => Mode::OneShot,
+        1 => Mode::AutoCut,
+        2 => Mode::Gate,
+        _ => Mode::Loop,
     }
 }
 
@@ -57,8 +98,10 @@ fn lane_value(lane: &Lane, name: &str) -> f64 {
         "release" => (lane.release_ms - 1.0) / 2999.0,
         "gate" => (lane.gate - 0.01) / 15.99,
         "mode" => match lane.mode {
-            Mode::OneShot => 0.0, Mode::AutoCut => 1.0 / 3.0,
-            Mode::Gate => 2.0 / 3.0, Mode::Loop => 1.0,
+            Mode::OneShot => 0.0,
+            Mode::AutoCut => 1.0 / 3.0,
+            Mode::Gate => 2.0 / 3.0,
+            Mode::Loop => 1.0,
         },
         "choke" => f64::from(lane.choke) / 8.0,
         "gater_source" => f64::from(lane.gater_source) / 2.0,
@@ -82,22 +125,30 @@ fn value(settings: &Settings, id: &str) -> f64 {
         "studio.low_cut" => (settings.low_cut - 20.0) / 1980.0,
         "studio.high_cut" => (settings.high_cut - 2000.0) / 18000.0,
         _ => {
-            if let Some(i) = id.strip_prefix("studio.send")
-                .and_then(|s| s.parse::<usize>().ok()).and_then(|n| n.checked_sub(1)) {
+            if let Some(i) = id
+                .strip_prefix("studio.send")
+                .and_then(|s| s.parse::<usize>().ok())
+                .and_then(|n| n.checked_sub(1))
+            {
                 settings.sends.get(i).copied().unwrap_or(0.0)
             } else if let Some((i, name)) = lane_field(id) {
                 lane_value(&settings.lanes[i], name)
-            } else { 0.0 }
+            } else {
+                0.0
+            }
         }
     }
 }
 
 pub fn defaults() -> Vec<(String, u8)> {
     let settings = Settings::default();
-    controls().into_iter().map(|(id, _)| {
-        let cc = (value(&settings, &id).clamp(0.0, 1.0) * 127.0).round() as u8;
-        (id, cc)
-    }).collect()
+    controls()
+        .into_iter()
+        .map(|(id, _)| {
+            let cc = (value(&settings, &id).clamp(0.0, 1.0) * 127.0).round() as u8;
+            (id, cc)
+        })
+        .collect()
 }
 
 impl App {
@@ -106,10 +157,14 @@ impl App {
         let mut auditions = Vec::new();
         for event in &self.panel.events {
             if let Event::Press { id } = event {
-                if let Some((i, "audition")) = lane_field(id) { auditions.push(i); }
+                if let Some((i, "audition")) = lane_field(id) {
+                    auditions.push(i);
+                }
                 continue;
             }
-            let Event::Set { id, value } = event else { continue };
+            let Event::Set { id, value } = event else {
+                continue;
+            };
             let raw = (*value).clamp(0, 127);
             let v = f64::from(raw) / 127.0;
             let s = &mut self.studio.settings;
@@ -121,9 +176,13 @@ impl App {
                 "studio.low_cut" => s.low_cut = 20.0 + v * 1980.0,
                 "studio.high_cut" => s.high_cut = 2000.0 + v * 18000.0,
                 _ => {
-                    if let Some(index) = id.strip_prefix("studio.send")
-                        .and_then(|s| s.parse::<usize>().ok()) {
-                        if (1..=4).contains(&index) { s.sends[index - 1] = v; }
+                    if let Some(index) = id
+                        .strip_prefix("studio.send")
+                        .and_then(|s| s.parse::<usize>().ok())
+                    {
+                        if (1..=4).contains(&index) {
+                            s.sends[index - 1] = v;
+                        }
                     } else if let Some((i, name)) = lane_field(id) {
                         let lane = &mut s.lanes[i];
                         match name {
@@ -161,7 +220,9 @@ impl App {
         }
         if !auditions.is_empty() {
             self.studio_poll(&self.studio.context.clone());
-            for lane in auditions { self.studio_command(Command::StudioAudition(lane)); }
+            for lane in auditions {
+                self.studio_command(Command::StudioAudition(lane));
+            }
         }
         self.studio_mirror();
     }
@@ -169,9 +230,12 @@ impl App {
     pub(crate) fn studio_mirror(&mut self) {
         let s = &self.studio.settings;
         for (id, _) in controls() {
-            if is_action(&id) { continue; }
+            if is_action(&id) {
+                continue;
+            }
             if let Some((i, name)) = lane_field(&id)
-                && let Some(raw) = self.panel.value(&id) {
+                && let Some(raw) = self.panel.value(&id)
+            {
                 let v = f64::from(raw) / 127.0;
                 let lane = &s.lanes[i];
                 // Quantization and trim constraints must not re-arm pickup on our own edits.
@@ -180,13 +244,17 @@ impl App {
                     "mode" => mode(v) == lane.mode,
                     "choke" => (v * 8.0).round() as u8 == lane.choke,
                     "gater_source" => (v * 2.0).round() as u8 == lane.gater_source,
-                    "end" => ((1e-9 + v * (1.0 - 1e-9)).max(lane.start + 1e-9)
-                        - lane.end).abs() < 1e-12,
+                    "end" => {
+                        ((1e-9 + v * (1.0 - 1e-9)).max(lane.start + 1e-9) - lane.end).abs() < 1e-12
+                    }
                     _ => false,
                 };
-                if same { continue; }
+                if same {
+                    continue;
+                }
             }
-            self.panel.adopt(&id, (value(s, &id).clamp(0.0, 1.0) * 127.0).round() as i32);
+            self.panel
+                .adopt(&id, (value(s, &id).clamp(0.0, 1.0) * 127.0).round() as i32);
         }
     }
 }
@@ -194,13 +262,32 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{midi::{Binding, Cc, Config, Kind, Router, kind}, model::Panel};
+    use crate::{
+        midi::{Binding, Cc, Config, Kind, Router, kind},
+        model::Panel,
+    };
 
     fn move_cc(app: &mut App, router: &mut Router, id: &str, value: u8, pickup: bool) {
-        let config = Config { pickup, bindings: vec![Binding {
-            input: 0, channel: 1, controller: 74, target: id.into(),
-        }], ..Config::default() };
-        router.apply(Cc { channel: 1, controller: 74, value }, &config, &mut app.panel, 0.0);
+        let config = Config {
+            pickup,
+            bindings: vec![Binding {
+                input: 0,
+                channel: 1,
+                controller: 74,
+                target: id.into(),
+            }],
+            ..Config::default()
+        };
+        router.apply(
+            Cc {
+                channel: 1,
+                controller: 74,
+                value,
+            },
+            &config,
+            &mut app.panel,
+            0.0,
+        );
         app.studio_midi();
         app.panel.events.clear();
     }
@@ -219,7 +306,12 @@ mod tests {
 
     #[test]
     fn selectors_keep_pickup_latched_through_every_quantization_boundary() {
-        for id in ["sampler1.pitch", "sampler1.mode", "sampler1.choke", "sampler1.gater_source"] {
+        for id in [
+            "sampler1.pitch",
+            "sampler1.mode",
+            "sampler1.choke",
+            "sampler1.gater_source",
+        ] {
             let mut app = App::new(Panel::new(), None);
             let mut router = Router::default();
             let current = app.panel.value(id).unwrap();
@@ -241,16 +333,52 @@ mod tests {
     fn envelope_gater_and_boolean_endpoints_reach_the_settings() {
         let mut app = App::new(Panel::new(), None);
         let mut router = Router::default();
-        for name in ["attack", "release", "gate", "gater_depth", "gater_attack_ms",
-            "gater_release_ms", "reverse", "mute", "solo", "sidechain"] {
-            move_cc(&mut app, &mut router, &format!("sampler8.{name}"), 127, false);
+        for name in [
+            "attack",
+            "release",
+            "gate",
+            "gater_depth",
+            "gater_attack_ms",
+            "gater_release_ms",
+            "reverse",
+            "mute",
+            "solo",
+            "sidechain",
+        ] {
+            move_cc(
+                &mut app,
+                &mut router,
+                &format!("sampler8.{name}"),
+                127,
+                false,
+            );
         }
         let lane = &app.studio.settings.lanes[7];
-        assert_eq!((lane.attack_ms, lane.release_ms, lane.gate), (2000.0, 3000.0, 16.0));
-        assert_eq!((lane.gater_depth, lane.gater_attack_ms, lane.gater_release_ms), (1.0, 100.0, 500.0));
+        assert_eq!(
+            (lane.attack_ms, lane.release_ms, lane.gate),
+            (2000.0, 3000.0, 16.0)
+        );
+        assert_eq!(
+            (
+                lane.gater_depth,
+                lane.gater_attack_ms,
+                lane.gater_release_ms
+            ),
+            (1.0, 100.0, 500.0)
+        );
         assert!(lane.reverse && lane.muted && lane.solo && lane.sidechain);
-        for name in ["attack", "release", "gate", "gater_depth", "gater_attack_ms",
-            "gater_release_ms", "reverse", "mute", "solo", "sidechain"] {
+        for name in [
+            "attack",
+            "release",
+            "gate",
+            "gater_depth",
+            "gater_attack_ms",
+            "gater_release_ms",
+            "reverse",
+            "mute",
+            "solo",
+            "sidechain",
+        ] {
             move_cc(&mut app, &mut router, &format!("sampler8.{name}"), 0, true);
         }
         let lane = &app.studio.settings.lanes[7];

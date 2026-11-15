@@ -380,7 +380,8 @@ impl Panel {
         p.numbers.insert("delay.steps".into(), 3);
         p.numbers.insert("pcf.pattern".into(), 0);
         for (id, value) in crate::studio::midi::defaults() {
-            p.knobs.insert(id, behavior::knob_from_engine(i32::from(value)));
+            p.knobs
+                .insert(id, behavior::knob_from_engine(i32::from(value)));
         }
         p
     }

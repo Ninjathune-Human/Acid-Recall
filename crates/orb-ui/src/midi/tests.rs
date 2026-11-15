@@ -145,7 +145,10 @@ fn reusing_one_cc_reports_which_assignment_was_replaced() {
 #[test]
 fn two_controllers_can_learn_identical_ccs_without_conflict() {
     let mut midi = Midi::default();
-    let mut config = Config { pickup: false, ..Config::default() };
+    let mut config = Config {
+        pickup: false,
+        ..Config::default()
+    };
     let mut panel = Panel::new();
     for (input, target) in [(0, "tr909.ch_level"), (1, "tr909.hh_level")] {
         midi.filter = target.into();
@@ -161,10 +164,19 @@ fn two_controllers_can_learn_identical_ccs_without_conflict() {
 
 #[test]
 fn calibration_is_per_device_and_legacy_bindings_stay_on_input_one() {
-    let mut config = Config { pickup: false, minimum_one: true,
-        additional_inputs: vec![InputSettings::default()], ..Config::default() };
+    let mut config = Config {
+        pickup: false,
+        minimum_one: true,
+        additional_inputs: vec![InputSettings::default()],
+        ..Config::default()
+    };
     for (input, target) in [(0, "mixer1.level"), (1, "mixer2.level")] {
-        config.assign(Binding { input, channel: 1, controller: 74, target: target.into() });
+        config.assign(Binding {
+            input,
+            channel: 1,
+            controller: 74,
+            target: target.into(),
+        });
     }
     let mut router = Router::default();
     let mut panel = Panel::new();
@@ -172,16 +184,27 @@ fn calibration_is_per_device_and_legacy_bindings_stay_on_input_one() {
     router.apply_from(1, cc(74, 1), &config, &mut panel, 0.0);
     assert_eq!(panel.value("mixer1.level"), Some(0));
     assert_eq!(panel.value("mixer2.level"), Some(1));
-    let old: Config = toml::from_str("port='UC33'\n[[bindings]]\nchannel=1\ncontroller=74\ntarget='mixer1.level'").unwrap();
+    let old: Config = toml::from_str(
+        "port='UC33'\n[[bindings]]\nchannel=1\ncontroller=74\ntarget='mixer1.level'",
+    )
+    .unwrap();
     assert_eq!(old.bindings[0].input, 0);
     assert!(old.additional_inputs.is_empty());
 }
 
 #[test]
 fn controller_slots_are_stable_when_an_input_is_disconnected() {
-    let config = Config { port: Some("UC33".into()), additional_inputs: vec![
-        InputSettings::default(), InputSettings { port: Some("Pads".into()), minimum_one: false },
-    ], ..Config::default() };
+    let config = Config {
+        port: Some("UC33".into()),
+        additional_inputs: vec![
+            InputSettings::default(),
+            InputSettings {
+                port: Some("Pads".into()),
+                minimum_one: false,
+            },
+        ],
+        ..Config::default()
+    };
     assert_eq!(config.inputs(), vec![(0, "UC33"), (2, "Pads")]);
     let encoded = toml::to_string(&config).unwrap();
     assert_eq!(toml::from_str::<Config>(&encoded).unwrap(), config);
@@ -191,11 +214,18 @@ fn controller_slots_are_stable_when_an_input_is_disconnected() {
 fn button_edges_are_isolated_between_controller_inputs() {
     let mut config = Config::default();
     for (input, target) in [(0, "sampler1.audition"), (1, "sampler2.audition")] {
-        config.assign(Binding { input, channel: 1, controller: 74, target: target.into() });
+        config.assign(Binding {
+            input,
+            channel: 1,
+            controller: 74,
+            target: target.into(),
+        });
     }
     let mut router = Router::default();
     let mut panel = Panel::new();
-    for input in [0, 1, 0, 1] { router.apply_from(input, cc(74, 127), &config, &mut panel, 0.0); }
+    for input in [0, 1, 0, 1] {
+        router.apply_from(input, cc(74, 127), &config, &mut panel, 0.0);
+    }
     assert_eq!(panel.events.len(), 2);
     router.apply_from(0, cc(74, 0), &config, &mut panel, 0.0);
     router.apply_from(0, cc(74, 127), &config, &mut panel, 0.0);

@@ -454,8 +454,9 @@ impl App {
                         lane.start = 0.0;
                         lane.end = 1.0;
                     } else if let Some(pointer) = response.interact_pointer_pos() {
-                        let at = f64::from((pointer.x - response.rect.left()) / response.rect.width())
-                            .clamp(0.0, 1.0);
+                        let at =
+                            f64::from((pointer.x - response.rect.left()) / response.rect.width())
+                                .clamp(0.0, 1.0);
                         let id = response.id.with("trim-handle");
                         if response.drag_started() || response.clicked() {
                             let entry = (at - lane.start).abs() <= (at - lane.end).abs();
@@ -474,12 +475,30 @@ impl App {
                     let mut entry = lane.start * duration;
                     let mut exit = lane.end * duration;
                     ui.horizontal(|ui| {
-                        if ui.add(egui::DragValue::new(&mut entry).range(0.0..=duration)
-                            .speed(0.001).fixed_decimals(3).prefix("IN ").suffix(" s")).changed() {
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut entry)
+                                    .range(0.0..=duration)
+                                    .speed(0.001)
+                                    .fixed_decimals(3)
+                                    .prefix("IN ")
+                                    .suffix(" s"),
+                            )
+                            .changed()
+                        {
                             trim_at(lane, true, entry / duration, minimum);
                         }
-                        if ui.add(egui::DragValue::new(&mut exit).range(0.0..=duration)
-                            .speed(0.001).fixed_decimals(3).prefix("OUT ").suffix(" s")).changed() {
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut exit)
+                                    .range(0.0..=duration)
+                                    .speed(0.001)
+                                    .fixed_decimals(3)
+                                    .prefix("OUT ")
+                                    .suffix(" s"),
+                            )
+                            .changed()
+                        {
                             trim_at(lane, false, exit / duration, minimum);
                         }
                     });
@@ -561,9 +580,27 @@ impl App {
                     ui.checkbox(&mut lane.sidechain, "Kick sidechain");
                 });
                 ui.columns(3, |columns| {
-                    slider(&mut columns[0], &mut lane.gater_depth, 0.0, 1.0, "Gater depth");
-                    slider(&mut columns[1], &mut lane.gater_attack_ms, 0.1, 100.0, "Open / ms");
-                    slider(&mut columns[2], &mut lane.gater_release_ms, 1.0, 500.0, "Close / ms");
+                    slider(
+                        &mut columns[0],
+                        &mut lane.gater_depth,
+                        0.0,
+                        1.0,
+                        "Gater depth",
+                    );
+                    slider(
+                        &mut columns[1],
+                        &mut lane.gater_attack_ms,
+                        0.1,
+                        100.0,
+                        "Open / ms",
+                    );
+                    slider(
+                        &mut columns[2],
+                        &mut lane.gater_release_ms,
+                        1.0,
+                        500.0,
+                        "Close / ms",
+                    );
                 });
                 ui.small(
                     "Gater follows the selected TB's note gates, including slides, even with \
@@ -695,7 +732,10 @@ fn waveform(
     epoch: u64,
     cache: &mut super::WaveformCache,
 ) -> egui::Response {
-    let (rect, response) = ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::click_and_drag());
+    let (rect, response) = ui.allocate_exact_size(
+        Vec2::new(ui.available_width(), height),
+        Sense::click_and_drag(),
+    );
     ui.painter().rect_filled(rect, 4.0, Color32::from_gray(17));
     if frames.is_empty() {
         return response;
@@ -723,10 +763,24 @@ fn waveform(
         );
     }
     for (value, label) in [(start, "IN"), (end, "OUT")] {
-        let x = (rect.left() + value as f32 * rect.width()).clamp(rect.left() + 1.0, rect.right() - 1.0);
-        ui.painter().line_segment([egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())], Stroke::new(2.0, ACCENT));
-        let align = if label == "IN" { egui::Align2::LEFT_TOP } else { egui::Align2::RIGHT_TOP };
-        ui.painter().text(egui::pos2(x, rect.top() + 3.0), align, label, egui::FontId::monospace(11.0), ACCENT);
+        let x = (rect.left() + value as f32 * rect.width())
+            .clamp(rect.left() + 1.0, rect.right() - 1.0);
+        ui.painter().line_segment(
+            [egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())],
+            Stroke::new(2.0, ACCENT),
+        );
+        let align = if label == "IN" {
+            egui::Align2::LEFT_TOP
+        } else {
+            egui::Align2::RIGHT_TOP
+        };
+        ui.painter().text(
+            egui::pos2(x, rect.top() + 3.0),
+            align,
+            label,
+            egui::FontId::monospace(11.0),
+            ACCENT,
+        );
     }
     response
 }

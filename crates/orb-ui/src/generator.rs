@@ -265,6 +265,116 @@ pub fn tb_pair(options: &Options, length: u8, seed: u64) -> [Vec<u8>; 2] {
     [bytes303(&bass, length), bytes303(&answer, length)]
 }
 
+fn steps303(bytes: &[u8]) -> [Step303; 16] {
+    std::array::from_fn(|s| {
+        let b = &bytes[2 + s * 6..8 + s * 6];
+        Step303 {
+            note: b[0],
+            slide: b[1] != 0,
+            accent: b[2] != 0,
+            up: b[3] != 0,
+            down: b[4] != 0,
+            rest: b[5] != 0,
+        }
+    })
+}
+
+fn phase_candidates(
+    scale: &[u8],
+    root: i32,
+    bass: &[Step303; 16],
+    length: usize,
+    phase: usize,
+    stride: usize,
+) -> Vec<u8> {
+    scale.iter().copied().filter(|&interval| {
+        (phase..length).step_by(stride).all(|s| {
+            bass[s].rest || matches!(
+                (root + i32::from(interval) - pitch(bass[s])).rem_euclid(12),
+                0 | 3 | 4 | 5 | 7 | 8 | 9
+            )
+        })
+    }).collect()
+}
+
+/// Linked lines with independent loop lengths. A step of A can meet a step of B only when
+/// their indices agree modulo gcd(length A, length B). Each answer note is therefore chosen
+/// against every bass note it will encounter over the complete common cycle, not just its
+/// first occurrence. If that intersection is empty, that phase's bass notes move to the
+/// nearest tonic-triad notes, keeping rhythm, accents and register. The selected scales all
+/// contain that triad, which guarantees a bounded, consonant fallback even for coprime loops.
+pub fn tb_pair_lengths(options: &Options, lengths: [u8; 2], seed: u64) -> [Vec<u8>; 2] {
+    let lengths = lengths.map(|n| n.clamp(1, 16));
+    if lengths[0] == lengths[1] {
+        return tb_pair(options, lengths[0], seed);
+    }
+    let [a_len, b_len] = lengths.map(usize::from);
+    let (mut divisor, mut remainder) = (a_len, b_len);
+    while remainder != 0 {
+        (divisor, remainder) = (remainder, divisor % remainder);
+    }
+    let root = i32::from(options.root % 12);
+    let scale = options.scale.intervals();
+    let mut bass = steps303(&tb_pair(options, lengths[0], seed)[0]);
+    let mut answer = [Step303::default(); 16];
+    let mut rng = Rng(seed ^ 0x6a09_e667_f3bc_c909);
+    let third = if scale.contains(&3) { 3 } else { 4 };
+    let mut palettes = Vec::new();
+    let mut activity = Vec::new();
+    for phase in 0..divisor {
+        let mut candidates = phase_candidates(scale, root, &bass, a_len, phase, divisor);
+        if candidates.is_empty() {
+            for s in (phase..a_len).step_by(divisor) {
+                if bass[s].rest {
+                    continue;
+                }
+                let previous = bass[s];
+                let old_pitch = pitch(previous);
+                let nearest = [0, third, 7].into_iter().flat_map(|interval| {
+                    (-1..=1).map(move |octave| (root + interval).rem_euclid(12) + 12 * octave)
+                }).min_by_key(|p| (*p - old_pitch).abs()).unwrap();
+                bass[s] = note(nearest, previous.accent);
+                bass[s].slide = previous.slide;
+            }
+            candidates = phase_candidates(scale, root, &bass, a_len, phase, divisor);
+        }
+        let voiced = (phase..a_len).step_by(divisor).filter(|&s| !bass[s].rest).count();
+        let total = (phase..a_len).step_by(divisor).count();
+        activity.push((voiced, total));
+        palettes.push(candidates);
+    }
+    let motif: [usize; 4] = std::array::from_fn(|_| rng.pick(scale.len()));
+    for s in 0..b_len {
+        let phase = s % divisor;
+        let (voiced, total) = activity[phase];
+        let density = usize::from(options.density.min(100));
+        let high = (density + 20).min(100);
+        let low = density / 4;
+        let probability = high - (high - low) * voiced / total;
+        let probability = if s >= b_len / 2 { probability } else { probability / 2 };
+        if density == 0 || !rng.chance(probability as u8) {
+            continue;
+        }
+        let palette = &palettes[phase];
+        let index = if rng.chance(options.variation) {
+            rng.pick(palette.len())
+        } else {
+            motif[s % motif.len()] % palette.len()
+        };
+        answer[s] = note(root + i32::from(palette[index]) + 12, rng.chance(options.accents));
+    }
+    if options.density > 0 && answer[..b_len].iter().all(|s| s.rest) {
+        let s = b_len / 2;
+        let palette = &palettes[s % divisor];
+        answer[s] = note(
+            root + i32::from(palette[rng.pick(palette.len())]) + 12,
+            rng.chance(options.accents),
+        );
+    }
+    finish_slides(&mut answer, b_len, options.slides, &mut rng);
+    [bytes303(&bass, a_len), bytes303(&answer, b_len)]
+}
+
 /// A structured techno or broken beat. Columns follow the original machine, including the
 /// 909's different hat indices and its 0/1/2/3 velocity/flam values.
 pub fn drum_pattern(options: &Options, is808: bool, length: u8, seed: u64) -> Vec<u8> {
