@@ -713,16 +713,15 @@ fn export_matches_the_renderer_with_independent_hats() {
             };
             let mut renderer = Renderer::new(ModOpts::default());
             renderer.independent_hats = true;
-            renderer
-                .render_to_file(
-                    "x",
-                    &song,
-                    DEFAULT_IDLE_BLOCKS,
-                    format,
-                    DEFAULT_QUALITY,
-                    &want,
-                )
-                .unwrap_or_else(|orb_cli::Fail(_, m)| panic!("{m}"));
+            let result = renderer.render_to_file(
+                "x",
+                &song,
+                DEFAULT_IDLE_BLOCKS,
+                format,
+                DEFAULT_QUALITY,
+                &want,
+            );
+            result.unwrap_or_else(|orb_cli::Fail(_, m)| panic!("{m}"));
             let (a, b) = (std::fs::read(&got).unwrap(), std::fs::read(&want).unwrap());
             assert!(a.len() > 1000, "{ext} is empty");
             assert!(
@@ -1356,7 +1355,739 @@ fn refresh_list_reports_its_result() {
 /// song open and a mod change; a mod that is not in the folder checks nothing.
 #[test]
 fn the_mods_menu_checks_the_songs_mod() {
-    let Some(pbe2) = mod_file("PBE2.rbm…6910 tokens truncated…) > 16
+    let Some(pbe2) = mod_file("PBE2.rbm") else {
+        return;
+    };
+    let mut h = Harness::new();
+    h.app.settings.mods_dir = pbe2.parent().map(Path::to_path_buf);
+    let list = h.app.list_mods().unwrap();
+    let pbe2_at = list.iter().position(|e| e.path == pbe2).unwrap();
+
+    // the start: the standard kit
+    assert_eq!(h.app.mod_checks(&list), (true, None));
+
+    // a mod change
+    h.app.use_kit(Kit::Mod(pbe2.clone()));
+    assert_eq!(h.app.mod_checks(&list), (false, Some(pbe2_at)));
+    h.app.use_kit(Kit::Standard);
+    assert_eq!(h.app.mod_checks(&list), (true, None));
+
+    // a song open: a song that names the mod, then one that names a mod that is missing
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = rbs::Song::empty();
+    s.glob.mod_name = list[pbe2_at].name.clone();
+    let named = dir.path().join("named.rbs");
+    std::fs::write(&named, s.write().unwrap()).unwrap();
+    h.app.doc.modified = false; // the mod changes above asked for the unsaved prompt
+    h.app.open_song(&named);
+    assert_eq!(h.app.mod_checks(&list), (false, Some(pbe2_at)));
+    s.glob.mod_name = "No Such Mod".into();
+    let missing = dir.path().join("missing.rbs");
+    std::fs::write(&missing, s.write().unwrap()).unwrap();
+    h.app.open_song(&missing);
+    assert_eq!(h.app.mod_checks(&list), (false, None));
+
+    // a song that names the mod with another ASCII case plays it (task-150)
+    s.glob.mod_name = list[pbe2_at].name.to_ascii_lowercase();
+    let by_case = dir.path().join("by_case.rbs");
+    std::fs::write(&by_case, s.write().unwrap()).unwrap();
+    h.app.open_song(&by_case);
+    assert_eq!(h.app.doc.kit, Kit::Mod(pbe2.clone()));
+    assert_eq!(h.app.mod_checks(&list), (false, Some(pbe2_at)));
+
+    // a song that names the mod by its file name finds nothing: the INFO name only
+    s.glob.mod_name = "pbe2".into();
+    let by_file = dir.path().join("by_file.rbs");
+    std::fs::write(&by_file, s.write().unwrap()).unwrap();
+    h.app.open_song(&by_file);
+    assert_eq!(h.app.doc.kit, Kit::Standard);
+    assert_eq!(h.app.mod_checks(&list), (false, None));
+
+    // a mod file from outside the folder with a folder mod's INFO name checks nothing
+    let outside = dir.path().join("Outside.rbm");
+    std::fs::copy(&pbe2, &outside).unwrap();
+    h.app.doc.modified = false;
+    h.app.use_kit(Kit::Standard);
+    h.app.use_kit(Kit::Mod(outside.clone()));
+    assert_eq!(h.app.doc.kit, Kit::Mod(outside));
+    assert_eq!(h.app.doc.mod_name, list[pbe2_at].name);
+    assert_eq!(h.app.mod_checks(&list), (false, None));
+}
+
+/// task-088: a song the node pool refuses (more than 100000 events) opens no song: the alert's
+/// text is shown, the open song, its document and the panel stay, and no startup sound plays
+/// (sub_40B575's STOP alert, docs/song_load.md section 5.2).
+#[test]
+fn a_song_the_node_pool_refuses_is_not_opened() {
+    let events = |n: u32, ctrls: [u8; 2]| -> Vec<rbs::Event> {
+        (0..n)
+            .map(|i| rbs::Event {
+                pos: i / 2,
+                ctrl: ctrls[(i % 2) as usize],
+                value: (i / 2 % 2) as u8 + 1,
+            })
+            .collect()
+    };
+    let mut big = rbs::Song::empty();
+    big.tracks[5].events = events(60_000, [3, 4]);
+    big.tracks[6].events = events(41_000, [1, 2]);
+    let dir = tempfile::tempdir().unwrap();
+    let big_path = dir.path().join("big.rbs");
+    std::fs::write(&big_path, big.write().unwrap()).unwrap();
+
+    let src = root().join("tests/songs/diag/songs/drums_kit.rbs");
+    let mut h = Harness::new();
+    h.app.settings.startup_sound = true;
+    h.open(&src);
+    // let the startup sound of the first open end
+    h.calls(2000);
+    assert_eq!(h.audio.preview_position(), None);
+    // a panel value the refused song's load would reset
+    h.app.panel.transport.tempo = 77;
+    let doc_path = h.app.doc.path.clone();
+    h.app.open_song(&big_path);
+    assert_eq!(
+        h.app.error(),
+        Some("There is not enough memory for opening the Song.")
+    );
+    assert_eq!(h.app.panel.transport.tempo, 77);
+    h.calls(2);
+    assert_eq!(h.audio.preview_position(), None, "no startup sound");
+    assert_eq!(h.app.doc.path, doc_path);
+
+    // the start with the refused song as the command-line song opens nothing either
+    let mut s = Harness::new();
+    s.app.settings.startup_sound = true;
+    let opened = orb_ui::session::open_song(&big_path).unwrap();
+    s.app.start(Some((big_path.clone(), opened)));
+    assert!(s.app.error_open());
+    s.calls(2);
+    assert_eq!(s.audio.preview_position(), None, "no startup sound");
+    assert_eq!(s.app.doc.path, None);
+}
+
+/// task-090: opening a song while another plays stops the playback and leaves the new song
+/// stopped at its start; an open that is cancelled (the unsaved prompt) or fails (unreadable
+/// file, node pool refusal) leaves the song playing.
+#[test]
+fn opening_a_song_while_playing_stops_it_and_a_refused_open_does_not() {
+    let a = root().join("tests/songs/diag/songs/drums_kit.rbs");
+    let b = root().join("tests/songs/diag/songs/303_saw_lowcut.rbs");
+    let play = |h: &mut Harness| {
+        h.app.panel.press("transport.play", 0.0);
+        h.frame(vec![]);
+        h.calls(40);
+        assert!(h.app.panel.transport.playing);
+        assert!(h.app.panel.transport.position > 0);
+    };
+
+    // a successful open
+    let mut h = Harness::new();
+    h.open(&a);
+    play(&mut h);
+    h.app.open_song(&b);
+    assert!(h.app.errors.is_empty(), "{:?}", h.app.errors);
+    h.calls(4);
+    assert_eq!(h.app.doc.path.as_deref(), Some(b.as_path()));
+    assert!(!h.app.panel.transport.playing, "stopped");
+    assert_eq!(h.app.panel.transport.position, 0, "at its start");
+    h.calls(40);
+    assert!(!h.app.panel.transport.playing, "and it stays stopped");
+    assert_eq!(h.app.panel.transport.position, 0);
+
+    // a failed read: the song keeps playing
+    let mut h = Harness::new();
+    h.open(&a);
+    play(&mut h);
+    h.app
+        .open_song(&root().join("tests/songs/diag/songs/no_such_song.rbs"));
+    assert!(h.app.error_open());
+    h.calls(4);
+    assert!(h.app.panel.transport.playing);
+    assert_eq!(h.app.doc.path.as_deref(), Some(a.as_path()));
+
+    // a cancelled unsaved prompt: the song keeps playing
+    let mut h = Harness::new();
+    h.open(&a);
+    h.app.panel.set_knob("tb303_1.cutoff", 700);
+    h.frame(vec![]);
+    play(&mut h);
+    h.app.open_song(&b);
+    assert!(h.app.prompting());
+    h.app.answer(Answer::Cancel);
+    h.calls(4);
+    assert!(h.app.panel.transport.playing);
+    assert_eq!(h.app.doc.path.as_deref(), Some(a.as_path()));
+
+    // a node pool refusal: the song keeps playing
+    let events = |n: u32, ctrls: [u8; 2]| -> Vec<rbs::Event> {
+        (0..n)
+            .map(|i| rbs::Event {
+                pos: i / 2,
+                ctrl: ctrls[(i % 2) as usize],
+                value: (i / 2 % 2) as u8 + 1,
+            })
+            .collect()
+    };
+    let mut big = rbs::Song::empty();
+    big.tracks[5].events = events(60_000, [3, 4]);
+    big.tracks[6].events = events(41_000, [1, 2]);
+    let dir = tempfile::tempdir().unwrap();
+    let big_path = dir.path().join("big.rbs");
+    std::fs::write(&big_path, big.write().unwrap()).unwrap();
+    let mut h = Harness::new();
+    h.open(&a);
+    play(&mut h);
+    h.app.open_song(&big_path);
+    assert!(h.app.error_open());
+    h.calls(4);
+    assert!(h.app.panel.transport.playing);
+    assert_eq!(h.app.doc.path.as_deref(), Some(a.as_path()));
+}
+
+/// task-089: the Options menu's "Play Mod Startup Sound" flips the preference and saves the
+/// settings file at once; a save error goes to the message box.
+#[test]
+fn the_startup_sound_checkbox_flips_the_preference_and_saves_it() {
+    let dir = std::env::temp_dir().join(format!("orb-ui-startup-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let file = dir.join("ui.toml");
+    let mut h = Harness::new();
+    h.app.settings.file = Some(file.clone());
+    assert!(h.app.settings.startup_sound);
+    h.app.command(Cmd::ToggleStartupSound);
+    assert!(!h.app.settings.startup_sound);
+    let text = std::fs::read_to_string(&file).unwrap();
+    assert!(text.contains("startup_sound = false\n"), "{text}");
+    h.app.command(Cmd::ToggleStartupSound);
+    assert!(h.app.settings.startup_sound);
+    let text = std::fs::read_to_string(&file).unwrap();
+    assert!(text.contains("startup_sound = true\n"), "{text}");
+    assert!(!h.app.error_open());
+    // a file that cannot be written: the error is in the message box
+    h.app.settings.file = Some(file.join("x"));
+    h.app.command(Cmd::ToggleStartupSound);
+    assert!(h.app.error_open());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// task-091: File > New is the state of a start without a song: the same code builds both, and
+/// a modified song asks the prompt first.
+#[test]
+fn file_new_gives_the_state_of_a_fresh_start() {
+    let a = root().join("tests/songs/diag/songs/drums_kit.rbs");
+    let state = |h: &Harness| {
+        let d = &h.app.doc;
+        // the panel's maps print in no fixed order: the pretty print's lines, sorted
+        let mut lines: Vec<String> = format!("{:#?}", h.app.panel)
+            .lines()
+            .map(String::from)
+            .collect();
+        lines.sort();
+        format!(
+            "{lines:?}|{:?}|{}|{}|{:?}|{}",
+            d.path,
+            d.modified,
+            d.mod_name,
+            d.kit,
+            d.source == rbs::Song::empty()
+        )
+    };
+
+    // a fresh start without a song argument
+    let mut start = Harness::new();
+    let untouched = state(&start);
+    start.app.start(None);
+    start.calls(4);
+    assert_eq!(
+        state(&start),
+        untouched,
+        "the start builds the state the app is made in"
+    );
+
+    // a song that plays and was edited, then New through the prompt
+    let mut h = Harness::new();
+    h.app.settings.startup_sound = false;
+    h.open(&a);
+    h.app.panel.press("transport.play", 0.0);
+    h.frame(vec![]);
+    h.calls(40);
+    h.app.panel.set_knob("tb303_1.cutoff", 700);
+    h.frame(vec![]);
+    assert!(h.app.doc.modified && h.app.panel.transport.playing);
+    h.app.command(Cmd::New);
+    assert!(h.app.prompting(), "unsaved changes ask first");
+    h.app.answer(Answer::Cancel);
+    assert_eq!(h.app.doc.path.as_deref(), Some(a.as_path()));
+    h.app.command(Cmd::New);
+    h.app.answer(Answer::DontSave);
+    h.calls(4);
+    assert_eq!(state(&h), untouched, "New equals the start");
+    assert!(!h.app.panel.transport.playing);
+    assert_eq!(h.app.panel.transport.position, 0);
+    h.calls(40);
+    assert!(!h.app.panel.transport.playing, "and it stays stopped");
+    assert!(!h.app.settings.startup_sound, "the settings are kept");
+
+    // unmodified: no prompt
+    h.open(&a);
+    h.app.command(Cmd::New);
+    assert!(!h.app.prompting());
+    h.calls(4);
+    assert_eq!(state(&h), untouched);
+
+    // a pending pattern edit at the moment of New does not leak into the new song
+    h.open(&a);
+    h.app.panel.set_step808(3, true);
+    h.app.command(Cmd::New);
+    h.calls(4);
+    let fresh = Harness::new();
+    let mirror = |h: &Harness| h.app.link.as_ref().unwrap().patterns().clone();
+    assert_eq!(
+        mirror(&h),
+        mirror(&fresh),
+        "the pattern mirror is the fresh start's"
+    );
+    assert_eq!(state(&h), untouched);
+
+    // the shortcut
+    h.open(&a);
+    let key = Event::Key {
+        key: egui::Key::N,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::COMMAND,
+    };
+    h.frame(vec![Event::ModifiersChanged(Modifiers::COMMAND), key]);
+    h.calls(4);
+    assert!(h.app.doc.path.is_none(), "Ctrl+N is New");
+}
+
+/// task-091: File > New plays the startup sound once when the preference is on, none when off.
+/// task-099: it plays when the kit changes, so the song before it is on a mod.
+#[test]
+fn file_new_plays_the_startup_sound_when_the_preference_is_on() {
+    let Some(pbe2) = mod_file("PBE2.rbm") else {
+        return;
+    };
+    let a = root().join("tests/songs/diag/songs/drums_kit.rbs");
+    let audio = samples()
+        .get(orb_engine::samples::STARTUP_ID)
+        .audio()
+        .to_vec();
+    let calls = audio.len().div_ceil(CALL_FRAMES) + 2;
+    let run = |on: bool| {
+        let mut h = Harness::new();
+        h.app.settings.startup_sound = false;
+        h.open(&a);
+        h.app.use_kit(Kit::Mod(pbe2.clone()));
+        h.calls(4);
+        h.app.settings.startup_sound = on;
+        h.app.command(Cmd::New);
+        h.app.answer(Answer::DontSave);
+        assert_eq!(h.app.doc.kit, Kit::Standard);
+        let out = h.calls(calls);
+        (out, h.audio.preview_position())
+    };
+    let (off, pos_off) = run(false);
+    let (on, pos_on) = run(true);
+    assert_eq!((pos_off, pos_on), (None, None), "the sound ended");
+    assert_ne!(on, off);
+    assert_eq!(on, with_preview(&off, &audio));
+}
+
+/// task-094: Mods > Demo Song is offered only for a mod that carries a `Demo.rbs`; it opens the
+/// demo as a song that was never saved, on its mod, through the open path (the unsaved prompt,
+/// the stop of the playing song), and a save never goes into the mod.
+#[test]
+fn the_demo_song_of_the_current_mod_opens_as_an_unsaved_song() {
+    let Some(pbe2) = mod_file("PBE2.rbm") else {
+        return;
+    };
+    let mut h = Harness::new();
+    h.app.settings.startup_sound = false;
+
+    // the standard kit has no demo, and "Demo Song" does nothing
+    assert!(!h.app.has_demo());
+    h.app.demo_song();
+    assert!(!h.app.error_open());
+    assert_eq!(h.app.doc.path, None);
+
+    // a mod file without a Demo.rbs (the standard mod) is not offered either
+    h.app.doc.kit = Kit::Mod(standard_mod());
+    assert!(!h.app.has_demo());
+    h.app.doc.kit = Kit::Standard;
+
+    // a mod with one: enabled, and the bytes are a song that parses
+    h.app.use_kit(Kit::Mod(pbe2.clone()));
+    assert!(h.app.has_demo());
+    let demo = session::mod_demo(&pbe2).unwrap();
+    let want = rbs::Song::parse(&demo).unwrap();
+
+    // the unsaved changes (the mod change) ask first; Cancel keeps the song
+    assert!(h.app.doc.modified);
+    h.app.demo_song();
+    assert!(h.app.prompting());
+    h.app.answer(Answer::Cancel);
+    assert!(h.app.doc.modified);
+
+    // Don't Save opens it; the playing song stops
+    h.app.panel.press("transport.play", 0.0);
+    h.frame(vec![]);
+    h.calls(40);
+    assert!(h.app.panel.transport.playing);
+    h.app.demo_song();
+    assert!(h.app.prompting());
+    h.app.answer(Answer::DontSave);
+    assert!(h.app.errors.is_empty(), "{:?}", h.app.errors);
+    h.calls(4);
+    assert!(!h.app.panel.transport.playing, "stopped");
+    assert_eq!(h.app.panel.transport.position, 0);
+    assert_eq!(h.app.doc.path, None, "Untitled");
+    assert!(!h.app.doc.modified);
+    assert_eq!(h.app.doc.kit, Kit::Mod(pbe2.clone()));
+    assert_eq!(h.app.doc.mod_name, session::mod_info(&pbe2).unwrap().name);
+    assert!(h.app.has_demo());
+    assert_eq!(h.app.panel.transport.tempo, want.glob.tempo as i32);
+
+    // Save asks for a file, and the mod is untouched
+    let before = std::fs::read(&pbe2).unwrap();
+    h.app.save();
+    assert!(h.app.browsing(), "Save goes to Save As");
+    assert_eq!(
+        std::fs::read(&pbe2).unwrap(),
+        before,
+        "the mod is untouched"
+    );
+
+    // unmodified: no prompt
+    h.app.demo_song();
+    assert!(!h.app.prompting());
+}
+
+/// task-095: the info window shows the open song, follows an open of another song, and closes
+/// with Escape.
+#[test]
+fn the_info_window_follows_the_song_and_escape_closes_it() {
+    let dir = root().join("tests/songs/diag/songs");
+    let (a, b) = ("303_saw_lowcut.rbs", "303_saw_highcut.rbs");
+    let mut h = Harness::with_menu();
+    h.open(&dir.join(a));
+    h.app.show_info();
+    h.frame(vec![]);
+    assert!(h.app.info_is_open());
+    assert_eq!(h.app.info_shown().unwrap().name, a);
+    h.open(&dir.join(b));
+    h.frame(vec![]);
+    assert!(h.app.info_is_open());
+    assert_eq!(h.app.info_shown().unwrap().name, b);
+    h.frame(vec![Event::Key {
+        key: egui::Key::Escape,
+        physical_key: Some(egui::Key::Escape),
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::NONE,
+    }]);
+    assert!(!h.app.info_is_open());
+}
+
+/// task-117: while a field of the info window has the focus, Cmd/Ctrl+F and +G still set the
+/// keyboard mode and Escape closes the window; once the focus has left (the window closed, or
+/// the field let go), Space plays again.
+#[test]
+fn the_menu_shortcuts_and_escape_work_while_a_field_is_focused() {
+    use orb_ui::info::Field;
+    let key = |key, pressed, modifiers| Event::Key {
+        key,
+        physical_key: Some(key),
+        pressed,
+        repeat: false,
+        modifiers,
+    };
+    let tap = |h: &mut Harness, k, m| {
+        h.frame(vec![key(k, true, m)]);
+        h.frame(vec![key(k, false, m)]);
+    };
+    let mut h = Harness::with_menu();
+    h.open(&root().join("tests/songs/diag/songs/303_saw_lowcut.rbs"));
+    h.app.show_info();
+    h.frame(vec![]);
+    h.ctx
+        .memory_mut(|m| m.request_focus(Field::Title.edit_id()));
+    h.frame(vec![]);
+    assert!(h.ctx.text_edit_focused());
+    h.app.key_mode = KeyMode::Patterns;
+    tap(&mut h, egui::Key::F, Modifiers::COMMAND);
+    assert_eq!(h.app.key_mode, KeyMode::Synth);
+    tap(&mut h, egui::Key::G, Modifiers::COMMAND);
+    assert_eq!(h.app.key_mode, KeyMode::Patterns);
+    tap(&mut h, egui::Key::F, Modifiers::COMMAND);
+    assert_eq!(h.app.key_mode, KeyMode::Synth);
+    assert!(!h.app.doc.modified, "the shortcuts typed nothing");
+    // Escape closes the window, and the focus goes with the field
+    tap(&mut h, egui::Key::Escape, Modifiers::NONE);
+    assert!(!h.app.info_is_open());
+    h.frame(vec![]);
+    assert!(!h.ctx.text_edit_focused());
+    assert!(!h.app.panel.transport.playing);
+    tap(&mut h, egui::Key::Space, Modifiers::NONE);
+    assert!(
+        h.app.panel.transport.playing,
+        "Space plays once the window is closed"
+    );
+    tap(&mut h, egui::Key::Space, Modifiers::NONE);
+    assert!(!h.app.panel.transport.playing);
+
+    // a field that lets go of the focus (the window stays open): Space plays again
+    h.app.show_info();
+    h.frame(vec![]);
+    h.ctx.memory_mut(|m| m.request_focus(Field::Text.edit_id()));
+    h.frame(vec![]);
+    tap(&mut h, egui::Key::Space, Modifiers::NONE);
+    assert!(
+        !h.app.panel.transport.playing,
+        "the focused field takes Space"
+    );
+    h.ctx
+        .memory_mut(|m| m.surrender_focus(Field::Text.edit_id()));
+    h.frame(vec![]);
+    assert!(h.app.info_is_open());
+    tap(&mut h, egui::Key::Space, Modifiers::NONE);
+    assert!(
+        h.app.panel.transport.playing,
+        "Space plays once the field lets go"
+    );
+}
+
+/// task-117: the info window edits the title, text, web page and copyright of the open song:
+/// typing goes into the field and not to the panel, the song is marked modified, Save writes the
+/// new values, and another open refreshes the fields.
+#[test]
+fn the_info_window_edits_the_song_information_and_save_writes_it() {
+    use orb_ui::info::Field;
+    let dir = root().join("tests/songs/diag/songs");
+    let src = dir.join("303_saw_lowcut.rbs");
+    let out_dir = tempfile::tempdir().unwrap();
+    let out = out_dir.path().join("edited.rbs");
+    let mut h = Harness::with_menu();
+    h.open(&src);
+    h.app.show_info();
+    h.frame(vec![]);
+    let was = read_rbs(&src);
+    let key = |key, pressed| Event::Key {
+        key,
+        physical_key: Some(key),
+        pressed,
+        repeat: false,
+        modifiers: Modifiers::NONE,
+    };
+    let typed = [
+        (Field::Title, "T \u{e9}\u{20ac}"),
+        (Field::Text, "a\r\nb"),
+        (Field::WebPage, "www.x.org"),
+        (Field::Copyright, "(c) us"),
+    ];
+    for (field, text) in typed {
+        h.ctx.memory_mut(|m| m.request_focus(field.edit_id()));
+        h.frame(vec![]);
+        // a space typed in a field is the field's, not the panel's play key
+        h.frame(vec![
+            key(egui::Key::Space, true),
+            Event::Text(" ".into()),
+            key(egui::Key::Space, false),
+        ]);
+        h.frame(vec![Event::Paste(text.into())]);
+        assert!(!h.app.panel.transport.playing, "{field:?}");
+    }
+    assert!(h.app.doc.modified);
+    let s = &h.app.doc.source;
+    let ends = |v: &str, tail: &str| v.ends_with(tail);
+    assert!(
+        ends(&s.usri.window_title, " T \u{e9}?"),
+        "{:?}",
+        s.usri.window_title
+    );
+    assert!(ends(&s.usri.text, " a\rb"), "{:?}", s.usri.text);
+    assert!(
+        ends(&s.usri.web_page, " www.x.org"),
+        "{:?}",
+        s.usri.web_page
+    );
+    assert!(ends(&s.head.copyright, " (c) us"), "{:?}", s.head.copyright);
+    let want = s.clone();
+    h.app.save_to(&out);
+    assert!(!h.app.doc.modified);
+    let b = read_rbs(&out);
+    assert_eq!(b.usri.window_title, want.usri.window_title);
+    assert_eq!(b.usri.text, want.usri.text);
+    assert_eq!(b.usri.web_page, want.usri.web_page);
+    assert_eq!(b.head.copyright, want.head.copyright);
+    assert_engine_tracks(&b, &mut h.audio);
+    assert_eq!(b.usri.show_on_open, was.usri.show_on_open);
+    // another open shows that song's values
+    h.ctx
+        .memory_mut(|m| m.surrender_focus(Field::Title.edit_id()));
+    h.open(&dir.join("303_saw_highcut.rbs"));
+    h.frame(vec![]);
+    let other = read_rbs(&dir.join("303_saw_highcut.rbs"));
+    let shown = h.app.info_shown().unwrap();
+    assert_eq!(shown.window_title, other.usri.window_title);
+    assert_eq!(shown.copyright, other.head.copyright);
+    assert!(!h.app.doc.modified);
+}
+
+/// task-100: File > Info opens the window centered in the app window, each open centers it
+/// again, it can be dragged, and it stays inside a small window.
+#[test]
+fn the_info_window_opens_centered_and_stays_draggable() {
+    let mut h = Harness::with_menu();
+    let rect = |h: &Harness| {
+        h.ctx
+            .memory(|m| m.area_rect(h.app.info_id()))
+            .expect("the window is drawn")
+    };
+    let screen = |h: &Harness| Rect::from_min_size(Pos2::ZERO, Vec2::new(PANEL_W, h.height));
+    let esc = || Event::Key {
+        key: egui::Key::Escape,
+        physical_key: Some(egui::Key::Escape),
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::NONE,
+    };
+
+    h.app.show_info();
+    for _ in 0..4 {
+        h.frame(vec![]);
+    }
+    let r = rect(&h);
+    let off = (r.center() - screen(&h).center()).abs();
+    assert!(
+        off.x < 3.0 && off.y < 3.0,
+        "centered: {r:?} in {:?}",
+        screen(&h)
+    );
+
+    // drag the title bar: the window moves and stays where it was dropped
+    let grab = Pos2::new(r.center().x, r.min.y + 8.0);
+    // (the window is 570 wide on a 624 screen, so it can move only a little sideways)
+    let to = grab + Vec2::new(-20.0, 40.0);
+    let button = |pos, pressed| Event::PointerButton {
+        pos,
+        button: PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    h.frame(vec![Event::PointerMoved(grab)]);
+    h.frame(vec![button(grab, true)]);
+    h.frame(vec![Event::PointerMoved(to)]);
+    h.frame(vec![button(to, false)]);
+    for _ in 0..3 {
+        h.frame(vec![]);
+    }
+    let moved = rect(&h);
+    assert!(
+        (moved.min - (r.min + Vec2::new(-20.0, 40.0)))
+            .abs()
+            .max_elem()
+            < 3.0,
+        "dragged: {r:?} -> {moved:?}"
+    );
+
+    // File > Info on the open window leaves it where it was dropped
+    h.app.show_info();
+    for _ in 0..3 {
+        h.frame(vec![]);
+    }
+    assert_eq!(rect(&h), moved, "an open window is not moved");
+
+    // closed and opened again: centered again
+    h.frame(vec![esc()]);
+    assert!(!h.app.info_is_open());
+    h.app.show_info();
+    for _ in 0..4 {
+        h.frame(vec![]);
+    }
+    let off = (rect(&h).center() - screen(&h).center()).abs();
+    assert!(off.x < 3.0 && off.y < 3.0, "centered again: {:?}", rect(&h));
+
+    // a small window: the window is inside it
+    h.frame(vec![esc()]);
+    h.height = 200.0;
+    h.app.show_info();
+    for _ in 0..4 {
+        h.frame(vec![]);
+    }
+    let r = rect(&h);
+    assert!(
+        screen(&h).expand(0.5).contains_rect(r),
+        "inside: {r:?} in {:?}",
+        screen(&h)
+    );
+}
+
+/// task-102: Help > About opens a window centered in the app window (each open again), shows
+/// the logo, the version and the link, and Escape and the close button close it.
+#[test]
+fn the_about_window_opens_centered_and_closes() {
+    let mut h = Harness::with_menu();
+    let rect = |h: &Harness| h.ctx.memory(|m| m.area_rect(h.app.about_id()));
+    let screen = Rect::from_min_size(Pos2::ZERO, Vec2::new(PANEL_W, h.height));
+    let esc = || Event::Key {
+        key: egui::Key::Escape,
+        physical_key: Some(egui::Key::Escape),
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::NONE,
+    };
+    assert!(!h.app.about_is_open());
+    egui_extras::install_image_loaders(&h.ctx);
+    // an image is a rect shape with a texture brush
+    let images = |s: &str| s.matches("brush: Some(").count();
+    let before = images(&h.frame_shapes(vec![]));
+
+    h.app.command(Cmd::About);
+    assert!(h.app.about_is_open());
+    let mut shapes = String::new();
+    for _ in 0..4 {
+        shapes = h.frame_shapes(vec![]);
+    }
+    let r = rect(&h).expect("the window is drawn");
+    let off = (r.center() - screen.center()).abs();
+    assert!(off.x < 3.0 && off.y < 3.0, "centered: {r:?} in {screen:?}");
+    assert!(shapes.contains("OpenRB-338"), "the name is drawn");
+    assert!(
+        shapes.contains(orb_ui::about::VERSION),
+        "the version is drawn"
+    );
+    assert_eq!(orb_ui::about::URL, "https://github.com/pingw33n/openrb-338");
+    assert_eq!(
+        orb_ui::about::SONGS_URL,
+        "https://github.com/pingw33n/rb-songs"
+    );
+    assert_eq!(
+        orb_ui::about::MODS_URL,
+        "https://github.com/pingw33n/rb-mods"
+    );
+    assert!(shapes.contains(orb_ui::about::URL), "the link is drawn");
+    for (label, url) in orb_ui::about::COLLECTIONS {
+        assert!(shapes.contains(label), "{label} is drawn");
+        assert!(shapes.contains(url), "{url} is drawn");
+    }
+    assert_eq!(orb_ui::about::COLLECTIONS[0].0, "Song collection:");
+    assert_eq!(orb_ui::about::COLLECTIONS[1].0, "Mod collection:");
+    // the icon and the wordmark: two more images than without the window
+    assert_eq!(
+        images(&shapes),
+        before + 2,
+        "the icon and the logo are drawn"
+    );
+    // the version is `YYYY.MMDD.HHMM (<git>)` (task-133)
+    let v = orb_ui::about::VERSION;
+    let b = v.as_bytes();
+    let digits = |r: std::ops::Range<usize>| b[r].iter().all(u8::is_ascii_digit);
+    assert!(
+        v.len() > 16
             && digits(0..4)
             && b[4] == b'.'
             && digits(5..9)
@@ -2645,4 +3376,3 @@ fn the_info_fields_fill_the_window_and_follow_its_width() {
         win(&h).width()
     );
 }
-
