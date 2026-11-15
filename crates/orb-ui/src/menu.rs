@@ -993,10 +993,16 @@ impl App {
             use crate::model::Event;
             match e {
                 Event::Press { .. } => false,
-                Event::Set { id, .. } => !id.starts_with("duck") && !matches!(
-                    id.as_str(),
-                    "transport.position" | "transport.bar" | "transport.record" | "tr909.ch_level"
-                ),
+                Event::Set { id, .. } => {
+                    !id.starts_with("duck")
+                        && !matches!(
+                            id.as_str(),
+                            "transport.position"
+                                | "transport.bar"
+                                | "transport.record"
+                                | "tr909.ch_level"
+                        )
+                }
                 _ => true,
             }
         });

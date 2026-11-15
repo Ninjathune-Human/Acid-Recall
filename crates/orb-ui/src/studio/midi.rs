@@ -294,15 +294,17 @@ impl App {
                         "duck1.depth" => (normalized * 100.0).round() as u8 == duck.depth[0],
                         "duck2.depth" => (normalized * 100.0).round() as u8 == duck.depth[1],
                         "duck.source" => (normalized * 2.0).round() as u8 == duck.source,
-                        "duck.release" => (20.0 + normalized * 980.0).round() as u16
-                            == duck.release_ms,
+                        "duck.release" => {
+                            (20.0 + normalized * 980.0).round() as u16 == duck.release_ms
+                        }
                         _ => false,
                     };
                     if same {
                         continue;
                     }
                 }
-                self.panel.adopt(&id, (v.clamp(0.0, 1.0) * 127.0).round() as i32);
+                self.panel
+                    .adopt(&id, (v.clamp(0.0, 1.0) * 127.0).round() as i32);
                 continue;
             }
             if let Some((i, name)) = lane_field(&id)
@@ -485,7 +487,13 @@ mod tests {
             move_cc(&mut app, &mut router, "sampler8.gater_source", cc, false);
             assert_eq!(app.studio.settings.lanes[7].gater_source, source);
         }
-        move_cc(&mut app, &mut router, "sampler8.gater_instrument", 127, false);
+        move_cc(
+            &mut app,
+            &mut router,
+            "sampler8.gater_instrument",
+            127,
+            false,
+        );
         assert_eq!(app.studio.settings.lanes[7].gater_instrument, 11);
         for cc in (0..=127).rev() {
             move_cc(&mut app, &mut router, "sampler8.gater_instrument", cc, true);
@@ -493,7 +501,13 @@ mod tests {
         }
         assert_eq!(app.studio.settings.lanes[7].gater_instrument, 1);
         move_cc(&mut app, &mut router, "sampler8.gater_source", 95, false);
-        move_cc(&mut app, &mut router, "sampler8.gater_instrument", 127, false);
+        move_cc(
+            &mut app,
+            &mut router,
+            "sampler8.gater_instrument",
+            127,
+            false,
+        );
         assert_eq!(app.studio.settings.lanes[7].gater_instrument, 11);
         for (cc, hold) in [(0, 0.125), (127, 16.0)] {
             move_cc(&mut app, &mut router, "sampler8.gater_hold", cc, false);

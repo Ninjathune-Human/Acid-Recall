@@ -11,10 +11,8 @@ fn native_counters_report_each_instrument_and_include_909_flams() {
     let samples = rbm::standard::builtin_samples();
     for row in 2..=3 {
         for instrument in 1..=11 {
-            let mut engine = Engine::new(
-                tables.clone(),
-                Devices::implemented(Some(samples.clone())),
-            );
+            let mut engine =
+                Engine::new(tables.clone(), Devices::implemented(Some(samples.clone())));
             engine.frame.devices.channels[row].patterns_mut().unwrap()[2 + instrument] =
                 if row == 3 { 2 } else { 1 };
             engine.play();
@@ -44,10 +42,8 @@ fn logical_drum_triggers_ignore_level_and_mixer_but_respect_machine_enable() {
     let samples = rbm::standard::builtin_samples();
     for (row, device) in [(2, Device::Tr808), (3, Device::Tr909)] {
         for disabled in [false, true] {
-            let mut engine = Engine::new(
-                tables.clone(),
-                Devices::implemented(Some(samples.clone())),
-            );
+            let mut engine =
+                Engine::new(tables.clone(), Devices::implemented(Some(samples.clone())));
             engine.frame.devices.channels[row].patterns_mut().unwrap()[3] = 1;
             engine.device_param(device, 3, 0);
             engine.mixer_channel(row as u8, 0, 0);
@@ -75,11 +71,12 @@ fn a_real_selected_drum_opens_the_sampler_even_with_the_drum_level_at_zero() {
         (3, 3, 2, 2, false),
         (4, 3, 8, 8, true),
     ] {
-        let mut engine = Engine::new(
-            tables.clone(),
-            Devices::implemented(Some(samples.clone())),
-        );
-        let device = if row == 2 { Device::Tr808 } else { Device::Tr909 };
+        let mut engine = Engine::new(tables.clone(), Devices::implemented(Some(samples.clone())));
+        let device = if row == 2 {
+            Device::Tr808
+        } else {
+            Device::Tr909
+        };
         for controller in 3..=29 {
             engine.device_param(device, controller, 0);
         }
@@ -94,7 +91,12 @@ fn a_real_selected_drum_opens_the_sampler_even_with_the_drum_level_at_zero() {
         lane.gater_depth = 1.0;
         lane.gater_attack_ms = 0.1;
         lane.gater_release_ms = 1.0;
-        studio.sampler.replace(0, Some(Box::new(Wave { frames: vec![[0.2; 2]; 20000] })));
+        studio.sampler.replace(
+            0,
+            Some(Box::new(Wave {
+                frames: vec![[0.2; 2]; 20000],
+            })),
+        );
         engine.frame.studio = Some(Box::new(studio));
         let mut audio = [0i16; 2048];
         for _ in 0..4 {
@@ -107,8 +109,7 @@ fn a_real_selected_drum_opens_the_sampler_even_with_the_drum_level_at_zero() {
             audible |= audio.iter().any(|&sample| sample.unsigned_abs() > 2);
         }
         assert_eq!(
-            audible,
-            opens,
+            audible, opens,
             "source {source}, row {row}, played {played}, selected {selected}"
         );
     }

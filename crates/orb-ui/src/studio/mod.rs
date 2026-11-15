@@ -1,9 +1,9 @@
 //! Studio UI, asynchronous preparation and portable projects.
 
 mod editors;
-mod rack;
 pub mod midi;
 pub mod project;
+mod rack;
 #[cfg(test)]
 mod tests;
 

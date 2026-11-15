@@ -668,63 +668,66 @@ impl App {
                 let (sampler, fx) = self.graphite_rack(ui, avail);
                 self.graphite_sampler(ui, sampler);
                 self.graphite_fx(ui, fx);
-                for (row, rect) in crate::graphite_rack::sidechain_areas(avail).into_iter().enumerate() {
+                for (row, rect) in crate::graphite_rack::sidechain_areas(avail)
+                    .into_iter()
+                    .enumerate()
+                {
                     self.graphite_sidechain(ui, rect, row);
                 }
             });
         } else {
-        for (name, x, y) in layout::backgrounds() {
-            if self.studio.modern && x == 526.0 && y >= 148.0 {
-                continue;
-            }
-            let (w, h) = part_size(name);
-            if name == logo_anim::LOGO_PART {
-                // once per app start, from the first frame the logo is drawn
-                if self.logo_anim && self.logo_start.is_none() {
-                    self.logo_start = Some(now);
+            for (name, x, y) in layout::backgrounds() {
+                if self.studio.modern && x == 526.0 && y >= 148.0 {
+                    continue;
                 }
-                let t = logo_anim::time_now(now, self.logo_start.filter(|_| self.logo_anim));
-                logo_anim::paint_logo(ui, view.rect(x, y, w, h), t);
-                continue;
+                let (w, h) = part_size(name);
+                if name == logo_anim::LOGO_PART {
+                    // once per app start, from the first frame the logo is drawn
+                    if self.logo_anim && self.logo_start.is_none() {
+                        self.logo_start = Some(now);
+                    }
+                    let t = logo_anim::time_now(now, self.logo_start.filter(|_| self.logo_anim));
+                    logo_anim::paint_logo(ui, view.rect(x, y, w, h), t);
+                    continue;
+                }
+                paint_part(ui, name, view.rect(x, y, w, h));
             }
-            paint_part(ui, name, view.rect(x, y, w, h));
-        }
-        for r in 0..4 {
-            let (x, y, w, h) = layout::focus_bar(r);
-            let name = if self.panel.focus == r {
-                "focus_on"
-            } else {
-                "focus_off"
-            };
-            paint_part(ui, name, view.rect(x, y, w, h));
-        }
+            for r in 0..4 {
+                let (x, y, w, h) = layout::focus_bar(r);
+                let name = if self.panel.focus == r {
+                    "focus_on"
+                } else {
+                    "focus_off"
+                };
+                paint_part(ui, name, view.rect(x, y, w, h));
+            }
 
-        let ctls = std::mem::take(&mut self.ctls);
-        for c in &ctls {
-            if self.studio.modern && c.x >= 526.0 && c.y >= 148.0 {
-                continue;
+            let ctls = std::mem::take(&mut self.ctls);
+            for c in &ctls {
+                if self.studio.modern && c.x >= 526.0 && c.y >= 148.0 {
+                    continue;
+                }
+                if self.studio.modern
+                    && c.section.starts_with("mixer")
+                    && let Some(index) = ["dist", "pcf", "comp"]
+                        .iter()
+                        .position(|&id| id == c.name())
+                {
+                    let mut compact = c.clone();
+                    compact.y = c.y - [112.0, 128.0, 144.0][index] + 114.0 + index as f32 * 12.0;
+                    compact.h = 10.0;
+                    self.control(ui, &view, &compact, now);
+                    continue;
+                }
+                self.control(ui, &view, c, now);
             }
-            if self.studio.modern
-                && c.section.starts_with("mixer")
-                && let Some(index) = ["dist", "pcf", "comp"]
-                    .iter()
-                    .position(|&id| id == c.name())
-            {
-                let mut compact = c.clone();
-                compact.y = c.y - [112.0, 128.0, 144.0][index] + 114.0 + index as f32 * 12.0;
-                compact.h = 10.0;
-                self.control(ui, &view, &compact, now);
-                continue;
-            }
-            self.control(ui, &view, c, now);
-        }
-        self.ctls = ctls;
-        self.drum_strips(ui, &view);
-        self.instrument_selection(ui, &view);
-        self.generator_buttons(ui, &view);
-        self.arpeggiator_buttons(ui, &view);
-        self.sidechain_button(ui, &view);
-        self.studio_rack(ui, &view);
+            self.ctls = ctls;
+            self.drum_strips(ui, &view);
+            self.instrument_selection(ui, &view);
+            self.generator_buttons(ui, &view);
+            self.arpeggiator_buttons(ui, &view);
+            self.sidechain_button(ui, &view);
+            self.studio_rack(ui, &view);
         }
         self.studio_midi();
         self.sync_effects(ui.ctx());

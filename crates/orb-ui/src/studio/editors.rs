@@ -779,7 +779,12 @@ pub(super) fn waveform(
     response
 }
 
-pub(super) fn trim_at(lane: &mut orb_engine::studio::sampler::Lane, entry: bool, at: f64, minimum: f64) {
+pub(super) fn trim_at(
+    lane: &mut orb_engine::studio::sampler::Lane,
+    entry: bool,
+    at: f64,
+    minimum: f64,
+) {
     if entry {
         lane.start = at.clamp(0.0, (lane.end - minimum).max(0.0));
     } else {

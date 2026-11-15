@@ -160,7 +160,10 @@ fn drum_gater_uses_only_the_selected_machine_and_instrument() {
     hits[1][2] = 1;
     sampler.set_drum_modulation(hits, 0.01);
     block(&mut sampler, &lanes, 0.0, false);
-    assert_eq!(sampler.modulation[0], 0.0, "808 kick and 909 snare are not 808 snare");
+    assert_eq!(
+        sampler.modulation[0], 0.0,
+        "808 kick and 909 snare are not 808 snare"
+    );
 
     hits = [[0; 12]; 2];
     hits[0][2] = 1;
@@ -173,7 +176,10 @@ fn drum_gater_uses_only_the_selected_machine_and_instrument() {
         block(&mut sampler, &lanes, 0.0, false);
     }
     assert_eq!(sampler.gater_holds[0], 0.0);
-    assert_eq!(sampler.modulation[0], 0.0, "a consumed hit must not retrigger every block");
+    assert_eq!(
+        sampler.modulation[0], 0.0,
+        "a consumed hit must not retrigger every block"
+    );
 }
 
 #[test]
@@ -197,7 +203,10 @@ fn drum_gater_hold_counts_tempo_ticks_and_retriggers_without_envelope_reset() {
         sampler.set_drum_modulation(hits, ticks_per_frame);
         block(&mut sampler, &lanes, 0.0, false);
         assert!((sampler.gater_holds[0] - remaining).abs() < 1e-9);
-        assert!(sampler.modulation[0] >= before, "retrigger extends Hold without closing the gate");
+        assert!(
+            sampler.modulation[0] >= before,
+            "retrigger extends Hold without closing the gate"
+        );
         for _ in 0..60 {
             block(&mut sampler, &lanes, 0.0, false);
         }
@@ -236,7 +245,10 @@ fn drum_gater_depth_and_smoothing_remain_independent_of_sidechain() {
         output = block(&mut sampler, &lanes, 0.0, false);
     }
     assert!(output.iter().flatten().all(|x| x.abs() < 1e-10));
-    assert_eq!(sampler.modulation[0], 1.0, "sidechain does not change the gater envelope");
+    assert_eq!(
+        sampler.modulation[0], 1.0,
+        "sidechain does not change the gater envelope"
+    );
 }
 
 #[test]

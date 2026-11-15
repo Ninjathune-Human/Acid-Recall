@@ -231,7 +231,7 @@ fn compact_compressor_and_reverb_buttons_have_independent_click_regions() {
             egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
                     egui::Pos2::ZERO,
-                    egui::vec2(624.0, 510.0),
+                    egui::vec2(crate::graphite_rack::WIDTH, crate::graphite_rack::HEIGHT),
                 )),
                 events,
                 ..Default::default()
@@ -241,8 +241,8 @@ fn compact_compressor_and_reverb_buttons_have_independent_click_regions() {
         output.textures_delta.clear();
     };
     draw(Vec::new());
-    for y in [143.0, 155.0] {
-        let pos = egui::pos2(508.0, y);
+    for x in [966.5, 1010.5] {
+        let pos = egui::pos2(x * crate::graphite_rack::WIDTH / 1280.0, 183.5);
         for pressed in [true, false] {
             draw(vec![
                 egui::Event::PointerMoved(pos),

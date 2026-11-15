@@ -159,7 +159,8 @@ impl Studio {
         self.ducker.set_config(data.config);
         let duck = self.ducker.gains(data.kicks, data.audible);
         self.sampler.set_modulation(data.gates, duck[0]);
-        self.sampler.set_drum_modulation(data.drum_triggers, data.ticks_per_frame);
+        self.sampler
+            .set_drum_modulation(data.drum_triggers, data.ticks_per_frame);
     }
 
     pub fn channel(&mut self, channel: usize, sample: usize, left: f64, right: f64) {

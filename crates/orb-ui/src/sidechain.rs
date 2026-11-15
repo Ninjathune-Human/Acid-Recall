@@ -93,32 +93,50 @@ impl App {
 
     pub(crate) fn graphite_sidechain(&mut self, ui: &mut Ui, rect: egui::Rect, row: usize) {
         let before = self.settings.sidechain.clone();
-        ui.scope_builder(egui::UiBuilder::new().max_rect(rect).id_salt(("tb-duck", row)), |ui| {
-            ui.set_clip_rect(rect);
-            ui.spacing_mut().item_spacing = egui::vec2(3.0, 2.0);
-            ui.spacing_mut().interact_size.y = 16.0;
-            let s = &mut self.settings.sidechain;
-            ui.horizontal(|ui| {
-                let on = s.enabled && !s.bypass[row];
-                if ui.selectable_label(on, "SIDECHAIN").clicked() {
-                    s.set_tb_enabled(row, !on);
-                }
-                ui.add(egui::DragValue::new(&mut s.depth[row]).range(0..=100).suffix("%"))
+        ui.scope_builder(
+            egui::UiBuilder::new()
+                .max_rect(rect)
+                .id_salt(("tb-duck", row)),
+            |ui| {
+                ui.set_clip_rect(rect);
+                ui.spacing_mut().item_spacing = egui::vec2(3.0, 2.0);
+                ui.spacing_mut().interact_size.y = 16.0;
+                let s = &mut self.settings.sidechain;
+                ui.horizontal(|ui| {
+                    let on = s.enabled && !s.bypass[row];
+                    if ui.selectable_label(on, "SIDECHAIN").clicked() {
+                        s.set_tb_enabled(row, !on);
+                    }
+                    ui.add(
+                        egui::DragValue::new(&mut s.depth[row])
+                            .range(0..=100)
+                            .suffix("%"),
+                    )
                     .on_hover_text("Depth for this TB only; bypass retains this value");
-                if ui.small_button("...").clicked() { self.sidechain.open = true; }
-            });
-            ui.horizontal(|ui| {
-                egui::ComboBox::from_id_salt("kick-source").width(55.0)
-                    .selected_text(["808", "909", "BOTH"][usize::from(s.source.min(2))])
-                    .show_ui(ui, |ui| {
-                        for (value, label) in [(0, "808"), (1, "909"), (2, "BOTH")] {
-                            ui.selectable_value(&mut s.source, value, label);
-                        }
-                    });
-                ui.add(egui::DragValue::new(&mut s.release_ms).range(20..=1000).suffix("ms"))
-                    .on_hover_text("Kick source and return time are shared by both TBs and sampler");
-            });
-        });
+                    if ui.small_button("...").clicked() {
+                        self.sidechain.open = true;
+                    }
+                });
+                ui.horizontal(|ui| {
+                    egui::ComboBox::from_id_salt("kick-source")
+                        .width(55.0)
+                        .selected_text(["808", "909", "BOTH"][usize::from(s.source.min(2))])
+                        .show_ui(ui, |ui| {
+                            for (value, label) in [(0, "808"), (1, "909"), (2, "BOTH")] {
+                                ui.selectable_value(&mut s.source, value, label);
+                            }
+                        });
+                    ui.add(
+                        egui::DragValue::new(&mut s.release_ms)
+                            .range(20..=1000)
+                            .suffix("ms"),
+                    )
+                    .on_hover_text(
+                        "Kick source and return time are shared by both TBs and sampler",
+                    );
+                });
+            },
+        );
         if self.settings.sidechain != before {
             self.sidechain_changed(ui.ctx());
         }
@@ -239,7 +257,10 @@ impl App {
                 });
                 for (row, label) in ["TB-303 A", "TB-303 B"].into_iter().enumerate() {
                     let mut active = !s.bypass[row];
-                    if ui.checkbox(&mut active, format!("{label} active")).changed() {
+                    if ui
+                        .checkbox(&mut active, format!("{label} active"))
+                        .changed()
+                    {
                         s.bypass[row] = !active;
                         changed = true;
                     }
