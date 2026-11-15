@@ -16,6 +16,9 @@ use crate::model::Panel;
 
 pub mod preset;
 
+#[cfg(test)]
+mod tests;
+
 #[cfg(windows)]
 mod winmm;
 #[cfg(windows)]
@@ -172,6 +175,11 @@ pub fn kind(id: &str) -> Option<Kind> {
 }
 
 pub fn label(id: &str) -> String {
+    match id {
+        "tr909.ch_level" => return "TR-909 / CH level (Closed Hat)".into(),
+        "tr909.hh_level" => return "TR-909 / OH level (Open Hat)".into(),
+        _ => {}
+    }
     let (section, parameter) = id.split_once('.').unwrap_or((id, ""));
     let section = match section {
         "tb303_1" => "303 A",
@@ -301,6 +309,73 @@ pub struct Midi {
 }
 
 impl Midi {
+    /// Filtering must never leave Learn pointing at an invisible, previously selected target.
+    fn target_candidates(&mut self) -> Vec<(String, Kind)> {
+        let filter = self.filter.trim().to_lowercase();
+        let candidates: Vec<_> = targets()
+            .into_iter()
+            .filter(|(id, _)| {
+                label(id).to_lowercase().contains(&filter)
+                    || id.contains(&filter)
+                    || id.replace('_', " ").contains(&filter)
+            })
+            .collect();
+        if !candidates.iter().any(|(id, _)| id == &self.selected) {
+            self.selected = if candidates.len() == 1 {
+                candidates[0].0.clone()
+            } else {
+                String::new()
+            };
+            self.learning = None;
+        }
+        if self
+            .learning
+            .as_ref()
+            .is_some_and(|id| id != &self.selected)
+        {
+            self.learning = None;
+        }
+        candidates
+    }
+
+    fn begin_learn(&mut self) {
+        self.target_candidates();
+        self.notice = None;
+        self.learning = (!self.selected.is_empty()).then(|| self.selected.clone());
+    }
+
+    /// The same path serves native MIDI callbacks and device-free regression tests.
+    fn handle_cc(&mut self, cc: Cc, config: &mut Config, panel: &mut Panel, now: f64) -> bool {
+        self.last = Some(cc);
+        if let Some(target) = self.learning.take() {
+            let replaced = config
+                .bindings
+                .iter()
+                .find(|b| {
+                    b.channel == cc.channel && b.controller == cc.controller && b.target != target
+                })
+                .map(|b| label(&b.target));
+            self.notice = Some(format!(
+                "Assigned Ch {} / CC {} to {}.{}",
+                cc.channel,
+                cc.controller,
+                label(&target),
+                replaced.map_or(String::new(), |old| {
+                    format!(" Replaced {old}: this channel/CC already had an assignment.")
+                })
+            ));
+            config.assign(Binding {
+                channel: cc.channel,
+                controller: cc.controller,
+                target,
+            });
+            self.router.reset();
+            return true;
+        }
+        self.router.apply(cc, config, panel, now);
+        false
+    }
+
     fn connect(&mut self, config: &Config) {
         self.input = None;
         self.active = None;
@@ -365,21 +440,9 @@ impl App {
         let now = ctx.input(|i| i.time);
         let mut learned = false;
         for cc in words.into_iter().filter_map(Cc::decode) {
-            self.midi.last = Some(cc);
-            if let Some(target) = self.midi.learning.take() {
-                self.settings.midi.assign(Binding {
-                    channel: cc.channel,
-                    controller: cc.controller,
-                    target,
-                });
-                self.midi.router.reset();
-                learned = true;
-                // The learning movement only assigns; it never jumps the target's value.
-                continue;
-            }
-            self.midi
-                .router
-                .apply(cc, &self.settings.midi, &mut self.panel, now);
+            learned |= self
+                .midi
+                .handle_cc(cc, &mut self.settings.midi, &mut self.panel, now);
         }
         if learned {
             self.save_midi();
@@ -488,15 +551,11 @@ impl App {
                 ui.label("Buttons use a CC value of 64-127 to press, 0-63 to release.");
                 ui.horizontal(|ui| {
                     ui.label("Filter:");
-                    ui.text_edit_singleline(&mut self.midi.filter);
+                    if ui.text_edit_singleline(&mut self.midi.filter).changed() {
+                        self.midi.learning = None;
+                    }
                 });
-                let filter = self.midi.filter.to_lowercase();
-                let targets: Vec<_> = targets()
-                    .into_iter()
-                    .filter(|(id, _)| {
-                        label(id).to_lowercase().contains(&filter) || id.contains(&filter)
-                    })
-                    .collect();
+                let targets = self.midi.target_candidates();
                 egui::ComboBox::from_id_salt("midi-target")
                     .width(370.0)
                     .selected_text(if self.midi.selected.is_empty() {
@@ -506,7 +565,18 @@ impl App {
                     })
                     .show_ui(ui, |ui| {
                         for (id, _) in &targets {
-                            ui.selectable_value(&mut self.midi.selected, id.clone(), label(id));
+                            let response = ui
+                                .push_id(id, |ui| {
+                                    ui.selectable_value(
+                                        &mut self.midi.selected,
+                                        id.clone(),
+                                        label(id),
+                                    )
+                                })
+                                .inner;
+                            if response.changed() {
+                                self.midi.learning = None;
+                            }
                         }
                     });
                 ui.horizontal(|ui| {
@@ -517,7 +587,7 @@ impl App {
                         )
                         .clicked()
                     {
-                        self.midi.learning = Some(self.midi.selected.clone());
+                        self.midi.begin_learn();
                     }
                     if self.midi.learning.is_some() && ui.button("Cancel learn").clicked() {
                         self.midi.learning = None;

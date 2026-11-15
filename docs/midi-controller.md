@@ -68,16 +68,30 @@ audio allocation tests and builds a portable executable; the PR CI runs the full
 A physical UC-33e test is still needed to verify USB enumeration,
 driver opening, button preset behavior and shutdown/reconnection on the user's PC.
 
+## Choosing the independent 909 hat levels
+
+The targets are **TR-909 / CH level (Closed Hat)** and **TR-909 / OH level (Open Hat)**.
+Their saved identifiers remain `tr909.ch_level` and `tr909.hh_level`, so existing routing
+files stay compatible. Both the new OH label and the old `hh level` search are supported.
+
+An exact filter with only one result selects that target automatically. If a filter hides the
+previous selection and several results remain, choose the new target explicitly before Learn.
+Changing the filter or target cancels any pending learning so a previous hidden target cannot
+capture the next MIDI movement. Check **Waiting for CC** before moving the controller.
+
+Assign different CC/channel pairs to CH and OH. If a pair already belongs to another target,
+the assignment confirmation says which routing was replaced.
+
 ## A controller stops at value 1
 
 If **Last input** shows value **1** when a physical knob or fader is fully down, enable
 **Controller minimum is 1 (calibrate to zero)** in the MIDI Controller window. This maps the
-hardware range 1-127 onto the software range 0-127, retaining both endpoints and smooth
+hardware range 1–127 onto the software range 0–127, retaining both endpoints and smooth
 movement. Incoming zero also remains zero. The calibration applies to continuous controls;
 button presses and switches retain their normal thresholds. Soft takeover uses the calibrated
 values. Last input continues to display the raw hardware message for diagnosis.
 
-The option is off by default for controllers that already send 0-127. It is saved automatically
+The option is off by default for controllers that already send 0–127. It is saved automatically
 on this computer and stays local when importing/exporting routing, since it describes the
 connected hardware. It does not change mouse controls or the audio engine. A volume at zero
 cuts that volume path; other parameters such as Tune or Decay retain their musical meaning.
