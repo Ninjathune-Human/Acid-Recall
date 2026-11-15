@@ -50,6 +50,7 @@ jobs:
       - name: Capture the desktop interface
         shell: pwsh
         run: |
+          & ./scripts/set-ci-display.ps1
           $previewPath = Join-Path $PWD 'graphite-preview/desktop.png'
           $process = Start-Process -FilePath target/release/OpenRB-338.exe -WindowStyle Hidden -PassThru -ArgumentList @('--demo', '--size', '1600x1000', '--screenshot', $previewPath)
           if (-not $process.WaitForExit(45000)) { Stop-Process -Id $process.Id }

@@ -40,7 +40,7 @@ fn float_knob(ui: &mut Ui, value: &mut f64, range: std::ops::RangeInclusive<f64>
     ui.vertical(|ui| {
         let width = (ui.available_width() / 3.0).clamp(32.0, 52.0);
         let (rect, response) =
-            ui.allocate_exact_size(Vec2::new(width, width + 22.0), Sense::click_and_drag());
+            ui.allocate_exact_size(Vec2::new(width, width + 34.0), Sense::click_and_drag());
         if response.dragged() {
             let delta = ui.input(|i| -i.pointer.delta().y);
             let fine = ui.input(|i| if i.modifiers.shift { 0.1 } else { 1.0 });
@@ -58,7 +58,7 @@ fn float_knob(ui: &mut Ui, value: &mut f64, range: std::ops::RangeInclusive<f64>
         ui.painter()
             .line_segment([center, tip], Stroke::new(2.0, ACID));
         ui.painter().text(
-            rect.center_bottom() - Vec2::new(0.0, 13.0),
+            rect.center_bottom() - Vec2::new(0.0, 20.0),
             Align2::CENTER_CENTER,
             label,
             FontId::proportional(10.5),
@@ -125,9 +125,13 @@ pub(super) fn gater_controls(ui: &mut Ui, lane: &mut Lane) {
         {
             lane.gater_depth = depth / 100.0;
         }
+        let holds = [(0.125, "1/128"), (0.25, "1/64"), (0.5, "1/32"), (1.0, "1/16"),
+            (2.0, "1/8"), (4.0, "1/4"), (8.0, "1/2"), (16.0, "1 bar")];
+        let hold_text = holds.iter().find(|(v, _)| (lane.gater_hold - v).abs() < 1e-6)
+            .map_or_else(|| format!("{:.2} steps", lane.gater_hold), |(_, text)| (*text).into());
         egui::ComboBox::from_id_salt("gater-hold")
             .width(73.0)
-            .selected_text(format!("Hold {:.2}", lane.gater_hold))
+            .selected_text(format!("Hold {hold_text}"))
             .show_ui(ui, |ui| {
                 for (value, text) in [
                     (0.125, "1/128"),

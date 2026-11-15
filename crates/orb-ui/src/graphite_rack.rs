@@ -29,6 +29,25 @@ mod tests {
     use crate::model::Panel;
 
     #[test]
+    fn native_rack_does_not_push_the_menu_to_the_bottom() {
+        let ctx = egui::Context::default();
+        egui_extras::install_image_loaders(&ctx);
+        let mut app = App::new(Panel::new(), None);
+        app.studio.modern = true;
+        app.menu = true;
+        let mut menu_bottom = 0.0;
+        let mut output = ctx.run_ui(egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(WIDTH, HEIGHT))),
+            ..Default::default()
+        }, |ui| {
+            app.show(ui);
+            menu_bottom = ui.cursor().top();
+        });
+        assert!(menu_bottom < 70.0, "The menu must remain at the top of its parent UI");
+        output.textures_delta.clear();
+    }
+
+    #[test]
     fn master_compressor_is_visible_and_clickable_in_the_native_rack() {
         let ctx = egui::Context::default();
         egui_extras::install_image_loaders(&ctx);
