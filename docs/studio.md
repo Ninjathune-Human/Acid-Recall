@@ -1,5 +1,24 @@
 # OpenRB-338 Studio
 
+## Graphite Rack
+
+The default desktop view is a native five-module rack: two TBs, the 808, the 909 and an
+integrated sampler. SPACE, Delay, Distortion, PCF, Compressor and the stereo master occupy
+the right column. Per-machine DIST / PCF / COMP / REV switches share one visual style.
+COMP MASTER stays visible in the transport and master strip; it uses the existing compressor
+bus selector, so selecting master compression moves that compressor from a machine to master.
+
+Each TB has a SIDECHAIN block below its routing buttons, with independent enable and depth.
+Bypass retains the depth. Kick source and release remain shared, including sampler ducking.
+Enabling one TB from global bypass leaves the other TB bypassed. These settings are saved
+locally and in Studio projects; existing routing files remain compatible.
+
+Select a sampler lane, Load or Audition it, drag IN/OUT, select its playback mode and edit the
+visible bar directly in the rack. EDIT / ALL LANES opens the detailed eight-lane editor for
+velocity, copy/paste/repeat, envelopes and less frequent controls. Rack content can scroll in
+smaller windows so sequence controls remain reachable. Each machine's EDIT retains its
+detailed controls; waveform/synthesis, patterns and effects continue to use the same MIDI IDs.
+
 ## Pattern styles
 
 The generator offers **Techno | IDM | Break**, shared by both TBs and both TRs.
@@ -83,11 +102,13 @@ Clicking moves the nearest marker; double-clicking restores the whole file. The 
 cross. They affect playback and export, including reverse and loop modes, and are saved in
 the project. Moving markers also changes the region of an already playing voice.
 
-Each lane's **RHYTHMIC GATER** selects Off, TB1 or TB2. It follows the TB's actual note gate,
-including rests and sustained slides, independently of the TB mixer volume. Depth sets the
-closed level; Open / Close set smooth transitions. The source TB must be playing an enabled
-pattern. The sampler playhead keeps moving while the gater closes, so a vocal is chopped
-without restarting on every TB note. Gater Off is the default.
+Each lane's **GATER** selects TR-808 or TR-909 and an instrument (BD, SD, CH, OH and others).
+Real instrument hits open the gater, including 909 flams; it is independent of the TR and
+instrument mixer volume. Depth sets the closed level; Hold chooses a tempo-synchronized
+duration from 1/128 to one bar; Smooth sets the closing ramp. The detailed editor also offers
+an opening ramp. The sampler playhead keeps moving while closed, chopping a vocal without
+restarting on each drum hit. The source pattern must play an actual note. Old TB-gate source
+IDs remain supported for existing projects and MIDI routing; new UI selections use the TRs.
 
 **Kick sidechain** independently opts each lane into kick ducking, before dry mixing and its
 reverb send. It follows the global sidechain On, kick source and release with a separate
@@ -161,7 +182,8 @@ input's minimum-one calibration stay local. A disconnected slot keeps its assign
 
 Studio MIDI targets cover SPACE enable, return, filters, pre-delay, width and four sends,
 plus every lane's gain, pan, pitch, send, trim, envelope, gate, mode, reverse, mute, solo,
-choke, gater source/depth/attack/release and kick sidechain. Audition responds once per
+choke, gater source/instrument/hold/depth/attack/release and kick sidechain. TB sidechain
+enable/depth, shared release and kick source have their own MIDI targets. Audition responds once per
 CC button press (64-127 pressed, 0-63 released). Boolean controls use that same absolute
 threshold, while continuous controls retain pickup. Quantized pitch and mode selectors
 preserve the controller position until an external UI or project change requires pickup.

@@ -85,13 +85,20 @@ impl Rack {
     }
 
     fn rect(self, x: f32, y: f32, w: f32, h: f32) -> Rect {
-        Rect::from_min_size(self.origin + Vec2::new(x * WIDTH / 1280.0, y) * self.scale,
-            Vec2::new(w * WIDTH / 1280.0, h) * self.scale)
+        Rect::from_min_size(
+            self.origin + Vec2::new(x * WIDTH / 1280.0, y) * self.scale,
+            Vec2::new(w * WIDTH / 1280.0, h) * self.scale,
+        )
     }
 
     fn text(self, ui: &Ui, x: f32, y: f32, size: f32, text: &str, color: Color32) {
-        ui.painter().text(self.origin + Vec2::new(x * WIDTH / 1280.0, y) * self.scale,
-            Align2::LEFT_CENTER, text, FontId::proportional(size * self.scale * 1.2), color);
+        ui.painter().text(
+            self.origin + Vec2::new(x * WIDTH / 1280.0, y) * self.scale,
+            Align2::LEFT_CENTER,
+            text,
+            FontId::proportional(size * self.scale * 1.2),
+            color,
+        );
     }
 
     fn card(self, ui: &Ui, rect: Rect) {
@@ -105,17 +112,40 @@ impl Rack {
     }
 }
 
-fn button(ui: &mut Ui, rack: Rack, rect: Rect, id: impl std::hash::Hash + std::fmt::Debug,
-    text: &str, selected: bool) -> egui::Response {
-    let response = ui.interact(rect, egui::Id::unique(("graphite-button", id)), Sense::click());
-    let fill = if selected { ACID } else if response.hovered() {
+fn button(
+    ui: &mut Ui,
+    rack: Rack,
+    rect: Rect,
+    id: impl std::hash::Hash + std::fmt::Debug,
+    text: &str,
+    selected: bool,
+) -> egui::Response {
+    let response = ui.interact(
+        rect,
+        egui::Id::unique(("graphite-button", id)),
+        Sense::click(),
+    );
+    let fill = if selected {
+        ACID
+    } else if response.hovered() {
         Color32::from_rgb(62, 67, 63)
-    } else { Color32::from_rgb(40, 44, 43) };
+    } else {
+        Color32::from_rgb(40, 44, 43)
+    };
     ui.painter().rect_filled(rect, 3.0 * rack.scale, fill);
-    ui.painter().rect_stroke(rect, 3.0 * rack.scale,
-        Stroke::new(rack.scale, if selected { ACID } else { BORDER }), egui::StrokeKind::Inside);
-    ui.painter().text(rect.center(), Align2::CENTER_CENTER, text,
-        FontId::proportional(11.0 * rack.scale), if selected { Color32::BLACK } else { INK });
+    ui.painter().rect_stroke(
+        rect,
+        3.0 * rack.scale,
+        Stroke::new(rack.scale, if selected { ACID } else { BORDER }),
+        egui::StrokeKind::Inside,
+    );
+    ui.painter().text(
+        rect.center(),
+        Align2::CENTER_CENTER,
+        text,
+        FontId::proportional(11.0 * rack.scale),
+        if selected { Color32::BLACK } else { INK },
+    );
     response
 }
 
@@ -220,7 +250,10 @@ impl App {
             }
         });
         self.rack_advanced(ui);
-        (rack.rect(14.0, 766.0, 1030.0, 320.0), rack.rect(1058.0, 84.0, 208.0, 1002.0))
+        (
+            rack.rect(14.0, 766.0, 1030.0, 320.0),
+            rack.rect(1058.0, 84.0, 208.0, 1002.0),
+        )
     }
 
     fn rack_transport(&mut self, ui: &mut Ui, rack: Rack) {
@@ -284,10 +317,25 @@ impl App {
             self.panel.set_switch("transport.mode", u8::from(!song));
         }
         for (i, label) in ["MIDI", "TOOLS", "MORE"].into_iter().enumerate() {
-            if button(ui, rack, rack.rect(724.0 + i as f32 * 63.0, 25.0, 57.0, 29.0),
-                ("transport-tool", i), label, false).clicked() {
-                match i { 0 => self.midi.open = true, 1 => self.generator.open = true,
-                    _ => { ui.ctx().data_mut(|d| { d.insert_temp(egui::Id::unique("graphite-edit"), Some(4usize)); }); } }
+            if button(
+                ui,
+                rack,
+                rack.rect(724.0 + i as f32 * 63.0, 25.0, 57.0, 29.0),
+                ("transport-tool", i),
+                label,
+                false,
+            )
+            .clicked()
+            {
+                match i {
+                    0 => self.midi.open = true,
+                    1 => self.generator.open = true,
+                    _ => {
+                        ui.ctx().data_mut(|d| {
+                            d.insert_temp(egui::Id::unique("graphite-edit"), Some(4usize));
+                        });
+                    }
+                }
             }
         }
         rack.text(ui, 934.0, 29.0, 9.0, "MASTER", DIM);
@@ -723,16 +771,36 @@ impl App {
         let point = |a: f32, radius: f32| center + Vec2::new(a.sin(), -a.cos()) * radius;
         let start = -std::f32::consts::PI * 0.75;
         let sweep = std::f32::consts::PI * 1.5;
-        let arc = |fraction: f32| (0..=36).map(|n| point(start + sweep * fraction * n as f32 / 36.0, r)).collect();
-        ui.painter().add(egui::Shape::line(arc(1.0), Stroke::new(1.7 * rack.scale, BORDER)));
-        ui.painter().add(egui::Shape::line(arc(value as f32 / 1000.0), Stroke::new(1.7 * rack.scale, ACID)));
+        let arc = |fraction: f32| {
+            (0..=36)
+                .map(|n| point(start + sweep * fraction * n as f32 / 36.0, r))
+                .collect()
+        };
+        ui.painter().add(egui::Shape::line(
+            arc(1.0),
+            Stroke::new(1.7 * rack.scale, BORDER),
+        ));
+        ui.painter().add(egui::Shape::line(
+            arc(value as f32 / 1000.0),
+            Stroke::new(1.7 * rack.scale, ACID),
+        ));
         let angle = start + sweep * value as f32 / 1000.0;
-        ui.painter().line_segment([point(angle, r * 0.25), point(angle, r * 0.60)], Stroke::new(2.0 * rack.scale, INK));
+        ui.painter().line_segment(
+            [point(angle, r * 0.25), point(angle, r * 0.60)],
+            Stroke::new(2.0 * rack.scale, INK),
+        );
         if !label.is_empty() {
-            ui.painter().text(Pos2::new(rect.center().x, rect.bottom() - 3.0 * rack.scale), Align2::CENTER_CENTER,
-                label, FontId::proportional(10.5 * rack.scale), DIM);
+            ui.painter().text(
+                Pos2::new(rect.center().x, rect.bottom() - 3.0 * rack.scale),
+                Align2::CENTER_CENTER,
+                label,
+                FontId::proportional(10.5 * rack.scale),
+                DIM,
+            );
         }
-        response.on_hover_text(format!("{id}: {value} / 1000\nDrag vertically; Shift for fine control."));
+        response.on_hover_text(format!(
+            "{id}: {value} / 1000\nDrag vertically; Shift for fine control."
+        ));
     }
 
     fn rack_fader(&mut self, ui: &mut Ui, rack: Rack, id: &str, rect: Rect, vertical: bool) {

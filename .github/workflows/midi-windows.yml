@@ -23,7 +23,6 @@ jobs:
       - name: Install formatting toolchain
         run: rustup toolchain install nightly-2026-10-18 --profile minimal --component rustfmt
       - name: Format check (print any required patch)
-        continue-on-error: true
         shell: pwsh
         run: |
           cargo +nightly-2026-10-18 fmt --all
@@ -52,7 +51,7 @@ jobs:
         shell: pwsh
         run: |
           $previewPath = Join-Path $PWD 'graphite-preview/desktop.png'
-          $process = Start-Process -FilePath target/release/OpenRB-338.exe -WindowStyle Hidden -PassThru -ArgumentList @('--demo', '--size', '936x765', '--screenshot', $previewPath)
+          $process = Start-Process -FilePath target/release/OpenRB-338.exe -WindowStyle Hidden -PassThru -ArgumentList @('--demo', '--size', '1600x1000', '--screenshot', $previewPath)
           if (-not $process.WaitForExit(45000)) { Stop-Process -Id $process.Id }
           if (Test-Path -LiteralPath $previewPath) {
             Write-Output ('GRAPHITE_APP_PREVIEW:' + [Convert]::ToBase64String([IO.File]::ReadAllBytes($previewPath)))
@@ -61,7 +60,7 @@ jobs:
           }
           foreach ($studioView in @('sampler', 'space')) {
             $studioPreviewPath = Join-Path $PWD ('graphite-preview/' + $studioView + '.png')
-            $studioProcess = Start-Process -FilePath target/release/OpenRB-338.exe -WindowStyle Hidden -PassThru -ArgumentList @('--demo', '--size', '1200x900', '--studio-view', $studioView, '--screenshot', $studioPreviewPath)
+            $studioProcess = Start-Process -FilePath target/release/OpenRB-338.exe -WindowStyle Hidden -PassThru -ArgumentList @('--demo', '--size', '1600x1000', '--studio-view', $studioView, '--screenshot', $studioPreviewPath)
             if (-not $studioProcess.WaitForExit(45000)) { Stop-Process -Id $studioProcess.Id }
             if (Test-Path -LiteralPath $studioPreviewPath) {
               Write-Output ('STUDIO_' + $studioView.ToUpper() + '_PREVIEW:' + [Convert]::ToBase64String([IO.File]::ReadAllBytes($studioPreviewPath)))

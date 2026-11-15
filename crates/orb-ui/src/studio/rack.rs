@@ -24,7 +24,7 @@ fn surface(ui: &mut Ui, rect: Rect, id: &str, draw: impl FnOnce(&mut Ui)) {
             .id_salt(id),
         |ui| {
             ui.set_clip_rect(rect);
-            let scale = (rect.height() / 220.0).clamp(0.65, 1.25);
+            let scale = (rect.width() / 300.0).clamp(0.8, 1.15);
             ui.style_mut().override_font_id = Some(FontId::proportional(12.0 * scale));
             ui.spacing_mut().item_spacing = Vec2::new(5.0 * scale, 3.0 * scale);
             ui.spacing_mut().interact_size.y = 18.0 * scale;
@@ -61,14 +61,14 @@ fn float_knob(ui: &mut Ui, value: &mut f64, range: std::ops::RangeInclusive<f64>
             rect.center_bottom() - Vec2::new(0.0, 13.0),
             Align2::CENTER_CENTER,
             label,
-            FontId::proportional(9.0),
+            FontId::proportional(10.5),
             Color32::from_gray(200),
         );
         ui.painter().text(
             rect.center_bottom() - Vec2::new(0.0, 2.0),
             Align2::CENTER_BOTTOM,
             format!("{:.2}", *value),
-            FontId::monospace(8.0),
+            FontId::monospace(9.5),
             Color32::GRAY,
         );
         response.on_hover_text(format!(
@@ -164,217 +164,230 @@ impl App {
         let context = ui.ctx().clone();
         let tick = self.panel.transport.position.max(0) as usize;
         surface(ui, rect, "graphite-sampler", |ui| {
-            egui::ScrollArea::vertical().id_salt("sampler-rack-scroll")
-                .max_height(ui.available_height()).auto_shrink([false, false]).show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.colored_label(ACID, egui::RichText::new("SAMPLER").strong());
-                ui.small("8 LANES / 64 BARS");
-                if ui.add_enabled(!busy, egui::Button::new("LOAD")).clicked() {
-                    load = Some(selected);
-                }
-                if ui
-                    .add_enabled(
-                        self.studio.waves[selected].is_some(),
-                        egui::Button::new("AUDITION"),
-                    )
-                    .clicked()
-                {
-                    audition = true;
-                }
-                if ui.button("EDIT / ALL LANES").clicked() {
-                    self.studio.sampler_open = true;
-                }
-                ui.checkbox(&mut self.studio.follow, "Follow");
-                if busy {
-                    ui.spinner();
-                }
-            });
-            ui.separator();
-            ui.horizontal_top(|ui| {
-                ui.vertical(|ui| {
-                    ui.set_width(rect.width() * 0.14);
-                    for i in 0..8 {
-                        let name = format!("{}  {}", i + 1, self.studio.names[i]);
+            egui::ScrollArea::vertical()
+                .id_salt("sampler-rack-scroll")
+                .max_height(ui.available_height())
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.colored_label(ACID, egui::RichText::new("SAMPLER").strong());
+                        ui.small("8 LANES / 64 BARS");
+                        if ui.add_enabled(!busy, egui::Button::new("LOAD")).clicked() {
+                            load = Some(selected);
+                        }
                         if ui
-                            .add_sized(
-                                [ui.available_width(), 16.0],
-                                egui::Button::new(name).selected(i == selected),
+                            .add_enabled(
+                                self.studio.waves[selected].is_some(),
+                                egui::Button::new("AUDITION"),
                             )
                             .clicked()
                         {
-                            self.studio.selected = i;
+                            audition = true;
                         }
-                    }
-                });
-                ui.vertical(|ui| {
-                    ui.set_width((rect.width() * 0.82 - 16.0).max(100.0));
-                    let lane = &mut self.studio.settings.lanes[selected];
-                    if let Some(wave) = &self.studio.waves[selected] {
-                        let response = waveform(
-                            ui,
-                            &wave.frames,
-                            (rect.height() * 0.25).max(32.0),
-                            lane.start,
-                            lane.end,
-                            self.studio.waveform_epoch,
-                            &mut self.studio.wave_views[selected],
-                        );
-                        let minimum = 2.0 / wave.frames.len().max(2) as f64;
-                        if response.double_clicked() {
-                            lane.start = 0.0;
-                            lane.end = 1.0;
-                        } else if let Some(p) = response.interact_pointer_pos() {
-                            let at =
-                                f64::from((p.x - response.rect.left()) / response.rect.width())
-                                    .clamp(0.0, 1.0);
-                            let id = response.id.with("handle");
-                            if response.drag_started() || response.clicked() {
-                                let entry = (at - lane.start).abs() <= (at - lane.end).abs();
-                                ui.data_mut(|d| d.insert_temp(id, entry));
-                            }
-                            if response.dragged() || response.clicked() {
-                                let entry = ui.data(|d| d.get_temp::<bool>(id)).unwrap_or(true);
-                                trim_at(lane, entry, at, minimum);
-                            }
+                        if ui.button("EDIT / ALL LANES").clicked() {
+                            self.studio.sampler_open = true;
                         }
-                        let duration = wave.frames.len() as f64 / 44100.0;
-                        let mut entry = lane.start * duration;
-                        let mut exit = lane.end * duration;
-                        ui.horizontal(|ui| {
-                            if ui
-                                .add(
-                                    egui::DragValue::new(&mut entry)
-                                        .speed(0.001)
-                                        .fixed_decimals(3)
-                                        .prefix("IN ")
-                                        .suffix("s"),
-                                )
-                                .changed()
-                            {
-                                trim_at(lane, true, entry / duration, minimum);
-                            }
-                            if ui
-                                .add(
-                                    egui::DragValue::new(&mut exit)
-                                        .speed(0.001)
-                                        .fixed_decimals(3)
-                                        .prefix("OUT ")
-                                        .suffix("s"),
-                                )
-                                .changed()
-                            {
-                                trim_at(lane, false, exit / duration, minimum);
+                        ui.checkbox(&mut self.studio.follow, "Follow");
+                        if busy {
+                            ui.spinner();
+                        }
+                    });
+                    ui.separator();
+                    ui.horizontal_top(|ui| {
+                        ui.vertical(|ui| {
+                            ui.set_width(rect.width() * 0.14);
+                            for i in 0..8 {
+                                let name = format!("{}  {}", i + 1, self.studio.names[i]);
+                                if ui
+                                    .add_sized(
+                                        [ui.available_width(), 16.0],
+                                        egui::Button::new(name).selected(i == selected),
+                                    )
+                                    .clicked()
+                                {
+                                    self.studio.selected = i;
+                                }
                             }
                         });
-                    } else {
-                        ui.allocate_ui(
-                            Vec2::new(ui.available_width(), rect.height() * 0.28),
-                            |ui| {
-                                ui.centered_and_justified(|ui| {
-                                    ui.label("LOAD WAV / AIFF / MP3");
+                        ui.vertical(|ui| {
+                            ui.set_width((rect.width() * 0.82 - 16.0).max(100.0));
+                            let lane = &mut self.studio.settings.lanes[selected];
+                            if let Some(wave) = &self.studio.waves[selected] {
+                                let response = waveform(
+                                    ui,
+                                    &wave.frames,
+                                    (rect.height() * 0.25).max(32.0),
+                                    lane.start,
+                                    lane.end,
+                                    self.studio.waveform_epoch,
+                                    &mut self.studio.wave_views[selected],
+                                );
+                                let minimum = 2.0 / wave.frames.len().max(2) as f64;
+                                if response.double_clicked() {
+                                    lane.start = 0.0;
+                                    lane.end = 1.0;
+                                } else if let Some(p) = response.interact_pointer_pos() {
+                                    let at = f64::from(
+                                        (p.x - response.rect.left()) / response.rect.width(),
+                                    )
+                                    .clamp(0.0, 1.0);
+                                    let id = response.id.with("handle");
+                                    if response.drag_started() || response.clicked() {
+                                        let entry =
+                                            (at - lane.start).abs() <= (at - lane.end).abs();
+                                        ui.data_mut(|d| d.insert_temp(id, entry));
+                                    }
+                                    if response.dragged() || response.clicked() {
+                                        let entry =
+                                            ui.data(|d| d.get_temp::<bool>(id)).unwrap_or(true);
+                                        trim_at(lane, entry, at, minimum);
+                                    }
+                                }
+                                let duration = wave.frames.len() as f64 / 44100.0;
+                                let mut entry = lane.start * duration;
+                                let mut exit = lane.end * duration;
+                                ui.horizontal(|ui| {
+                                    if ui
+                                        .add(
+                                            egui::DragValue::new(&mut entry)
+                                                .speed(0.001)
+                                                .fixed_decimals(3)
+                                                .prefix("IN ")
+                                                .suffix("s"),
+                                        )
+                                        .changed()
+                                    {
+                                        trim_at(lane, true, entry / duration, minimum);
+                                    }
+                                    if ui
+                                        .add(
+                                            egui::DragValue::new(&mut exit)
+                                                .speed(0.001)
+                                                .fixed_decimals(3)
+                                                .prefix("OUT ")
+                                                .suffix("s"),
+                                        )
+                                        .changed()
+                                    {
+                                        trim_at(lane, false, exit / duration, minimum);
+                                    }
                                 });
-                            },
-                        );
-                    }
-                    ui.horizontal(|ui| {
-                        for (mode, label) in [
-                            (Mode::OneShot, "ONE SHOT"),
-                            (Mode::AutoCut, "AUTO CUT"),
-                            (Mode::Gate, "GATE"),
-                            (Mode::Loop, "LOOP"),
-                        ] {
-                            ui.selectable_value(&mut lane.mode, mode, label);
-                        }
-                        ui.add(
-                            egui::DragValue::new(&mut lane.pitch)
-                                .range(-24..=24)
-                                .prefix("Pitch "),
-                        );
-                        ui.add(
-                            egui::DragValue::new(&mut lane.gain)
-                                .range(0.0..=2.0)
-                                .speed(0.005)
-                                .prefix("Level "),
-                        );
-                        ui.add(
-                            egui::DragValue::new(&mut lane.send)
-                                .range(0.0..=1.0)
-                                .speed(0.005)
-                                .prefix("REV "),
-                        );
-                    });
-                    gater_controls(ui, lane);
-                    let bars = usize::from(lane.bars.clamp(1, 64));
-                    if self.studio.follow && self.panel.transport.playing {
-                        self.studio.bar = tick / 768 % bars;
-                    }
-                    self.studio.bar = self.studio.bar.min(bars - 1);
-                    ui.horizontal(|ui| {
-                        ui.add(
-                            egui::DragValue::new(&mut lane.bars)
-                                .range(1..=64)
-                                .prefix("Length ")
-                                .suffix(" bars"),
-                        );
-                        let mut bar = self.studio.bar + 1;
-                        if ui
-                            .add(
-                                egui::DragValue::new(&mut bar)
-                                    .range(1..=bars)
-                                    .prefix("Bar "),
-                            )
-                            .changed()
-                        {
-                            self.studio.bar = bar - 1;
-                            self.studio.follow = false;
-                        }
-                        ui.checkbox(&mut lane.muted, "M");
-                        ui.checkbox(&mut lane.solo, "S");
-                    });
-                    ui.horizontal(|ui| {
-                        let width = ((ui.available_width() - 15.0 * 3.0) / 16.0).max(8.0);
-                        ui.spacing_mut().item_spacing.x = 3.0;
-                        for step in 0..16 {
-                            let index = self.studio.bar * 16 + step;
-                            let on = lane.steps[index] != 0;
-                            let head = self.panel.transport.playing
-                                && tick / 48 % (usize::from(lane.bars) * 16) == index;
-                            let button = egui::Button::new(format!("{}", step + 1))
-                                .fill(if on {
-                                    Color32::from_rgb(94, 112, 50)
-                                } else {
-                                    FACE
-                                })
-                                .stroke(Stroke::new(
-                                    if head { 2.0 } else { 1.0 },
-                                    if head { ACID } else { Color32::from_gray(70) },
-                                ));
-                            let response = ui.add_sized([width, 19.0], button);
-                            if response.clicked() {
-                                lane.steps[index] = if on { 0 } else { 100 };
+                            } else {
+                                ui.allocate_ui(
+                                    Vec2::new(ui.available_width(), rect.height() * 0.28),
+                                    |ui| {
+                                        ui.centered_and_justified(|ui| {
+                                            ui.label("LOAD WAV / AIFF / MP3");
+                                        });
+                                    },
+                                );
                             }
-                            response.context_menu(|ui| {
+                            ui.horizontal(|ui| {
+                                for (mode, label) in [
+                                    (Mode::OneShot, "ONE SHOT"),
+                                    (Mode::AutoCut, "AUTO CUT"),
+                                    (Mode::Gate, "GATE"),
+                                    (Mode::Loop, "LOOP"),
+                                ] {
+                                    ui.selectable_value(&mut lane.mode, mode, label);
+                                }
                                 ui.add(
-                                    egui::Slider::new(&mut lane.steps[index], 0..=127)
-                                        .text("Velocity"),
+                                    egui::DragValue::new(&mut lane.pitch)
+                                        .range(-24..=24)
+                                        .prefix("Pitch "),
+                                );
+                                ui.add(
+                                    egui::DragValue::new(&mut lane.gain)
+                                        .range(0.0..=2.0)
+                                        .speed(0.005)
+                                        .prefix("Level "),
+                                );
+                                ui.add(
+                                    egui::DragValue::new(&mut lane.send)
+                                        .range(0.0..=1.0)
+                                        .speed(0.005)
+                                        .prefix("REV "),
                                 );
                             });
-                        }
+                            gater_controls(ui, lane);
+                            let bars = usize::from(lane.bars.clamp(1, 64));
+                            if self.studio.follow && self.panel.transport.playing {
+                                self.studio.bar = tick / 768 % bars;
+                            }
+                            self.studio.bar = self.studio.bar.min(bars - 1);
+                            ui.horizontal(|ui| {
+                                ui.add(
+                                    egui::DragValue::new(&mut lane.bars)
+                                        .range(1..=64)
+                                        .prefix("Length ")
+                                        .suffix(" bars"),
+                                );
+                                let mut bar = self.studio.bar + 1;
+                                if ui
+                                    .add(
+                                        egui::DragValue::new(&mut bar)
+                                            .range(1..=bars)
+                                            .prefix("Bar "),
+                                    )
+                                    .changed()
+                                {
+                                    self.studio.bar = bar - 1;
+                                    self.studio.follow = false;
+                                }
+                                ui.checkbox(&mut lane.muted, "M");
+                                ui.checkbox(&mut lane.solo, "S");
+                            });
+                            ui.horizontal(|ui| {
+                                let width = ((ui.available_width() - 15.0 * 3.0) / 16.0).max(8.0);
+                                ui.spacing_mut().item_spacing.x = 3.0;
+                                for step in 0..16 {
+                                    let index = self.studio.bar * 16 + step;
+                                    let on = lane.steps[index] != 0;
+                                    let head = self.panel.transport.playing
+                                        && tick / 48 % (usize::from(lane.bars) * 16) == index;
+                                    let button = egui::Button::new(format!("{}", step + 1))
+                                        .fill(if on {
+                                            Color32::from_rgb(94, 112, 50)
+                                        } else {
+                                            FACE
+                                        })
+                                        .stroke(Stroke::new(
+                                            if head { 2.0 } else { 1.0 },
+                                            if head { ACID } else { Color32::from_gray(70) },
+                                        ));
+                                    let response = ui.add_sized([width, 19.0], button);
+                                    if response.clicked() {
+                                        lane.steps[index] = if on { 0 } else { 100 };
+                                    }
+                                    response.context_menu(|ui| {
+                                        ui.add(
+                                            egui::Slider::new(&mut lane.steps[index], 0..=127)
+                                                .text("Velocity"),
+                                        );
+                                    });
+                                }
+                            });
+                        });
                     });
                 });
-            });
         });
-        });
-        if self.studio.settings != before { self.studio.changed(); self.doc.modified = true; }
-        if let Some(lane) = load { self.studio_load_wave(&context, lane); }
-        if audition { self.studio_command(Command::StudioAudition(selected)); }
+        if self.studio.settings != before {
+            self.studio.changed();
+            self.doc.modified = true;
+        }
+        if let Some(lane) = load {
+            self.studio_load_wave(&context, lane);
+        }
+        if audition {
+            self.studio_command(Command::StudioAudition(selected));
+        }
     }
 
     pub(crate) fn graphite_fx(&mut self, ui: &mut Ui, rect: Rect) {
         let before = self.studio.settings.clone();
         let width = rect.width();
         let gap = 7.0;
-        let heights = [0.24, 0.14, 0.14, 0.14, 0.14, 0.16];
+        let heights = [0.24, 0.14, 0.14, 0.14, 0.14, 0.20];
         let mut top = rect.top();
         for (i, fraction) in heights.into_iter().enumerate() {
             let card = Rect::from_min_size(
