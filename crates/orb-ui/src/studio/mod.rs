@@ -37,7 +37,30 @@ enum Completed {
 
 static ASSET_EPOCH: AtomicU64 = AtomicU64::new(1);
 
+#[derive(Default)]
+pub(super) struct WaveformCache {
+    key: Option<(u64, usize)>,
+    peaks: Vec<f32>,
+}
+
+impl WaveformCache {
+    pub(super) fn get(&mut self, epoch: u64, frames: &[[f32; 2]]) -> &[f32] {
+        let key = (epoch, frames.as_ptr() as usize);
+        if self.key != Some(key) {
+            self.peaks.clear();
+            for chunk in frames.chunks(frames.len().div_ceil(2048).max(1)) {
+                self.peaks.push(chunk.iter().flatten().fold(0.0f32, |m, v| m.max(v.abs())));
+            }
+            let maximum = self.peaks.iter().copied().fold(0.0f32, f32::max).max(1e-12);
+            for peak in &mut self.peaks { *peak /= maximum; }
+            self.key = Some(key);
+        }
+        &self.peaks
+    }
+}
+
 pub struct StudioUi {
+    wave_views: [WaveformCache; 9],
     waveform_epoch: u64,
     pub(crate) context: Context,
     pub modern: bool,
@@ -68,6 +91,7 @@ pub struct StudioUi {
 impl Default for StudioUi {
     fn default() -> Self {
         Self {
+            wave_views: std::array::from_fn(|_| WaveformCache::default()),
             waveform_epoch: ASSET_EPOCH.fetch_add(1, Ordering::Relaxed),
             context: Context::default(),
             modern: false,
@@ -333,7 +357,7 @@ impl App {
 
     fn studio_load_wave(&mut self, ctx: &Context, lane: usize) {
         let Some(path) = rfd::FileDialog::new()
-            .add_filter("Audio", &["wav", "aif", "aiff"])
+            .add_filter("Audio", &["wav", "aif", "aiff", "mp3"])
             .pick_file()
         else {
             return;

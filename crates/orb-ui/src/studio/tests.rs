@@ -4,6 +4,18 @@ use eframe::egui;
 use orb_engine::tables::Tables;
 use orb_player::{Audio, CALL_FRAMES};
 
+#[test]
+fn waveform_cache_remains_bounded_during_repeated_updates() {
+    let frames = vec![[0.1, -0.2]; 44100 * 10];
+    let mut cache = WaveformCache::default();
+    for epoch in 0..64 {
+        assert!(cache.get(epoch, &frames).len() <= 2048);
+        let pointer = cache.peaks.as_ptr();
+        assert_eq!(cache.get(epoch, &frames).as_ptr(), pointer);
+    }
+    assert!(cache.peaks.capacity() <= 4096);
+}
+
 fn setup() -> (App, Audio, Context) {
     let samples = Some(rbm::standard::builtin_samples());
     let (link, mut audio) = Link::new(Arc::new(Tables::new()), samples.clone());

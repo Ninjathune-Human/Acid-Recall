@@ -66,6 +66,49 @@ fn queued_ir_requests_keep_latest_and_retire_every_root() {
 }
 
 #[test]
+fn fading_states_reach_zero_instead_of_entering_subnormal_arithmetic() {
+    let mut studio = Studio::new(Box::new(Convolver::new(&[[0.5; 2]; 64]).unwrap()));
+    studio.smooth_sends = [1e-200; 4];
+    studio.smooth_return = 1e-200;
+    studio.smooth_delay = 1e-200;
+    studio.high_state = [1e-200; 2];
+    studio.low_state = [1e-200; 2];
+    studio.settings.enabled = false;
+    studio.settings.predelay_ms = 0.0;
+    studio.begin();
+    studio.channel(0, 0, 0.0, 0.0);
+    studio.process(0.0, 0.01, false, &mut [0.0; 64], &mut [0.0; 64]);
+    assert_eq!(studio.smooth_sends[0], 0.0);
+    assert_eq!(studio.smooth_return, 0.0);
+    assert_eq!(studio.smooth_delay, 0.0);
+    assert_eq!(studio.high_state, [0.0; 2]);
+    assert_eq!(studio.low_state, [0.0; 2]);
+}
+
+#[test]
+fn release_long_running_sampler_and_silence_soak() {
+    if cfg!(debug_assertions) { return; }
+    let mut studio = Studio::new(Box::new(Convolver::new(&convolution::synthetic(1, 1.8)).unwrap()));
+    for i in 0..8 {
+        studio.sampler.waves[i] = Some(Box::new(audio_file::Wave {
+            frames: vec![[0.1, -0.1]; 44100],
+        }));
+        studio.settings.lanes[i].steps.fill(100);
+        studio.settings.lanes[i].send = 0.3;
+    }
+    let start = std::time::Instant::now();
+    for block in 0..(120 * 44100 / 64) {
+        studio.begin();
+        let playing = block < 60 * 44100 / 64;
+        let mut left = [0.0; 64];
+        let mut right = [0.0; 64];
+        studio.process(block as f64 * 0.64, 0.01, playing, &mut left, &mut right);
+        assert!(left.iter().chain(&right).all(|x| x.is_finite()));
+    }
+    eprintln!("STUDIO_SOAK: 120 seconds audio / {:.3} seconds CPU", start.elapsed().as_secs_f64());
+}
+
+#[test]
 fn release_performance_with_six_second_ir_and_32_sampler_voices() {
     if cfg!(debug_assertions) {
         return;

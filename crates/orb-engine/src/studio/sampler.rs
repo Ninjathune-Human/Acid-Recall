@@ -295,6 +295,9 @@ impl Sampler {
                         let weights =
                             &self.table[(lane.pitch + 24) as usize * 256 + phase.min(255)];
                         let mut value = [0.0; 2];
+                        if lane.pitch == 0 {
+                            value = wave.frames[center as usize].map(f64::from);
+                        } else {
                         for (tap, &weight) in weights.iter().enumerate() {
                             let index = (center + tap as isize - 7)
                                 .clamp(start as isize, end as isize - 1)
@@ -302,6 +305,7 @@ impl Sampler {
                             for (c, v) in value.iter_mut().enumerate() {
                                 *v += f64::from(wave.frames[index][c]) * weight;
                             }
+                        }
                         }
                         if lane.mode == Mode::Loop && seam > 0.0 {
                             let fade = (voice.position / seam).min(1.0)
@@ -332,10 +336,10 @@ impl Sampler {
                 }
                 let audible = !lane.muted && (!solo || lane.solo);
                 let pan = [(1.0 - lane.pan).min(1.0), (1.0 + lane.pan).min(1.0)];
-                self.sends[i] += (lane.send - self.sends[i]) * 0.004;
+                super::smooth(&mut self.sends[i], lane.send, 0.004);
                 for c in 0..2 {
                     let target = if audible { lane.gain * pan[c] } else { 0.0 };
-                    self.gains[i][c] += (target - self.gains[i][c]) * 0.004;
+                    super::smooth(&mut self.gains[i][c], target, 0.004);
                     if target == 0.0 && self.gains[i][c].abs() < 1e-10 {
                         self.gains[i][c] = 0.0;
                     }

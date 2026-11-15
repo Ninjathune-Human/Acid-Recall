@@ -3,12 +3,23 @@
 pub mod audio_file;
 pub mod convolution;
 mod fft;
+mod mp3;
 pub mod sampler;
 #[cfg(test)]
 mod tests;
 
 use convolution::Convolver;
 use sampler::{LANES, Lane, Sampler};
+
+pub(super) fn smooth(value: &mut f64, target: f64, factor: f64) {
+    let delta = target - *value;
+    if delta.abs() < 1e-12 { *value = target; }
+    else { *value += delta * factor; }
+}
+
+fn clean(value: f64) -> f64 {
+    if value.abs() < 1e-20 { 0.0 } else { value }
+}
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Settings {
@@ -129,7 +140,7 @@ impl Studio {
         } else {
             0.0
         };
-        self.smooth_sends[channel] += (target - self.smooth_sends[channel]) * 0.002;
+        smooth(&mut self.smooth_sends[channel], target, 0.002);
         self.send[0][sample] += left * self.smooth_sends[channel];
         self.send[1][sample] += right * self.smooth_sends[channel];
     }
@@ -156,7 +167,7 @@ impl Studio {
         let lp = (-std::f64::consts::TAU * self.settings.high_cut / 44100.0).exp();
         for j in 0..64 {
             self.predelay[self.delay_position] = [self.send[0][j], self.send[1][j]];
-            self.smooth_delay += (delay - self.smooth_delay) * 0.001;
+            smooth(&mut self.smooth_delay, delay, 0.001);
             let whole = self.smooth_delay.floor() as usize;
             let fraction = self.smooth_delay - whole as f64;
             let a = self.predelay[(self.delay_position + 16384 - whole) & 16383];
@@ -165,9 +176,9 @@ impl Studio {
                 std::array::from_fn(|c| a[c] * (1.0 - fraction) + b[c] * fraction);
             self.delay_position = (self.delay_position + 1) & 16383;
             for (c, &sample) in input.iter().enumerate() {
-                self.high_state[c] = hp * self.high_state[c] + (1.0 - hp) * sample;
+                self.high_state[c] = clean(hp * self.high_state[c] + (1.0 - hp) * sample);
                 let high = sample - self.high_state[c];
-                self.low_state[c] = lp * self.low_state[c] + (1.0 - lp) * high;
+                self.low_state[c] = clean(lp * self.low_state[c] + (1.0 - lp) * high);
                 self.send[c][j] = self.low_state[c];
             }
         }
@@ -192,7 +203,7 @@ impl Studio {
             0.0
         };
         for j in 0..64 {
-            self.smooth_return += (target - self.smooth_return) * 0.002;
+            smooth(&mut self.smooth_return, target, 0.002);
             let mid = (wet[0][j] + wet[1][j]) * 0.5;
             let side = (wet[0][j] - wet[1][j]) * 0.5 * self.settings.width;
             let add = [

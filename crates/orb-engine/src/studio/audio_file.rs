@@ -27,7 +27,7 @@ impl Wave {
         let wav = bytes.get(..4) == Some(b"RIFF") && bytes.get(8..12) == Some(b"WAVE");
         let aiff = bytes.get(..4) == Some(b"FORM") && bytes.get(8..12) == Some(b"AIFF");
         if !wav && !aiff {
-            return Err("Choose a PCM/float WAV or uncompressed AIFF file".into());
+            return super::mp3::decode(bytes);
         }
         let mut channels = 0usize;
         let mut bits = 0usize;
@@ -121,12 +121,20 @@ impl Wave {
                 if !x.is_finite() {
                     return Err("Sample contains NaN or infinite audio".into());
                 }
-                *value = x.clamp(-8.0, 8.0) as f32;
+                *value = if x.abs() < 1e-20 { 0.0 } else { x.clamp(-8.0, 8.0) as f32 };
             }
             if channels == 1 {
                 frame[1] = frame[0];
             }
             input.push(frame);
+        }
+        Self::from_frames(input, rate)
+    }
+
+    pub(super) fn from_frames(input: Vec<[f32; 2]>, rate: usize) -> Result<Self, String> {
+        if input.is_empty() || !(8000..=192000).contains(&rate)
+            || input.len() as u64 * RATE as u64 > MAX_FRAMES as u64 * rate as u64 {
+            return Err("Sample must contain audio and be no longer than 180 seconds".into());
         }
         if rate == RATE {
             return Ok(Self { frames: input });

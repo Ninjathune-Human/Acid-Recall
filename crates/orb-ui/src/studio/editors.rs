@@ -1,7 +1,5 @@
 //! Dark, compact rack launchers and spacious instrument/effect editors.
 
-use std::sync::Arc;
-
 use eframe::egui::{self, Align2, Color32, Context, FontId, Sense, Stroke, Ui, Vec2};
 use orb_engine::studio::sampler::Mode;
 use orb_player::Command;
@@ -165,7 +163,8 @@ impl App {
                 });
                 ui.label(&self.studio.ir_name);
                 if let Some(ir) = &self.studio.ir {
-                    waveform(ui, &ir.frames, 70.0, 0.0, 1.0, self.studio.waveform_epoch);
+                    waveform(ui, &ir.frames, 70.0, 0.0, 1.0, self.studio.waveform_epoch,
+                        &mut self.studio.wave_views[8]);
                 }
                 ui.add_enabled_ui(!busy, |ui| {
                     ui.horizontal(|ui| {
@@ -441,6 +440,7 @@ impl App {
                         lane.start,
                         lane.end,
                         self.studio.waveform_epoch,
+                        &mut self.studio.wave_views[selected],
                     );
                     ui.small(format!(
                         "{:.2} seconds / stereo / 44.1 kHz",
@@ -627,29 +627,14 @@ impl App {
     }
 }
 
-fn waveform(ui: &mut Ui, frames: &[[f32; 2]], height: f32, start: f64, end: f64, epoch: u64) {
+fn waveform(ui: &mut Ui, frames: &[[f32; 2]], height: f32, start: f64, end: f64, epoch: u64,
+    cache: &mut super::WaveformCache) {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::hover());
     ui.painter().rect_filled(rect, 4.0, Color32::from_gray(17));
     if frames.is_empty() {
         return;
     }
-    let id = ui.make_persistent_id(("waveform", epoch, frames.as_ptr() as usize));
-    let peaks = ui.ctx().data(|data| data.get_temp::<Arc<Vec<f32>>>(id));
-    let peaks = peaks.unwrap_or_else(|| {
-        // Inspect long files once, rather than scanning millions of samples every repaint.
-        let mut peaks: Vec<f32> = frames
-            .chunks(frames.len().div_ceil(2048))
-            .map(|chunk| chunk.iter().flatten().fold(0.0f32, |m, v| m.max(v.abs())))
-            .collect();
-        let maximum = peaks.iter().copied().fold(0.0f32, f32::max).max(1e-12);
-        for peak in &mut peaks {
-            *peak /= maximum;
-        }
-        let peaks = Arc::new(peaks);
-        ui.ctx()
-            .data_mut(|data| data.insert_temp(id, peaks.clone()));
-        peaks
-    });
+    let peaks = cache.get(epoch, frames);
     let columns = rect.width().floor().max(1.0) as usize;
     for x in 0..columns {
         let a = x * peaks.len() / columns;
