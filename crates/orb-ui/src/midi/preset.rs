@@ -41,13 +41,14 @@ impl RoutingPreset {
         let mut sources = HashSet::new();
         let mut targets = HashSet::new();
         for b in &self.bindings {
-            if !(1..=16).contains(&b.channel) || b.controller > 127 {
+            if b.input >= 16 || !(1..=16).contains(&b.channel) || b.controller > 127 {
                 return Err("A MIDI channel or CC number in the file is invalid.".into());
             }
             if kind(&b.target).is_none() {
                 return Err(format!("Unknown MIDI target: {}", b.target));
             }
-            if !sources.insert((b.channel, b.controller)) || !targets.insert(b.target.as_str()) {
+            if !sources.insert((b.input, b.channel, b.controller))
+                || !targets.insert(b.target.as_str()) {
                 return Err("The file contains conflicting MIDI assignments.".into());
             }
         }

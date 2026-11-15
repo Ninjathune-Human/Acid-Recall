@@ -141,3 +141,20 @@ https://github.com/pdeljanov/Symphonia/tree/v0.5.5. The portable package include
 Tests cover direct-FIR agreement across partition/history boundaries, audio import bounds,
 sampler modes/chokes/stop, the last step of bar 64, precise step crossings, portable project
 integrity, genre/harmony constraints and the real player's allocation/free guard.
+
+## MIDI controllers and Studio
+
+Options > MIDI Controller can listen to several Windows input devices simultaneously.
+Input 1 preserves the existing controller and assignments. Use **Add MIDI input** for
+Input 2 and further slots, choose a different device in each, then Learn as usual. The next
+CC identifies both its controller slot and channel, so two devices may use the same CC
+number for different parameters. Unavailable inputs do not stop the other inputs.
+Keep the same slot order when moving a routing preset between PCs; device names and each
+input's minimum-one calibration stay local. A disconnected slot keeps its assignments.
+
+Studio MIDI targets cover SPACE enable, return, filters, pre-delay, width and four sends,
+plus every lane's gain, pan, pitch, send, trim, envelope, gate, mode, reverse, mute, solo,
+choke, gater source/depth/attack/release and kick sidechain. Audition responds once per
+CC button press (64-127 pressed, 0-63 released). Boolean controls use that same absolute
+threshold, while continuous controls retain pickup. Quantized pitch and mode selectors
+preserve the controller position until an external UI or project change requires pickup.

@@ -181,6 +181,7 @@ fn pitch_pickup_crosses_every_semitone_and_rearms_for_external_edits() {
         enabled: true,
         pickup: true,
         bindings: vec![Binding {
+            input: 0,
             channel: 1,
             controller: 74,
             target: "sampler1.pitch".into(),

@@ -305,7 +305,11 @@ impl Sampler {
                     let rate = rates[i];
                     let seam = (length / 4).min(88) as f64;
                     for voice in &mut self.voices[i] {
-                        if !voice.active || length < 2 {
+                        if length < 2 {
+                            voice.active = false;
+                            continue;
+                        }
+                        if !voice.active {
                             continue;
                         }
                         let gate_end = lane.mode == Mode::Gate && voice.until <= 0.0;

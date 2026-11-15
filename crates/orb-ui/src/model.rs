@@ -379,18 +379,8 @@ impl Panel {
         }
         p.numbers.insert("delay.steps".into(), 3);
         p.numbers.insert("pcf.pattern".into(), 0);
-        for (id, _) in crate::studio::midi::controls() {
-            let value = match id.as_str() {
-                "studio.return" => 32,
-                "studio.predelay" => 11,
-                "studio.width" => 64,
-                "studio.low_cut" => 8,
-                "studio.high_cut" => 56,
-                _ if id.ends_with(".level") => 44,
-                _ if id.ends_with(".pan") || id.ends_with(".pitch") => 64,
-                _ => 0,
-            };
-            p.knobs.insert(id, behavior::knob_from_engine(value));
+        for (id, value) in crate::studio::midi::defaults() {
+            p.knobs.insert(id, behavior::knob_from_engine(i32::from(value)));
         }
         p
     }
@@ -748,6 +738,10 @@ impl Panel {
     /// The mouse-down action of a toggle, trigger, grid, radio or mode control.
     /// `now` is the time in seconds (for the 303 note flash).
     pub fn press(&mut self, id: &str, now: f64) {
+        if crate::studio::midi::is_action(id) {
+            self.emit(Event::Press { id: id.to_string() });
+            return;
+        }
         let Some((sec, name)) = id.split_once('.') else {
             return;
         };

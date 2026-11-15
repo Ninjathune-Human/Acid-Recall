@@ -31,6 +31,7 @@ fn midi_learn_ch_level_reaches_zero_and_preserves_open_hat_level() {
         ..Config::default()
     };
     config.bindings.push(Binding {
+            input: 0,
         target: "tr909.ch_level".into(),
         channel: 1,
         controller: 74,
@@ -117,6 +118,7 @@ fn ch_pickup_does_not_rearm_on_a_stale_snapshot_between_audio_callbacks() {
         ..Config::default()
     };
     config.bindings.push(Binding {
+            input: 0,
         target: "tr909.ch_level".into(),
         channel: 1,
         controller: 74,

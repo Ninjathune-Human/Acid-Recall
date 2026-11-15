@@ -77,9 +77,23 @@ impl Cc {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Binding {
+    /// Zero-based controller slot, independent of operating-system device names.
+    #[serde(default, skip_serializing_if = "is_primary")]
+    pub input: u8,
     pub channel: u8,
     pub controller: u8,
     pub target: String,
+}
+
+fn is_primary(input: &u8) -> bool {
+    *input == 0
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct InputSettings {
+    pub port: Option<String>,
+    pub minimum_one: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -87,6 +101,8 @@ pub struct Binding {
 pub struct Config {
     pub enabled: bool,
     pub port: Option<String>,
+    /// Additional controller slots. Empty slots keep their number and saved assignments.
+    pub additional_inputs: Vec<InputSettings>,
     pub pickup: bool,
     /// Hardware calibration stays local, like the selected input port.
     pub minimum_one: bool,
@@ -98,6 +114,7 @@ impl Default for Config {
         Self {
             enabled: false,
             port: None,
+            additional_inputs: Vec::new(),
             pickup: true,
             minimum_one: false,
             bindings: Vec::new(),
@@ -110,20 +127,42 @@ impl Config {
     pub fn sanitize(&mut self) {
         let bindings = std::mem::take(&mut self.bindings);
         for b in bindings {
-            if (1..=16).contains(&b.channel) && b.controller < 128 && kind(&b.target).is_some() {
+            if b.input < 16 && (1..=16).contains(&b.channel)
+                && b.controller < 128 && kind(&b.target).is_some() {
                 self.assign(b);
             }
         }
         if self.port.as_ref().is_some_and(|p| p.trim().is_empty()) {
             self.port = None;
         }
+        self.additional_inputs.truncate(15);
+        for input in &mut self.additional_inputs {
+            if input.port.as_ref().is_some_and(|p| p.trim().is_empty()) {
+                input.port = None;
+            }
+        }
     }
 
     pub fn assign(&mut self, b: Binding) {
         self.bindings.retain(|old| {
-            old.target != b.target && (old.channel != b.channel || old.controller != b.controller)
+            old.target != b.target && (old.input != b.input
+                || old.channel != b.channel || old.controller != b.controller)
         });
         self.bindings.push(b);
+    }
+
+    fn inputs(&self) -> Vec<(u8, &str)> {
+        self.port.as_deref().map(|p| (0, p)).into_iter().chain(
+            self.additional_inputs.iter().take(15).enumerate()
+                .filter_map(|(i, s)| s.port.as_deref().map(|p| ((i + 1) as u8, p)))
+        ).collect()
+    }
+
+    fn calibrated(&self, input: u8) -> bool {
+        if input == 0 { self.minimum_one } else {
+            self.additional_inputs.get(usize::from(input - 1))
+                .is_some_and(|s| s.minimum_one)
+        }
     }
 }
 
@@ -166,7 +205,12 @@ pub fn targets() -> Vec<(String, Kind)> {
     out.extend(
         crate::studio::midi::controls()
             .into_iter()
-            .map(|(id, _)| (id, Kind::Knob)),
+            .map(|(id, _)| {
+                let k = if crate::studio::midi::is_action(&id) { Kind::Button }
+                    else if crate::studio::midi::is_boolean(&id) { Kind::Switch }
+                    else { Kind::Knob };
+                (id, k)
+            }),
     );
     out
 }
@@ -236,8 +280,8 @@ impl Pickup {
 /// Per-connection state, separate from saved assignments.
 #[derive(Default)]
 pub struct Router {
-    pickup: HashMap<String, Pickup>,
-    buttons: HashMap<(u8, u8), bool>,
+    pickup: HashMap<(u8, String), Pickup>,
+    buttons: HashMap<(u8, u8, u8), bool>,
 }
 
 impl Router {
@@ -247,10 +291,15 @@ impl Router {
     }
 
     pub fn apply(&mut self, cc: Cc, config: &Config, panel: &mut Panel, now: f64) {
+        self.apply_from(0, cc, config, panel, now);
+    }
+
+    pub fn apply_from(&mut self, input: u8, cc: Cc, config: &Config,
+        panel: &mut Panel, now: f64) {
         let Some(b) = config
             .bindings
             .iter()
-            .find(|b| b.channel == cc.channel && b.controller == cc.controller)
+            .find(|b| b.input == input && b.channel == cc.channel && b.controller == cc.controller)
         else {
             return;
         };
@@ -259,20 +308,25 @@ impl Router {
         match k {
             Kind::Button => {
                 let down = cc.value >= 64;
-                let previous = self.buttons.insert((cc.channel, cc.controller), down);
+                let previous = self.buttons.insert((input, cc.channel, cc.controller), down);
                 if down && previous != Some(true) {
                     panel.press(id, now);
                 }
             }
-            Kind::Switch => panel.set_switch(id, u8::from(cc.value >= 64)),
+            Kind::Switch => {
+                if crate::studio::midi::is_boolean(id) {
+                    panel.set_knob(id, behavior::knob_from_engine(
+                        i32::from(u8::from(cc.value >= 64)) * 127));
+                } else { panel.set_switch(id, u8::from(cc.value >= 64)); }
+            }
             Kind::Knob | Kind::Fader | Kind::Number => {
-                let value = if config.minimum_one {
+                let value = if config.calibrated(input) {
                     ((u16::from(cc.value.min(127).saturating_sub(1)) * 127 + 63) / 126) as u8
                 } else {
                     cc.value
                 };
                 let current = normalized(panel, id, k);
-                let state = self.pickup.entry(b.target.clone()).or_default();
+                let state = self.pickup.entry((input, b.target.clone())).or_default();
                 if !state.accepts(value, current, config.pickup) {
                     return;
                 }
@@ -307,16 +361,22 @@ pub struct Midi {
     pub open: bool,
     started: bool,
     ports: Vec<Port>,
-    input: Option<backend::Input>,
-    active: Option<String>,
+    inputs: Vec<ActiveInput>,
     pub router: Router,
     learning: Option<String>,
     selected: String,
     filter: String,
     last: Option<Cc>,
+    last_input: u8,
     error: Option<String>,
-    dropped_seen: usize,
     notice: Option<String>,
+}
+
+struct ActiveInput {
+    slot: u8,
+    name: String,
+    input: backend::Input,
+    dropped_seen: usize,
 }
 
 impl Midi {
@@ -356,18 +416,27 @@ impl Midi {
     }
 
     /// The same path serves native MIDI callbacks and device-free regression tests.
+    #[cfg(test)]
     fn handle_cc(&mut self, cc: Cc, config: &mut Config, panel: &mut Panel, now: f64) -> bool {
+        self.handle_cc_from(0, cc, config, panel, now)
+    }
+
+    fn handle_cc_from(&mut self, input: u8, cc: Cc, config: &mut Config,
+        panel: &mut Panel, now: f64) -> bool {
         self.last = Some(cc);
+        self.last_input = input;
         if let Some(target) = self.learning.take() {
             let replaced = config
                 .bindings
                 .iter()
                 .find(|b| {
-                    b.channel == cc.channel && b.controller == cc.controller && b.target != target
+                    b.input == input && b.channel == cc.channel
+                        && b.controller == cc.controller && b.target != target
                 })
                 .map(|b| label(&b.target));
             self.notice = Some(format!(
-                "Assigned Ch {} / CC {} to {}.{}",
+                "Assigned input {} / Ch {} / CC {} to {}.{}",
+                input + 1,
                 cc.channel,
                 cc.controller,
                 label(&target),
@@ -376,6 +445,7 @@ impl Midi {
                 })
             ));
             config.assign(Binding {
+                input,
                 channel: cc.channel,
                 controller: cc.controller,
                 target,
@@ -383,17 +453,15 @@ impl Midi {
             self.router.reset();
             return true;
         }
-        self.router.apply(cc, config, panel, now);
+        self.router.apply_from(input, cc, config, panel, now);
         false
     }
 
     fn connect(&mut self, config: &Config) {
-        self.input = None;
-        self.active = None;
+        self.inputs.clear();
         self.router.reset();
         self.learning = None;
         self.error = None;
-        self.dropped_seen = 0;
         if !config.enabled && !self.open {
             return;
         }
@@ -407,10 +475,12 @@ impl Midi {
         if !config.enabled {
             return;
         }
-        let Some(name) = &config.port else { return };
-        let matches: Vec<_> = self.ports.iter().filter(|p| &p.name == name).collect();
+        let mut errors = Vec::new();
+        let mut opened = std::collections::HashSet::new();
+        for (slot, name) in config.inputs() {
+        let matches: Vec<_> = self.ports.iter().filter(|p| p.name == name).collect();
         if matches.len() != 1 {
-            self.error = Some(if matches.is_empty() {
+            errors.push(if matches.is_empty() {
                 format!(
                     "MIDI input '{name}' is unavailable. Connect it, then \
             Refresh / reconnect."
@@ -420,15 +490,22 @@ impl Midi {
             unique name."
                     .into()
             });
-            return;
+            continue;
+        }
+        if !opened.insert(matches[0].id) {
+            errors.push(format!("Input {} duplicates '{name}'; choose a different device.", slot + 1));
+            continue;
         }
         match backend::Input::open(matches[0].id) {
             Ok(input) => {
-                self.input = Some(input);
-                self.active = Some(name.clone());
+                self.inputs.push(ActiveInput {
+                    slot, name: name.to_string(), input, dropped_seen: 0,
+                });
             }
-            Err(e) => self.error = Some(e),
+            Err(e) => errors.push(format!("Input {}: {e}", slot + 1)),
         }
+        }
+        if !errors.is_empty() { self.error = Some(errors.join("\n")); }
     }
 }
 
@@ -439,27 +516,30 @@ impl App {
             self.midi.started = true;
             self.midi.connect(&self.settings.midi);
         }
-        let Some(input) = &self.midi.input else {
+        if self.midi.inputs.is_empty() {
             return;
-        };
-        let words = input.drain();
-        let dropped = input.dropped();
+        }
+        let mut words = Vec::new();
+        for active in &mut self.midi.inputs {
+            words.extend(active.input.drain().into_iter().map(|word| (active.slot, word)));
+            let dropped = active.input.dropped();
+            if dropped > active.dropped_seen {
+                active.dropped_seen = dropped;
+                self.midi.error = Some(format!("Input {} overflow: {dropped} messages dropped.",
+                    active.slot + 1));
+                self.midi.router.reset();
+            }
+        }
         // WinMM callbacks only enqueue data; all GUI calls happen here on the UI thread.
         ctx.request_repaint_after(std::time::Duration::from_millis(8));
-        if dropped > self.midi.dropped_seen {
-            self.midi.dropped_seen = dropped;
-            self.midi.error = Some(format!(
-                "MIDI input overflow: {dropped} messages dropped. Reconnect \
-            to reset the counter."
-            ));
-            self.midi.router.reset();
-        }
         let now = ctx.input(|i| i.time);
         let mut learned = false;
-        for cc in words.into_iter().filter_map(Cc::decode) {
+        for (input, cc) in words.into_iter().filter_map(|(slot, word)| {
+            Cc::decode(word).map(|cc| (slot, cc))
+        }) {
             learned |= self
                 .midi
-                .handle_cc(cc, &mut self.settings.midi, &mut self.panel, now);
+                .handle_cc_from(input, cc, &mut self.settings.midi, &mut self.panel, now);
         }
         if learned {
             self.save_midi();
@@ -496,7 +576,7 @@ impl App {
                     "Portable file: assignments + soft takeover. Import replaces \
             assignments.",
                 );
-                ui.small("Choose the MIDI input locally on each computer.");
+                ui.small("Choose inputs locally. Assignments distinguish Input 1, Input 2, etc.");
                 if let Some(notice) = &self.midi.notice {
                     ui.colored_label(egui::Color32::LIGHT_GREEN, notice);
                 }
@@ -522,6 +602,10 @@ impl App {
                 egui::ComboBox::from_id_salt("midi-port")
                     .selected_text(config.port.as_deref().unwrap_or("Choose MIDI input..."))
                     .show_ui(ui, |ui| {
+                        if ui.selectable_value(&mut config.port, None, "Disconnected").changed() {
+                            changed = true;
+                            reconnect = true;
+                        }
                         for p in &self.midi.ports {
                             if ui
                                 .selectable_value(&mut config.port, Some(p.name.clone()), &p.name)
@@ -532,10 +616,14 @@ impl App {
                             }
                         }
                     });
-                if let Some(name) = &self.midi.active {
-                    ui.colored_label(egui::Color32::LIGHT_GREEN, format!("Connected: {name}"));
-                } else {
+                ui.small("The selector above is Input 1 (existing assignments).");
+                if self.midi.inputs.is_empty() {
                     ui.label("Disconnected");
+                } else {
+                    for input in &self.midi.inputs {
+                        ui.colored_label(egui::Color32::LIGHT_GREEN,
+                            format!("Input {} connected: {}", input.slot + 1, input.name));
+                    }
                 }
                 if ui
                     .checkbox(&mut config.pickup, "Soft takeover (prevent value jumps)")
@@ -547,7 +635,7 @@ impl App {
                 if ui
                     .checkbox(
                         &mut config.minimum_one,
-                        "Controller minimum is 1 (calibrate to zero)",
+                        "Input 1 minimum is 1 (calibrate to zero)",
                     )
                     .changed()
                 {
@@ -555,10 +643,39 @@ impl App {
                     changed = true;
                 }
                 ui.small("Enable only if knobs/faders send 1 at minimum. Maps 1-127 to 0-127.");
+                for (i, input) in config.additional_inputs.iter_mut().enumerate() {
+                    ui.push_id(("additional-midi", i), |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(format!("Input {}", i + 2));
+                            egui::ComboBox::from_id_salt("device")
+                                .selected_text(input.port.as_deref().unwrap_or("Disconnected"))
+                                .show_ui(ui, |ui| {
+                                    if ui.selectable_value(&mut input.port, None, "Disconnected")
+                                        .changed() { reconnect = true; changed = true; }
+                                    for p in &self.midi.ports {
+                                        if ui.selectable_value(&mut input.port,
+                                            Some(p.name.clone()), &p.name).changed() {
+                                            reconnect = true; changed = true;
+                                        }
+                                    }
+                                });
+                        });
+                        if ui.checkbox(&mut input.minimum_one,
+                            "This input sends 1 at minimum").changed() {
+                            self.midi.router.reset();
+                            changed = true;
+                        }
+                    });
+                }
+                if config.additional_inputs.len() < 15
+                    && ui.button("Add MIDI input").clicked() {
+                    config.additional_inputs.push(InputSettings::default());
+                    changed = true;
+                }
                 if let Some(cc) = self.midi.last {
                     ui.label(format!(
-                        "Last input: channel {} / CC {} / value {}",
-                        cc.channel, cc.controller, cc.value
+                        "Last input: device {} / channel {} / CC {} / value {}",
+                        self.midi.last_input + 1, cc.channel, cc.controller, cc.value
                     ));
                 }
                 if let Some(error) = &self.midi.error {
@@ -603,7 +720,7 @@ impl App {
                 ui.horizontal(|ui| {
                     if ui
                         .add_enabled(
-                            self.midi.input.is_some() && !self.midi.selected.is_empty(),
+                            !self.midi.inputs.is_empty() && !self.midi.selected.is_empty(),
                             egui::Button::new("Learn"),
                         )
                         .clicked()
@@ -627,7 +744,8 @@ impl App {
                     .show(ui, |ui| {
                         for (i, b) in config.bindings.iter().enumerate() {
                             ui.horizontal(|ui| {
-                                ui.label(format!("Ch {} / CC {}", b.channel, b.controller));
+                                ui.label(format!("Input {} / Ch {} / CC {}",
+                                    b.input + 1, b.channel, b.controller));
                                 ui.label(label(&b.target));
                                 if ui.small_button("Remove").clicked() {
                                     remove = Some(i);

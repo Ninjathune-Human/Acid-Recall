@@ -7,10 +7,12 @@ fn config() -> Config {
         port: Some("UC-33 on first PC".into()),
         pickup: false,
         minimum_one: false,
+        additional_inputs: Vec::new(),
         bindings: targets()
             .into_iter()
             .enumerate()
             .map(|(i, (target, _))| Binding {
+            input: 0,
                 channel: (i / 128 + 1) as u8,
                 controller: (i % 128) as u8,
                 target,
@@ -98,4 +100,21 @@ fn invalid_imports_leave_existing_assignments_untouched_and_large_files_are_boun
             .unwrap_err()
             .contains("size limit")
     );
+}
+
+#[test]
+fn multiple_controller_slots_export_without_machine_specific_names() {
+    let mut config = Config { port: Some("UC33 local device".into()),
+        additional_inputs: vec![orb_ui::midi::InputSettings {
+            port: Some("Pads local device".into()), minimum_one: true,
+        }], ..Config::default() };
+    for (input, target) in [(0, "sampler1.level"), (1, "sampler2.level")] {
+        config.assign(Binding { input, channel: 1, controller: 7, target: target.into() });
+    }
+    let encoded = RoutingPreset::from_config(&config).encode().unwrap();
+    assert!(!encoded.contains("local device"));
+    let mut imported = Config::default();
+    RoutingPreset::decode(&encoded).unwrap().apply(&mut imported).unwrap();
+    assert_eq!(imported.bindings, config.bindings);
+    assert!(imported.additional_inputs.is_empty());
 }
