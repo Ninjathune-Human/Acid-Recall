@@ -100,7 +100,17 @@ impl App {
                     match name {
                         "level" => lane.gain / 2.0,
                         "pan" => (lane.pan + 1.0) / 2.0,
-                        "pitch" => (f64::from(lane.pitch) + 24.0) / 48.0,
+                        "pitch" => {
+                            // Several CC positions represent the same semitone. Preserve the
+                            // physical position so pickup does not mistake quantization for
+                            // an external edit and re-arm on every semitone boundary.
+                            if self.panel.value(&id).is_some_and(|v| {
+                                (f64::from(v) / 127.0 * 48.0 - 24.0).round() as i8 == lane.pitch
+                            }) {
+                                continue;
+                            }
+                            (f64::from(lane.pitch) + 24.0) / 48.0
+                        }
                         _ => lane.send,
                     }
                 }

@@ -1,5 +1,7 @@
 //! Dark, compact rack launchers and spacious instrument/effect editors.
 
+use std::sync::Arc;
+
 use eframe::egui::{self, Align2, Color32, Context, FontId, Sense, Stroke, Ui, Vec2};
 use orb_engine::studio::sampler::Mode;
 use orb_player::Command;
@@ -11,8 +13,17 @@ const ACCENT: Color32 = Color32::from_rgb(190, 215, 126);
 const CARD: Color32 = Color32::from_rgb(30, 31, 34);
 const DIM: Color32 = Color32::from_rgb(145, 148, 151);
 
+fn style(ui: &mut Ui) {
+    ui.visuals_mut().selection.bg_fill = Color32::from_rgb(69, 80, 48);
+    ui.visuals_mut().selection.stroke = Stroke::new(1.0, ACCENT);
+}
+
 fn slider(ui: &mut Ui, value: &mut f64, lo: f64, hi: f64, label: &str) {
-    ui.add(egui::Slider::new(value, lo..=hi).logarithmic(lo > 0.0 && hi / lo >= 50.0).text(label));
+    ui.add(
+        egui::Slider::new(value, lo..=hi)
+            .logarithmic(lo > 0.0 && hi / lo >= 50.0)
+            .text(label),
+    );
 }
 
 impl App {
@@ -145,6 +156,7 @@ impl App {
             .default_width(620.0)
             .resizable(true)
             .show(ctx, |ui| {
+                style(ui);
                 ui.spacing_mut().item_spacing = Vec2::new(12.0, 10.0);
                 ui.horizontal(|ui| {
                     ui.heading(egui::RichText::new("SPACE").color(ACCENT));
@@ -153,7 +165,7 @@ impl App {
                 });
                 ui.label(&self.studio.ir_name);
                 if let Some(ir) = &self.studio.ir {
-                    waveform(ui, &ir.frames, 70.0, 0.0, 1.0);
+                    waveform(ui, &ir.frames, 70.0, 0.0, 1.0, self.studio.waveform_epoch);
                 }
                 ui.add_enabled_ui(!busy, |ui| {
                     ui.horizontal(|ui| {
@@ -247,6 +259,7 @@ impl App {
             .min_width(720.0)
             .vscroll(true)
             .show(ctx, |ui| {
+                style(ui);
                 ui.spacing_mut().item_spacing = Vec2::new(8.0, 8.0);
                 ui.horizontal(|ui| {
                     ui.heading(egui::RichText::new("SAMPLER").color(ACCENT));
@@ -271,7 +284,9 @@ impl App {
                 self.studio.bar = self.studio.bar.min(bars - 1);
                 let bar = self.studio.bar;
                 ui.separator();
+                egui::ScrollArea::horizontal().show(ui, |ui| {
                 egui::Grid::new("sampler-lanes")
+                    .min_col_width(0.0)
                     .spacing(Vec2::new(7.0, 7.0))
                     .show(ui, |ui| {
                         ui.label("LANE / SAMPLE");
@@ -333,6 +348,7 @@ impl App {
                             ui.end_row();
                         }
                     });
+                });
                 ui.separator();
                 ui.horizontal_wrapped(|ui| {
                     ui.label("BAR");
@@ -413,7 +429,14 @@ impl App {
                 });
                 let lane = &mut self.studio.settings.lanes[selected];
                 if let Some(wave) = &self.studio.waves[selected] {
-                    waveform(ui, &wave.frames, 100.0, lane.start, lane.end);
+                    waveform(
+                        ui,
+                        &wave.frames,
+                        100.0,
+                        lane.start,
+                        lane.end,
+                        self.studio.waveform_epoch,
+                    );
                     ui.small(format!(
                         "{:.2} seconds / stereo / 44.1 kHz",
                         wave.frames.len() as f64 / 44100.0
@@ -552,7 +575,12 @@ impl App {
                             let mut value = self.panel.switch(&control.id);
                             ui.horizontal(|ui| {
                                 ui.label(&label);
-                                for (v, text) in [(0, "0"), (1, "1")] {
+                                let options = if control.id == "pcf.mode" {
+                                    [(0, "Low-pass"), (1, "Band-pass")]
+                                } else {
+                                    [(0, "Straight"), (1, "Triplet")]
+                                };
+                                for (v, text) in options {
                                     if ui.selectable_value(&mut value, v, text).changed() {
                                         self.panel.set_switch(&control.id, value);
                                     }
@@ -594,19 +622,38 @@ impl App {
     }
 }
 
-fn waveform(ui: &mut Ui, frames: &[[f32; 2]], height: f32, start: f64, end: f64) {
+fn waveform(ui: &mut Ui, frames: &[[f32; 2]], height: f32, start: f64, end: f64, epoch: u64) {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::hover());
     ui.painter().rect_filled(rect, 4.0, Color32::from_gray(17));
+    if frames.is_empty() {
+        return;
+    }
+    let id = ui.make_persistent_id(("waveform", epoch, frames.as_ptr() as usize));
+    let peaks = ui.ctx().data(|data| data.get_temp::<Arc<Vec<f32>>>(id));
+    let peaks = peaks.unwrap_or_else(|| {
+        // Inspect long files once, rather than scanning millions of samples every repaint.
+        let mut peaks: Vec<f32> = frames
+            .chunks(frames.len().div_ceil(2048))
+            .map(|chunk| chunk.iter().flatten().fold(0.0f32, |m, v| m.max(v.abs())))
+            .collect();
+        let maximum = peaks.iter().copied().fold(0.0f32, f32::max).max(1e-12);
+        for peak in &mut peaks {
+            *peak /= maximum;
+        }
+        let peaks = Arc::new(peaks);
+        ui.ctx().data_mut(|data| data.insert_temp(id, peaks.clone()));
+        peaks
+    });
     let columns = rect.width().floor().max(1.0) as usize;
     for x in 0..columns {
-        let a = x * frames.len() / columns;
-        let b = ((x + 1) * frames.len() / columns)
+        let a = x * peaks.len() / columns;
+        let b = ((x + 1) * peaks.len() / columns)
             .max(a + 1)
-            .min(frames.len());
-        let peak = frames[a.min(frames.len())..b]
+            .min(peaks.len());
+        let peak = peaks[a.min(peaks.len())..b]
             .iter()
-            .flatten()
-            .fold(0.0f32, |m, v| m.max(v.abs()))
+            .copied()
+            .fold(0.0f32, f32::max)
             .min(1.0);
         let px = rect.left() + x as f32;
         let selected = x as f64 / columns as f64 >= start && x as f64 / columns as f64 <= end;

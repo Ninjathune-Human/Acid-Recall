@@ -134,22 +134,33 @@ impl Wave {
         let count = (input.len() as u64 * RATE as u64 / rate as u64) as usize;
         let mut frames = Vec::with_capacity(count);
         let cutoff = (RATE as f64 / rate as f64).min(1.0) * 0.95;
+        let kernels: Vec<[f64; 64]> = (0..1024)
+            .map(|phase| {
+                let mut weights = std::array::from_fn(|tap| {
+                    let distance = tap as f64 - 31.0 - f64::from(phase) / 1024.0;
+                    sinc(distance * cutoff)
+                        * (0.5 + 0.5 * (distance * std::f64::consts::PI / 33.0).cos())
+                });
+                let norm: f64 = weights.iter().sum();
+                for weight in &mut weights {
+                    *weight /= norm;
+                }
+                weights
+            })
+            .collect();
         for i in 0..count {
             let position = i as f64 * rate as f64 / RATE as f64;
             let center = position.floor() as isize;
+            let phase = ((position - position.floor()) * 1024.0) as usize;
             let mut sum = [0.0f64; 2];
-            let mut norm = 0.0;
-            for tap in -31..=32 {
-                let distance = (center + tap) as f64 - position;
-                let w = sinc(distance * cutoff)
-                    * (0.5 + 0.5 * (distance * std::f64::consts::PI / 33.0).cos());
-                let index = (center + tap).clamp(0, input.len() as isize - 1) as usize;
-                for c in 0..2 {
-                    sum[c] += f64::from(input[index][c]) * w;
+            for (tap, &weight) in kernels[phase.min(1023)].iter().enumerate() {
+                let index =
+                    (center + tap as isize - 31).clamp(0, input.len() as isize - 1) as usize;
+                for (c, value) in sum.iter_mut().enumerate() {
+                    *value += f64::from(input[index][c]) * weight;
                 }
-                norm += w;
             }
-            frames.push(sum.map(|x| (x / norm).clamp(-8.0, 8.0) as f32));
+            frames.push(sum.map(|x| x.clamp(-8.0, 8.0) as f32));
         }
         Ok(Self { frames })
     }
@@ -193,5 +204,16 @@ mod tests {
         for n in 0..44 {
             assert!(Wave::decode(&wav(16, 1, &[0, 0])[..n]).is_err());
         }
+    }
+
+    #[test]
+    fn resampling_preserves_duration_and_dc_level() {
+        let payload: Vec<u8> = (0..480).flat_map(|_| 16384i16.to_le_bytes()).collect();
+        let mut bytes = wav(16, 1, &payload);
+        bytes[24..28].copy_from_slice(&48000u32.to_le_bytes());
+        bytes[28..32].copy_from_slice(&96000u32.to_le_bytes());
+        let wave = Wave::decode(&bytes).unwrap();
+        assert_eq!(wave.frames.len(), 441);
+        assert!(wave.frames.iter().flatten().all(|&x| (x - 0.5).abs() < 1e-6));
     }
 }

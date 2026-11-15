@@ -1,6 +1,9 @@
 use super::*;
+use crate::{
+    frame::{Devices, Engine},
+    tables::Tables,
+};
 use std::sync::Arc;
-use crate::{frame::{Devices, Engine}, tables::Tables};
 
 #[test]
 fn an_empty_studio_is_sample_exact_with_the_legacy_engine() {
@@ -10,7 +13,9 @@ fn an_empty_studio_is_sample_exact_with_the_legacy_engine() {
     let mut song = rbs::Song::empty();
     song.glob.song_mode = 0;
     song.tb303[0].params[0] = 1;
-    for value in &mut song.tb303[0].params[3..] { *value = 64; }
+    for value in &mut song.tb303[0].params[3..] {
+        *value = 64;
+    }
     song.tb303[0].patterns[0].length = 16;
     for (i, step) in song.tb303[0].patterns[0].steps.iter_mut().enumerate() {
         step.note = [0, 3, 7, 10][i % 4];
@@ -20,19 +25,26 @@ fn an_empty_studio_is_sample_exact_with_the_legacy_engine() {
     song.mixer.channels[0].enabled = 1;
     song.mixer.channels[0].level = 80;
     let song = crate::load::convert(&song).unwrap();
-    legacy.load(&song).unwrap(); extended.load(&song).unwrap();
+    legacy.load(&song).unwrap();
+    extended.load(&song).unwrap();
     extended.frame.studio = Some(Box::new(Studio::new(Box::new(
-        Convolver::new(&[[0.1; 2]; 64]).unwrap()))));
-    legacy.play(); extended.play();
+        Convolver::new(&[[0.1; 2]; 64]).unwrap(),
+    ))));
+    legacy.play();
+    extended.play();
     let mut a = vec![0i16; 2048];
     let mut b = a.clone();
     let mut audible = false;
     for _ in 0..20 {
-        legacy.render(&mut a, 1024); extended.render(&mut b, 1024);
+        legacy.render(&mut a, 1024);
+        extended.render(&mut b, 1024);
         assert_eq!(a, b);
         audible |= a.iter().any(|x| x.unsigned_abs() > 10);
     }
-    assert!(audible, "the bypass comparison must include an audible TB line");
+    assert!(
+        audible,
+        "the bypass comparison must include an audible TB line"
+    );
 }
 
 #[test]
@@ -55,17 +67,23 @@ fn queued_ir_requests_keep_latest_and_retire_every_root() {
 
 #[test]
 fn release_performance_with_six_second_ir_and_32_sampler_voices() {
-    if cfg!(debug_assertions) { return; }
+    if cfg!(debug_assertions) {
+        return;
+    }
     let ir = convolution::synthetic(2, 6.0);
     let mut studio = Studio::new(Box::new(Convolver::new(&ir).unwrap()));
     studio.settings.sends = [0.3; 4];
     for (i, lane) in studio.settings.lanes.iter_mut().enumerate() {
         lane.gain = 0.1;
         lane.send = 0.2;
-        studio.sampler.waves[i] = Some(Box::new(audio_file::Wave { frames: vec![[0.1; 2]; 100000] }));
+        studio.sampler.waves[i] = Some(Box::new(audio_file::Wave {
+            frames: vec![[0.1; 2]; 100000],
+        }));
     }
     for _ in 0..4 {
-        for i in 0..8 { studio.sampler.audition(i); }
+        for i in 0..8 {
+            studio.sampler.audition(i);
+        }
         studio.begin();
         studio.process(0.0, 0.01, false, &mut [0.0; 64], &mut [0.0; 64]);
     }
@@ -74,12 +92,18 @@ fn release_performance_with_six_second_ir_and_32_sampler_voices() {
     let start = std::time::Instant::now();
     for _ in 0..690 {
         studio.begin();
-        for i in 0..64 { studio.channel(0, i, 0.02, -0.01); }
+        for i in 0..64 {
+            studio.channel(0, i, 0.02, -0.01);
+        }
         studio.process(0.0, 0.01, false, &mut left, &mut right);
         assert!(left.iter().chain(&right).all(|x| x.is_finite()));
-        left.fill(0.0); right.fill(0.0);
+        left.fill(0.0);
+        right.fill(0.0);
     }
     let elapsed = start.elapsed().as_secs_f64();
     eprintln!("STUDIO_PERFORMANCE: 1.001 s audio, {elapsed:.3} s processing / 6 s IR / 32 voices");
-    assert!(elapsed < 4.0, "Studio render is unexpectedly slow: {elapsed:.3} s");
+    assert!(
+        elapsed < 4.0,
+        "Studio render is unexpectedly slow: {elapsed:.3} s"
+    );
 }

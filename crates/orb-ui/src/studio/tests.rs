@@ -1,8 +1,8 @@
 use super::*;
+use crate::{link::Link, model::Panel};
 use eframe::egui;
 use orb_engine::tables::Tables;
 use orb_player::{Audio, CALL_FRAMES};
-use crate::{link::Link, model::Panel};
 
 fn setup() -> (App, Audio, Context) {
     let samples = Some(rbm::standard::builtin_samples());
@@ -12,8 +12,12 @@ fn setup() -> (App, Audio, Context) {
     app.new_now();
     audio.render_i16(&mut vec![0; CALL_FRAMES * 4]);
     app.link.as_mut().unwrap().sync(&mut app.panel);
-    let ir = Arc::new(Wave { frames: vec![[0.1; 2]; 64] });
-    app.studio_command(Command::Studio(Box::new(Studio::new(Box::new(Convolver::new(&ir.frames).unwrap())))));
+    let ir = Arc::new(Wave {
+        frames: vec![[0.1; 2]; 64],
+    });
+    app.studio_command(Command::Studio(Box::new(Studio::new(Box::new(
+        Convolver::new(&ir.frames).unwrap(),
+    )))));
     app.studio.ir = Some(ir);
     app.studio.ready = true;
     app.studio.content = true;
@@ -28,7 +32,10 @@ fn finish(app: &mut App, audio: &mut Audio, ctx: &Context) {
     while app.studio.busy() {
         audio.render_i16(&mut vec![0; CALL_FRAMES * 2]);
         app.studio_poll(ctx);
-        assert!(std::time::Instant::now() < deadline, "Studio operation timed out");
+        assert!(
+            std::time::Instant::now() < deadline,
+            "Studio operation timed out"
+        );
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
 }
@@ -40,7 +47,10 @@ fn save_and_open_restore_embedded_sample_last_step_and_mix_settings() {
     let path = folder.path().join("session.orb338");
     app.studio.settings.lanes[7].bars = 64;
     app.studio.settings.lanes[7].steps[1023] = 117;
-    app.studio.waves[7] = Some(Arc::new(Wave { frames: vec![[0.2, -0.1]; 1000] }));
+    app.studio.settings.return_gain = 0.73;
+    app.studio.waves[7] = Some(Arc::new(Wave {
+        frames: vec![[0.2, -0.1]; 1000],
+    }));
     app.settings.sidechain.depth = [21, 48];
     app.settings.closed_hat_level = Some(42);
     app.doc.modified = true;
@@ -54,6 +64,7 @@ fn save_and_open_restore_embedded_sample_last_step_and_mix_settings() {
     assert!(app.studio.opening);
     finish(&mut app, &mut audio, &ctx);
     assert_eq!(app.studio.settings.lanes[7].steps[1023], 117);
+    assert_eq!(app.panel.value("studio.return"), Some(93));
     assert_eq!(app.studio.waves[7].as_ref().unwrap().frames.len(), 1000);
     assert_eq!(app.settings.sidechain.depth, [21, 48]);
     assert_eq!(app.settings.closed_hat_level, Some(42));
@@ -131,8 +142,101 @@ fn new_editors_render_in_modern_rack_without_an_audio_device() {
     app.studio.ready = true;
     app.studio.sampler_open = true;
     app.studio.reverb_open = true;
-    let mut output = ctx.run_ui(egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(
-        egui::Pos2::ZERO, egui::vec2(1200.0, 900.0))), ..Default::default() }, |ui| app.show(ui));
+    let mut output = ctx.run_ui(
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1200.0, 900.0),
+            )),
+            ..Default::default()
+        },
+        |ui| app.show(ui),
+    );
     output.textures_delta.clear();
     assert!(app.studio.sampler_open && app.studio.reverb_open);
+}
+
+#[test]
+fn pitch_pickup_crosses_every_semitone_and_rearms_for_external_edits() {
+    use crate::midi::{Binding, Cc, Config, Router};
+    let mut app = App::new(Panel::new(), None);
+    let config = Config {
+        enabled: true,
+        pickup: true,
+        bindings: vec![Binding {
+            channel: 1,
+            controller: 74,
+            target: "sampler1.pitch".into(),
+        }],
+        ..Config::default()
+    };
+    let mut router = Router::default();
+    let cc = |value| Cc {
+        channel: 1,
+        controller: 74,
+        value,
+    };
+    for value in (0..=64).rev().chain(1..=127) {
+        router.apply(cc(value), &config, &mut app.panel, 0.0);
+        app.studio_midi();
+        app.panel.events.clear();
+        assert_eq!(
+            app.studio.settings.lanes[0].pitch,
+            (f64::from(value) / 127.0 * 48.0 - 24.0).round() as i8,
+            "CC {value}"
+        );
+    }
+    assert_eq!(app.studio.settings.lanes[0].pitch, 24);
+    app.studio.settings.lanes[0].pitch = 12;
+    app.studio_mirror();
+    router.apply(cc(126), &config, &mut app.panel, 0.0);
+    app.studio_midi();
+    app.panel.events.clear();
+    assert_eq!(app.studio.settings.lanes[0].pitch, 12);
+    for value in (0..=95).rev() {
+        router.apply(cc(value), &config, &mut app.panel, 0.0);
+        app.studio_midi();
+        app.panel.events.clear();
+    }
+    assert_eq!(app.studio.settings.lanes[0].pitch, -24);
+}
+
+#[test]
+fn compact_compressor_and_reverb_buttons_have_independent_click_regions() {
+    let ctx = Context::default();
+    egui_extras::install_image_loaders(&ctx);
+    let mut app = App::new(Panel::new(), None);
+    app.studio.modern = true;
+    app.studio.ready = true;
+    let mut draw = |events| {
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(624.0, 510.0),
+                )),
+                events,
+                ..Default::default()
+            },
+            |ui| app.show(ui),
+        );
+        output.textures_delta.clear();
+    };
+    draw(Vec::new());
+    for y in [143.0, 155.0] {
+        let pos = egui::pos2(508.0, y);
+        for pressed in [true, false] {
+            draw(vec![
+                egui::Event::PointerMoved(pos),
+                egui::Event::PointerButton {
+                    pos,
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers: Default::default(),
+                },
+            ]);
+        }
+    }
+    assert_eq!(app.panel.comp_id, 2);
+    assert_eq!(app.studio.settings.sends, [0.3, 0.0, 0.0, 0.0]);
 }

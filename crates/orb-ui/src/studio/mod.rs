@@ -7,6 +7,7 @@ pub mod project;
 mod tests;
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, mpsc};
 
 use eframe::egui::Context;
@@ -34,7 +35,10 @@ enum Completed {
     ),
 }
 
+static ASSET_EPOCH: AtomicU64 = AtomicU64::new(1);
+
 pub struct StudioUi {
+    waveform_epoch: u64,
     pub(crate) context: Context,
     pub modern: bool,
     pub sampler_open: bool,
@@ -64,6 +68,7 @@ pub struct StudioUi {
 impl Default for StudioUi {
     fn default() -> Self {
         Self {
+            waveform_epoch: ASSET_EPOCH.fetch_add(1, Ordering::Relaxed),
             context: Context::default(),
             modern: false,
             sampler_open: false,
@@ -153,6 +158,7 @@ impl App {
             modern,
             ..StudioUi::default()
         };
+        self.studio_mirror();
     }
 
     pub(crate) fn studio_poll(&mut self, ctx: &Context) {
@@ -181,6 +187,7 @@ impl App {
                     self.studio_command(Command::Studio(studio));
                 }
                 Ok(Completed::Wave(lane, name, wave, runtime)) => {
+                    self.studio.waveform_epoch = ASSET_EPOCH.fetch_add(1, Ordering::Relaxed);
                     self.studio.names[lane] = name;
                     self.studio.waves[lane] = Some(wave);
                     self.studio.settings.lanes[lane].start = 0.0;
@@ -193,6 +200,7 @@ impl App {
                     });
                 }
                 Ok(Completed::Reverb(name, ir, processor)) => {
+                    self.studio.waveform_epoch = ASSET_EPOCH.fetch_add(1, Ordering::Relaxed);
                     self.studio.ir_name = name;
                     self.studio.ir = Some(ir);
                     self.studio.changed();
@@ -219,6 +227,7 @@ impl App {
                             self.studio.content = true;
                             self.studio.ready = true;
                             self.studio_command(Command::Studio(runtime));
+                            self.studio_mirror();
                             self.doc.modified = false;
                         }
                     }
