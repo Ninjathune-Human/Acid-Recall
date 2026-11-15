@@ -214,6 +214,11 @@ mod tests {
         bytes[28..32].copy_from_slice(&96000u32.to_le_bytes());
         let wave = Wave::decode(&bytes).unwrap();
         assert_eq!(wave.frames.len(), 441);
-        assert!(wave.frames.iter().flatten().all(|&x| (x - 0.5).abs() < 1e-6));
+        assert!(
+            wave.frames
+                .iter()
+                .flatten()
+                .all(|&x| (x - 0.5).abs() < 1e-6)
+        );
     }
 }

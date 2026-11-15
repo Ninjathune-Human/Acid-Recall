@@ -285,69 +285,74 @@ impl App {
                 let bar = self.studio.bar;
                 ui.separator();
                 egui::ScrollArea::horizontal().show(ui, |ui| {
-                egui::Grid::new("sampler-lanes")
-                    .min_col_width(0.0)
-                    .spacing(Vec2::new(7.0, 7.0))
-                    .show(ui, |ui| {
-                        ui.label("LANE / SAMPLE");
-                        ui.label("M");
-                        ui.label("S");
-                        ui.label("AUDIO");
-                        for step in 0..16 {
-                            ui.label(format!("{:02}", step + 1));
-                        }
-                        ui.end_row();
-                        for i in 0..8 {
-                            let active = i == selected;
-                            let label = format!("{:02}  {}", i + 1, self.studio.names[i]);
-                            if ui
-                                .add_sized([190.0, 26.0], egui::Button::new(label).selected(active))
-                                .clicked()
-                            {
-                                self.studio.selected = i;
-                            }
-                            let lane = &mut self.studio.settings.lanes[i];
-                            ui.checkbox(&mut lane.muted, "");
-                            ui.checkbox(&mut lane.solo, "");
-                            if ui.add_enabled(!busy, egui::Button::new("Load")).clicked() {
-                                load = Some(i);
-                            }
+                    egui::Grid::new("sampler-lanes")
+                        .min_col_width(0.0)
+                        .spacing(Vec2::new(7.0, 7.0))
+                        .show(ui, |ui| {
+                            ui.label("LANE / SAMPLE");
+                            ui.label("M");
+                            ui.label("S");
+                            ui.label("AUDIO");
                             for step in 0..16 {
-                                let index = bar * 16 + step;
-                                let available = bar < usize::from(lane.bars);
-                                let value = lane.steps[index];
-                                let head =
-                                    playing && tick / 48 % (usize::from(lane.bars) * 16) == index;
-                                let mut button = egui::Button::new(if value == 0 {
-                                    "".into()
-                                } else {
-                                    format!("{value}")
-                                })
-                                .fill(if value > 0 {
-                                    Color32::from_rgb(84, 99, 56)
-                                } else if step % 4 == 0 {
-                                    Color32::from_gray(49)
-                                } else {
-                                    CARD
-                                });
-                                if head {
-                                    button = button.stroke(Stroke::new(2.0, ACCENT));
-                                }
-                                let response = ui
-                                    .add_enabled(available, button.min_size(Vec2::new(25.0, 26.0)));
-                                if response.clicked() {
-                                    lane.steps[index] = if value > 0 { 0 } else { 100 };
-                                }
-                                response.context_menu(|ui| {
-                                    ui.add(
-                                        egui::Slider::new(&mut lane.steps[index], 0..=127)
-                                            .text("Velocity"),
-                                    );
-                                });
+                                ui.label(format!("{:02}", step + 1));
                             }
                             ui.end_row();
-                        }
-                    });
+                            for i in 0..8 {
+                                let active = i == selected;
+                                let label = format!("{:02}  {}", i + 1, self.studio.names[i]);
+                                if ui
+                                    .add_sized(
+                                        [190.0, 26.0],
+                                        egui::Button::new(label).selected(active),
+                                    )
+                                    .clicked()
+                                {
+                                    self.studio.selected = i;
+                                }
+                                let lane = &mut self.studio.settings.lanes[i];
+                                ui.checkbox(&mut lane.muted, "");
+                                ui.checkbox(&mut lane.solo, "");
+                                if ui.add_enabled(!busy, egui::Button::new("Load")).clicked() {
+                                    load = Some(i);
+                                }
+                                for step in 0..16 {
+                                    let index = bar * 16 + step;
+                                    let available = bar < usize::from(lane.bars);
+                                    let value = lane.steps[index];
+                                    let head = playing
+                                        && tick / 48 % (usize::from(lane.bars) * 16) == index;
+                                    let mut button = egui::Button::new(if value == 0 {
+                                        "".into()
+                                    } else {
+                                        format!("{value}")
+                                    })
+                                    .fill(if value > 0 {
+                                        Color32::from_rgb(84, 99, 56)
+                                    } else if step % 4 == 0 {
+                                        Color32::from_gray(49)
+                                    } else {
+                                        CARD
+                                    });
+                                    if head {
+                                        button = button.stroke(Stroke::new(2.0, ACCENT));
+                                    }
+                                    let response = ui.add_enabled(
+                                        available,
+                                        button.min_size(Vec2::new(25.0, 26.0)),
+                                    );
+                                    if response.clicked() {
+                                        lane.steps[index] = if value > 0 { 0 } else { 100 };
+                                    }
+                                    response.context_menu(|ui| {
+                                        ui.add(
+                                            egui::Slider::new(&mut lane.steps[index], 0..=127)
+                                                .text("Velocity"),
+                                        );
+                                    });
+                                }
+                                ui.end_row();
+                            }
+                        });
                 });
                 ui.separator();
                 ui.horizontal_wrapped(|ui| {
@@ -641,7 +646,8 @@ fn waveform(ui: &mut Ui, frames: &[[f32; 2]], height: f32, start: f64, end: f64,
             *peak /= maximum;
         }
         let peaks = Arc::new(peaks);
-        ui.ctx().data_mut(|data| data.insert_temp(id, peaks.clone()));
+        ui.ctx()
+            .data_mut(|data| data.insert_temp(id, peaks.clone()));
         peaks
     });
     let columns = rect.width().floor().max(1.0) as usize;

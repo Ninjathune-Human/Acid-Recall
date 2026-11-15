@@ -142,6 +142,11 @@ fn new_editors_render_in_modern_rack_without_an_audio_device() {
     app.studio.ready = true;
     app.studio.sampler_open = true;
     app.studio.reverb_open = true;
+    let wave = Arc::new(Wave {
+        frames: vec![[0.2, -0.1]; 128],
+    });
+    app.studio.waves[0] = Some(wave.clone());
+    app.studio.ir = Some(wave);
     let mut output = ctx.run_ui(
         egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
