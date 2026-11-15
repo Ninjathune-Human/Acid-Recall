@@ -2,6 +2,7 @@
 //! Seeded generators are deterministic so musical constraints can be checked without audio I/O.
 
 mod ui;
+mod rhythms;
 
 use crate::model::Step303;
 
@@ -49,7 +50,24 @@ impl Scale {
 pub enum DrumStyle {
     #[default]
     Techno,
-    Broken,
+    Idm,
+    Break,
+}
+
+impl DrumStyle {
+    pub const ALL: [Self; 3] = [Self::Techno, Self::Idm, Self::Break];
+
+    pub fn name(self) -> &'static str {
+        match self { Self::Techno => "Techno", Self::Idm => "IDM", Self::Break => "Break" }
+    }
+
+    pub fn description(self) -> &'static str {
+        match self {
+            Self::Techno => "Hypnotic four-on-the-floor, offbeat hats and interlocking percussion.",
+            Self::Idm => "Fractured pulses, deliberate gaps, ghost notes and metallic detail.",
+            Self::Break => "Syncopated kicks, snare backbeats and broken / drum-and-bass motion.",
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -162,7 +180,11 @@ pub fn tb_pair(options: &Options, length: u8, seed: u64) -> [Vec<u8>; 2] {
     let mut bass = [Step303::default(); 16];
     let mut answer = [Step303::default(); 16];
     for s in 0..length {
-        let strong = s % 4 == 0;
+        let strong = match options.drum_style {
+            DrumStyle::Techno => s % 4 == 0,
+            DrumStyle::Idm => (s * 5) % length < 3,
+            DrumStyle::Break => s % 8 == 2 || s % 8 == 6,
+        };
         let call_half = s < length.div_ceil(2);
         let probability = options.density.saturating_add(if strong { 12 } else { 0 });
         let probability = if call_half || options.density >= 100 {
@@ -174,6 +196,9 @@ pub fn tb_pair(options: &Options, length: u8, seed: u64) -> [Vec<u8>; 2] {
             continue;
         }
         let mut degree = motif[s % 4];
+        if options.drum_style == DrumStyle::Idm && rng.chance(options.variation) {
+            degree = rng.pick(scale.len());
+        }
         if s != 0 && rng.chance(options.variation) {
             degree = (degree + scale.len() + rng.pick(3) - 1) % scale.len();
         }
@@ -183,7 +208,11 @@ pub fn tb_pair(options: &Options, length: u8, seed: u64) -> [Vec<u8>; 2] {
         if s == 0 {
             degree = 0;
         }
-        let register = if rng.chance(12) { -12 } else { 0 };
+        let register = match options.drum_style {
+            DrumStyle::Idm if rng.chance(35) => 12,
+            _ if rng.chance(12) => -12,
+            _ => 0,
+        };
         bass[s] = note(
             root + i32::from(scale[degree]) + register,
             options.accents > 0
@@ -235,65 +264,7 @@ pub fn tb_pair(options: &Options, length: u8, seed: u64) -> [Vec<u8>; 2] {
 /// A structured techno or broken beat. Columns follow the original machine, including the
 /// 909's different hat indices and its 0/1/2/3 velocity/flam values.
 pub fn drum_pattern(options: &Options, is808: bool, length: u8, seed: u64) -> Vec<u8> {
-    use orb_engine::{tr808, tr909};
-
-    let length = usize::from(length.clamp(1, 16));
-    let density = options.drum_density.min(100);
-    let mut rng = Rng(seed);
-    let mut bytes = vec![0; 194];
-    bytes[1] = length as u8;
-    let (closed, open) = if is808 {
-        (tr808::CH, tr808::OH)
-    } else {
-        (tr909::CH, tr909::OH)
-    };
-    for s in 0..length {
-        if density == 0 {
-            continue;
-        }
-        let step = &mut bytes[2 + s * 12..14 + s * 12];
-        let strong = s % 4 == 0;
-        let kick = match options.drum_style {
-            DrumStyle::Techno => strong || (s % 4 == 3 && rng.chance(density / 5)),
-            DrumStyle::Broken => s == 0 || ((s % 8 == 3 || s % 8 == 6) && rng.chance(75)),
-        };
-        if kick {
-            step[1] = if is808 { 1 } else { 2 };
-        }
-        if s % 8 == 4 || (s % 8 == 7 && rng.chance(density / 4)) {
-            step[2] = if is808 {
-                1
-            } else if s % 8 == 4 {
-                2
-            } else {
-                1
-            };
-            if rng.chance(density / 2) {
-                step[7] = if is808 { 1 } else { 2 };
-            }
-            if !is808 && s % 8 == 7 && rng.chance(options.variation / 3) {
-                step[2] = 3;
-            }
-        }
-        if s % 4 == 2 && rng.chance(density.saturating_add(15)) {
-            step[open] = 1;
-        } else if (s % 2 == 0 && rng.chance(90)) || rng.chance(density / 2) {
-            step[closed] = if is808 || s % 2 != 0 { 1 } else { 2 };
-        }
-        if !strong && rng.chance(density / 2) {
-            let instruments = if is808 {
-                [3, 4, 5, 6, 8]
-            } else {
-                [3, 4, 5, 6, 11]
-            };
-            let instrument = instruments[rng.pick(instruments.len())];
-            step[instrument] = if is808 || rng.chance(65) { 1 } else { 2 };
-        }
-        if step[1..].iter().any(|&v| v != 0) && (strong || rng.chance(options.accents)) {
-            step[0] = if is808 { 1 } else { 2 };
-        }
-    }
-    bytes
+    rhythms::pattern(options, is808, length, seed)
 }
 
 #[derive(Clone)]

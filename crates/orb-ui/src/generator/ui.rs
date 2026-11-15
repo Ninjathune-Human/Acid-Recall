@@ -281,15 +281,13 @@ impl App {
                 ui.add(egui::Slider::new(&mut o.slides, 0..=100).text("Slides (%)"));
                 ui.add(egui::Slider::new(&mut o.variation, 0..=100).text("Variation (%)"));
                 ui.separator();
-                ui.label("Drum grooves");
+                ui.label("Style / musical grammar");
                 ui.horizontal(|ui| {
-                    ui.selectable_value(
-                        &mut o.drum_style,
-                        DrumStyle::Techno,
-                        "Techno / four on the floor",
-                    );
-                    ui.selectable_value(&mut o.drum_style, DrumStyle::Broken, "Broken");
+                    for style in DrumStyle::ALL {
+                        ui.selectable_value(&mut o.drum_style, style, style.name());
+                    }
                 });
+                ui.small(o.drum_style.description());
                 ui.add(egui::Slider::new(&mut o.drum_density, 0..=100).text("Drum density (%)"));
                 ui.separator();
                 for (row, name) in MACHINES.iter().enumerate() {

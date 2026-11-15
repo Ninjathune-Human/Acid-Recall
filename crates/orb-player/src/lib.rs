@@ -135,6 +135,12 @@ impl std::fmt::Display for LoadError {
 /// What the UI sends to the newest song (current, or pending: see the crate doc). Each variant
 /// names the engine message it stands for.
 pub enum Command {
+    /// Prepared Studio runtime, settings and assets. All large drops return through Garbage.
+    Studio(Box<orb_engine::studio::Studio>),
+    StudioSettings(Box<orb_engine::studio::Settings>),
+    StudioWave { lane: usize, wave: Option<Box<orb_engine::studio::audio_file::Wave>> },
+    StudioReverb(Box<orb_engine::studio::convolution::Convolver>),
+    StudioAudition(usize),
     /// Independent closed-hat level; None preserves the legacy shared control.
     ClosedHatLevel(Option<u8>),
     /// Global optional kick ducking, applied to current and pending songs.
@@ -289,6 +295,10 @@ impl ModSwap {
 
 /// What the callback hands back to the UI thread to be dropped there.
 pub enum Garbage {
+    Studio(Box<orb_engine::studio::Studio>),
+    StudioSettings(Box<orb_engine::studio::Settings>),
+    StudioWave(Box<orb_engine::studio::audio_file::Wave>),
+    StudioReverb(Box<orb_engine::studio::convolution::Convolver>),
     Engine(Box<Engine>),
     Bytes(Box<[u8]>),
     Mod(Box<ModSwap>),
@@ -623,6 +633,12 @@ impl Audio {
         self.buf.fill(0);
         let faults = self.faults();
         self.current.render(&mut self.buf[..], CALL_FRAMES);
+        if self.garbage.slots() > 0
+            && let Some(studio) = &mut self.current.frame.studio
+            && let Some(old) = studio.retired()
+        {
+            self.throw(Garbage::StudioReverb(old));
+        }
         if self.faults() != faults {
             self.buf.fill(0);
         }
@@ -663,6 +679,32 @@ impl Audio {
 
     fn apply(&mut self, c: Command) {
         match c {
+            Command::Studio(studio) => {
+                if let Some(old) = self.current.frame.studio.replace(studio) {
+                    self.throw(Garbage::Studio(old));
+                }
+            }
+            Command::StudioSettings(settings) => {
+                let old = if let Some(studio) = &mut self.current.frame.studio {
+                    studio.replace_settings(settings)
+                } else { settings };
+                self.throw(Garbage::StudioSettings(old));
+            }
+            Command::StudioWave { lane, wave } => {
+                let old = if lane < 8 && let Some(studio) = &mut self.current.frame.studio {
+                    studio.sampler.replace(lane, wave)
+                } else { wave };
+                if let Some(old) = old { self.throw(Garbage::StudioWave(old)); }
+            }
+            Command::StudioReverb(next) => {
+                let old = if let Some(studio) = &mut self.current.frame.studio {
+                    studio.replace_reverb(next)
+                } else { Some(next) };
+                if let Some(old) = old { self.throw(Garbage::StudioReverb(old)); }
+            }
+            Command::StudioAudition(lane) => {
+                if let Some(studio) = &mut self.current.frame.studio { studio.sampler.audition(lane); }
+            }
             Command::ClosedHatLevel(level) => {
                 self.closed_hat_level = level.map(|v| v.min(127));
                 self.current.frame.devices.channels[3].set_closed_hat_level(self.closed_hat_level);
@@ -808,7 +850,11 @@ impl Audio {
         self.make_current(new);
     }
 
-    fn make_current(&mut self, new: Box<Engine>) {
+    fn make_current(&mut self, mut new: Box<Engine>) {
+        if new.frame.studio.is_none() {
+            new.frame.studio = self.current.frame.studio.take();
+            if let Some(studio) = &mut new.frame.studio { studio.sampler.stop(); }
+        }
         let old = std::mem::replace(&mut self.current, new);
         self.throw(Garbage::Engine(old));
         self.generation += 1;

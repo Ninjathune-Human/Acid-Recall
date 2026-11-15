@@ -132,7 +132,7 @@ fn linked_lines_have_answers_in_the_gaps_rather_than_duplicate_rhythms() {
 #[test]
 fn both_drum_machines_respect_lengths_velocities_and_hat_choking() {
     for is808 in [true, false] {
-        for style in [DrumStyle::Techno, DrumStyle::Broken] {
+        for style in DrumStyle::ALL {
             for length in 1..=16 {
                 for seed in 0..32 {
                     let o = Options {

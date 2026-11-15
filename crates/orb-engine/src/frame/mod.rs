@@ -784,6 +784,8 @@ pub struct EngineState {
 
 /// The mixer and its devices: everything one block touches.
 pub struct Frame {
+    /// Optional Studio instruments/effects, prepared outside the audio callback.
+    pub studio: Option<Box<crate::studio::Studio>>,
     /// Optional TB ducking; the default state preserves the original rendering exactly.
     pub sidechain: crate::sidechain::Ducker,
     pub state: MixerState,
@@ -844,6 +846,7 @@ fn meter_byte(x: f64, full: bool) -> u8 {
 impl Frame {
     pub fn new(tables: Arc<Tables>, devices: Devices) -> Self {
         Frame {
+            studio: None,
             sidechain: crate::sidechain::Ducker::default(),
             state: MixerState::default(),
             vintage: false,
@@ -933,6 +936,8 @@ impl Frame {
             self.stack_word = Some(self.devices.mixer.live.comp_id as i32);
         }
         self.state.counter = self.state.counter.wrapping_add(1);
+        let studio_tick = self.seq.pos;
+        if let Some(studio) = &mut self.studio { studio.begin(); }
         if self.seq.tick(&mut self.devices) {
             // 0x1001F3B3: the tempo (globals +4) the step loop passes, into its local there
             self.stack_word = Some(self.seq.globals.tempo as i32);
@@ -1018,6 +1023,9 @@ impl Frame {
                     let b = bus[j] as f64;
                     l[j] = st(b * gl + l[j] as f64);
                     r[j] = st(b * gr + r[j] as f64);
+                    if let Some(studio) = &mut self.studio {
+                        studio.channel(c, j, b * gl, b * gr);
+                    }
                 }
                 gl += dl;
                 gr += dr;
@@ -1027,6 +1035,10 @@ impl Frame {
         ctx.stack_word = None;
         self.devices.delay.process(&mut self.state.send, l, r, &ctx);
         self.stack_word = self.devices.delay.stack_word(self.out_end, self.stack_word);
+        if let Some(studio) = &mut self.studio {
+            let advance = (self.seq.pos - studio_tick).max(0.0) / BLOCK as f64;
+            studio.process(studio_tick, advance, self.seq.globals.playing != 0, l, r);
+        }
         // 0x10013883: the compressor on the master
         if self.state.master_comp {
             self.devices.comp.process_stereo(l, r, &ctx);
