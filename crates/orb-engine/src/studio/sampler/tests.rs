@@ -98,12 +98,26 @@ fn voice_trigger_occurs_at_the_sixteenth_crossing_inside_a_block() {
 #[test]
 fn loop_seam_preserves_duration_and_mute_reaches_exact_silence() {
     let (mut sampler, mut lanes) = setup(Mode::Loop);
-    sampler.replace(0, Some(Box::new(Wave { frames: vec![[0.2; 2]; 1000] })));
+    sampler.replace(
+        0,
+        Some(Box::new(Wave {
+            frames: vec![[0.2; 2]; 1000],
+        })),
+    );
     sampler.audition(0);
-    for _ in 0..30 { block(&mut sampler, &lanes, 0.0, false); }
+    for _ in 0..30 {
+        block(&mut sampler, &lanes, 0.0, false);
+    }
     let voice = sampler.voices[0].iter().find(|v| v.active).unwrap();
     assert_eq!(voice.position, 920.0);
     lanes[0].muted = true;
-    for _ in 0..100 { block(&mut sampler, &lanes, 0.0, false); }
-    assert!(block(&mut sampler, &lanes, 0.0, false).iter().flatten().all(|&x| x == 0.0));
+    for _ in 0..100 {
+        block(&mut sampler, &lanes, 0.0, false);
+    }
+    assert!(
+        block(&mut sampler, &lanes, 0.0, false)
+            .iter()
+            .flatten()
+            .all(|&x| x == 0.0)
+    );
 }

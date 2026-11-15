@@ -80,6 +80,7 @@ pub struct Sampler {
     playing: bool,
     audition: [bool; LANES],
     gains: [[f64; 2]; LANES],
+    sends: [f64; LANES],
 }
 
 impl Default for Sampler {
@@ -99,7 +100,7 @@ impl Default for Sampler {
         }
         Self { waves: std::array::from_fn(|_| None), voices: [[Voice::default(); 4]; LANES],
             tails: [[0.0; 2]; LANES], table, last_step: None, last_tick: 0.0,
-            playing: false, audition: [false; LANES], gains: [[0.0; 2]; LANES] }
+            playing: false, audition: [false; LANES], gains: [[0.0; 2]; LANES], sends: [0.0; LANES] }
     }
 }
 
@@ -224,13 +225,14 @@ impl Sampler {
                 }
                 let audible = !lane.muted && (!solo || lane.solo);
                 let pan = [(1.0 - lane.pan).min(1.0), (1.0 + lane.pan).min(1.0)];
+                self.sends[i] += (lane.send - self.sends[i]) * 0.004;
                 for c in 0..2 {
                     let target = if audible { lane.gain * pan[c] } else { 0.0 };
                     self.gains[i][c] += (target - self.gains[i][c]) * 0.004;
                     if target == 0.0 && self.gains[i][c].abs() < 1e-10 { self.gains[i][c] = 0.0; }
                     let value = sample[c] * self.gains[i][c];
                     output[c][j] += value;
-                    send[c][j] += value * lane.send;
+                    send[c][j] += value * self.sends[i];
                 }
             }
         }

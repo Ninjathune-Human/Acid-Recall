@@ -5,8 +5,10 @@ use orb_player::{Audio, CALL_FRAMES};
 use crate::{link::Link, model::Panel};
 
 fn setup() -> (App, Audio, Context) {
-    let (link, mut audio) = Link::new(Arc::new(Tables::new()), Some(rbm::standard::builtin_samples()));
+    let samples = Some(rbm::standard::builtin_samples());
+    let (link, mut audio) = Link::new(Arc::new(Tables::new()), samples.clone());
     let mut app = App::with_link(Panel::new(), link, None);
+    app.samples = samples;
     app.new_now();
     audio.render_i16(&mut vec![0; CALL_FRAMES * 4]);
     app.link.as_mut().unwrap().sync(&mut app.panel);
@@ -68,6 +70,24 @@ fn async_save_does_not_clear_edits_made_after_its_snapshot() {
     app.settings.sidechain.depth[0] = 13;
     finish(&mut app, &mut audio, &ctx);
     assert!(app.doc.modified);
+    assert!(app.after_save.is_none());
+}
+
+#[test]
+fn successful_save_runs_deferred_new_and_rejected_save_clears_the_deferred_action() {
+    let (mut app, mut audio, ctx) = setup();
+    let folder = tempfile::tempdir().unwrap();
+    let path = folder.path().join("session.orb338");
+    app.doc.modified = true;
+    app.after_save = Some(crate::menu::Then::New);
+    app.studio_save(&path, &ctx);
+    finish(&mut app, &mut audio, &ctx);
+    assert!(path.is_file());
+    assert!(!app.studio.content && !app.doc.modified);
+    let (_tx, rx) = mpsc::sync_channel(1);
+    app.studio.worker = Some(rx);
+    app.after_save = Some(crate::menu::Then::Quit);
+    app.studio_save(&path, &ctx);
     assert!(app.after_save.is_none());
 }
 

@@ -7,15 +7,32 @@ fn an_empty_studio_is_sample_exact_with_the_legacy_engine() {
     let tables = Arc::new(Tables::new());
     let mut legacy = Engine::new(tables.clone(), Devices::implemented(None));
     let mut extended = Engine::new(tables, Devices::implemented(None));
+    let mut song = rbs::Song::empty();
+    song.glob.song_mode = 0;
+    song.tb303[0].params[0] = 1;
+    for value in &mut song.tb303[0].params[3..] { *value = 64; }
+    song.tb303[0].patterns[0].length = 16;
+    for (i, step) in song.tb303[0].patterns[0].steps.iter_mut().enumerate() {
+        step.note = [0, 3, 7, 10][i % 4];
+        step.rest = 0;
+    }
+    song.mixer.master = 80;
+    song.mixer.channels[0].enabled = 1;
+    song.mixer.channels[0].level = 80;
+    let song = crate::load::convert(&song).unwrap();
+    legacy.load(&song).unwrap(); extended.load(&song).unwrap();
     extended.frame.studio = Some(Box::new(Studio::new(Box::new(
         Convolver::new(&[[0.1; 2]; 64]).unwrap()))));
     legacy.play(); extended.play();
     let mut a = vec![0i16; 2048];
     let mut b = a.clone();
+    let mut audible = false;
     for _ in 0..20 {
         legacy.render(&mut a, 1024); extended.render(&mut b, 1024);
         assert_eq!(a, b);
+        audible |= a.iter().any(|x| x.unsigned_abs() > 10);
     }
+    assert!(audible, "the bypass comparison must include an audible TB line");
 }
 
 #[test]

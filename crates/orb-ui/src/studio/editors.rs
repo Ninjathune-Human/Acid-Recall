@@ -12,7 +12,7 @@ const CARD: Color32 = Color32::from_rgb(30, 31, 34);
 const DIM: Color32 = Color32::from_rgb(145, 148, 151);
 
 fn slider(ui: &mut Ui, value: &mut f64, lo: f64, hi: f64, label: &str) {
-    ui.add(egui::Slider::new(value, lo..=hi).text(label));
+    ui.add(egui::Slider::new(value, lo..=hi).logarithmic(lo > 0.0 && hi / lo >= 50.0).text(label));
 }
 
 impl App {
@@ -111,6 +111,7 @@ impl App {
         }
         self.legacy_fx_editor(ctx);
         self.studio_mirror();
+        self.studio_poll(ctx);
         if self.studio.worker.is_some() {
             egui::Window::new("Preparing Studio")
                 .collapsible(false)

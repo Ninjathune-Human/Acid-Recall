@@ -246,7 +246,10 @@ fn main() -> eframe::Result {
         let (l, audio) = Link::new(Arc::new(Tables::new()), samples.clone());
         // The song named on the command line is opened by the app (with its mod).
         if let Some(path) = &song
-            && !path.extension().is_some_and(|e| e.eq_ignore_ascii_case("orb338")) {
+            && !path
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("orb338"))
+        {
             match session::open_song(path) {
                 Ok(o) => startup = Some((path.clone(), o)),
                 // the app starts on the new song, with the error in its message box
@@ -329,9 +332,14 @@ fn main() -> eframe::Result {
             // which has no player
             // (the errors of the start are one box)
             app.action(|app| {
-                if !demo { app.start(startup); }
+                if !demo {
+                    app.start(startup);
+                }
                 if let Some(path) = &song
-                    && path.extension().is_some_and(|e| e.eq_ignore_ascii_case("orb338")) {
+                    && path
+                        .extension()
+                        .is_some_and(|e| e.eq_ignore_ascii_case("orb338"))
+                {
                     app.open_now(path);
                 }
                 for e in start_errors {
@@ -444,4 +452,3 @@ mod tests {
         }
     }
 }
-

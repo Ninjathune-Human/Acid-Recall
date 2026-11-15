@@ -1,16 +1,20 @@
 //! Studio UI, asynchronous preparation and portable projects.
 
 mod editors;
-#[cfg(test)]
-mod tests;
 pub mod midi;
 pub mod project;
+#[cfg(test)]
+mod tests;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, mpsc};
 
 use eframe::egui::Context;
-use orb_engine::studio::{Settings, Studio, audio_file::Wave, convolution::{self, Convolver}};
+use orb_engine::studio::{
+    Settings, Studio,
+    audio_file::Wave,
+    convolution::{self, Convolver},
+};
 use orb_player::Command;
 
 use crate::app::App;
@@ -21,7 +25,13 @@ enum Completed {
     Wave(usize, String, Arc<Wave>, Box<Wave>),
     Reverb(String, Arc<Wave>, Box<Convolver>),
     Open(PathBuf, Box<Project>, Box<Studio>),
-    Save(PathBuf, Vec<u8>, u64, crate::sidechain::Settings, Option<u8>),
+    Save(
+        PathBuf,
+        Vec<u8>,
+        u64,
+        crate::sidechain::Settings,
+        Option<u8>,
+    ),
 }
 
 pub struct StudioUi {
@@ -53,18 +63,44 @@ pub struct StudioUi {
 
 impl Default for StudioUi {
     fn default() -> Self {
-        Self { context: Context::default(), modern: false, sampler_open: false, reverb_open: false,
-            settings: Settings::default(), names: std::array::from_fn(|i| format!("Sample {:02}", i + 1)),
-            waves: std::array::from_fn(|_| None), ir: None, ir_name: "Concrete chamber".into(),
-            selected: 0, bar: 0, follow: true, preset: 1, decay: 1.8, fx: None,
-            notice: None, content: false, opening: false, mix: None, ready: false, sent: Settings::default(),
-            revision: 0, worker: None, clipboard: None }
+        Self {
+            context: Context::default(),
+            modern: false,
+            sampler_open: false,
+            reverb_open: false,
+            settings: Settings::default(),
+            names: std::array::from_fn(|i| format!("Sample {:02}", i + 1)),
+            waves: std::array::from_fn(|_| None),
+            ir: None,
+            ir_name: "Concrete chamber".into(),
+            selected: 0,
+            bar: 0,
+            follow: true,
+            preset: 1,
+            decay: 1.8,
+            fx: None,
+            notice: None,
+            content: false,
+            opening: false,
+            mix: None,
+            ready: false,
+            sent: Settings::default(),
+            revision: 0,
+            worker: None,
+            clipboard: None,
+        }
     }
 }
 
 impl StudioUi {
-    pub(crate) fn busy(&self) -> bool { self.worker.is_some() }
-    fn work(&mut self, ctx: &Context, job: impl FnOnce() -> Result<Completed, String> + Send + 'static) {
+    pub(crate) fn busy(&self) -> bool {
+        self.worker.is_some()
+    }
+    fn work(
+        &mut self,
+        ctx: &Context,
+        job: impl FnOnce() -> Result<Completed, String> + Send + 'static,
+    ) {
         let (tx, rx) = mpsc::sync_channel(1);
         self.worker = Some(rx);
         self.notice = None;
@@ -75,11 +111,24 @@ impl StudioUi {
         });
     }
 
-    pub fn project(&self, song: Vec<u8>, sidechain: crate::sidechain::Settings,
-        closed_hat: Option<u8>) -> Option<Project> {
-        Some(Project { metadata: Metadata { settings: self.settings.clone(),
-            names: self.names.clone(), ir_name: self.ir_name.clone(), sidechain, closed_hat },
-            song, waves: self.waves.clone(), ir: self.ir.clone()? })
+    pub fn project(
+        &self,
+        song: Vec<u8>,
+        sidechain: crate::sidechain::Settings,
+        closed_hat: Option<u8>,
+    ) -> Option<Project> {
+        Some(Project {
+            metadata: Metadata {
+                settings: self.settings.clone(),
+                names: self.names.clone(),
+                ir_name: self.ir_name.clone(),
+                sidechain,
+                closed_hat,
+            },
+            song,
+            waves: self.waves.clone(),
+            ir: self.ir.clone()?,
+        })
     }
 
     fn changed(&mut self) {
@@ -90,26 +139,42 @@ impl StudioUi {
 
 impl App {
     fn studio_command(&mut self, command: Command) {
-        if let Some(link) = &mut self.link { link.effect_command(command); }
+        if let Some(link) = &mut self.link {
+            link.effect_command(command);
+        }
     }
 
     pub(crate) fn reset_studio(&mut self) {
-        if self.studio.ready { self.studio_command(Command::StudioClear); }
+        if self.studio.ready {
+            self.studio_command(Command::StudioClear);
+        }
         let modern = self.studio.modern;
-        self.studio = StudioUi { modern, ..StudioUi::default() };
+        self.studio = StudioUi {
+            modern,
+            ..StudioUi::default()
+        };
     }
 
     pub(crate) fn studio_poll(&mut self, ctx: &Context) {
-        let result = self.studio.worker.as_ref().and_then(|rx| match rx.try_recv() {
-            Ok(result) => Some(result),
-            Err(mpsc::TryRecvError::Disconnected) => Some(Err("Studio worker stopped unexpectedly".into())),
-            Err(mpsc::TryRecvError::Empty) => None,
-        });
+        let result = self
+            .studio
+            .worker
+            .as_ref()
+            .and_then(|rx| match rx.try_recv() {
+                Ok(result) => Some(result),
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    Some(Err("Studio worker stopped unexpectedly".into()))
+                }
+                Err(mpsc::TryRecvError::Empty) => None,
+            });
         if let Some(result) = result {
             self.studio.worker = None;
             self.studio.opening = false;
             match result {
-                Err(e) => { self.after_save = None; self.studio.notice = Some(e); }
+                Err(e) => {
+                    self.after_save = None;
+                    self.studio.notice = Some(e);
+                }
                 Ok(Completed::Init(studio, ir)) => {
                     self.studio.ir = Some(ir);
                     self.studio.ready = true;
@@ -122,7 +187,10 @@ impl App {
                     self.studio.settings.lanes[lane].end = 1.0;
                     self.studio.changed();
                     self.doc.modified = true;
-                    self.studio_command(Command::StudioWave { lane, wave: Some(runtime) });
+                    self.studio_command(Command::StudioWave {
+                        lane,
+                        wave: Some(runtime),
+                    });
                 }
                 Ok(Completed::Reverb(name, ir, processor)) => {
                     self.studio.ir_name = name;
@@ -137,7 +205,9 @@ impl App {
                         Ok(opened) => {
                             let settlement = self.settlement;
                             self.adopt(&path, opened);
-                            if self.settlement == settlement { return; }
+                            if self.settlement == settlement {
+                                return;
+                            }
                             self.studio.settings = project.metadata.settings.clone();
                             self.studio.sent = self.studio.settings.clone();
                             self.studio.names = project.metadata.names.clone();
@@ -155,24 +225,36 @@ impl App {
                 }
                 Ok(Completed::Save(path, song, revision, sidechain, closed_hat)) => {
                     let unchanged = self.studio.revision == revision
-                        && self.settings.sidechain == sidechain && self.settings.closed_hat_level == closed_hat
+                        && self.settings.sidechain == sidechain
+                        && self.settings.closed_hat_level == closed_hat
                         && self.song_bytes().ok().as_ref() == Some(&song);
                     self.doc.path = Some(path.clone());
-                    if unchanged { self.doc.modified = false; }
+                    if unchanged {
+                        self.doc.modified = false;
+                    }
                     self.status = Some(format!("Saved Studio project {}", path.display()));
-                    if unchanged && let Some(then) = self.after_save.take() { self.proceed(then); }
-                    else { self.after_save = None; }
+                    if unchanged && let Some(then) = self.after_save.take() {
+                        self.proceed(then);
+                    } else {
+                        self.after_save = None;
+                    }
                 }
             }
         }
-        let mix = (self.settings.sidechain.clone(), self.settings.closed_hat_level);
+        let mix = (
+            self.settings.sidechain.clone(),
+            self.settings.closed_hat_level,
+        );
         if self.studio.content && self.studio.mix.as_ref().is_some_and(|was| was != &mix) {
-            self.studio.changed(); self.doc.modified = true;
+            self.studio.changed();
+            self.doc.modified = true;
         }
         self.studio.mix = Some(mix);
         if self.studio.worker.is_none() && !self.studio.ready && self.studio.modern {
             self.studio.work(ctx, || {
-                let ir = Arc::new(Wave { frames: convolution::synthetic(1, 1.8) });
+                let ir = Arc::new(Wave {
+                    frames: convolution::synthetic(1, 1.8),
+                });
                 let studio = Box::new(Studio::new(Box::new(Convolver::new(&ir.frames)?)));
                 Ok(Completed::Init(studio, ir))
             });
@@ -182,11 +264,16 @@ impl App {
             self.studio.sent = self.studio.settings.clone();
             self.studio_command(Command::StudioSettings(Box::new(self.studio.sent.clone())));
         }
-        if self.studio.worker.is_some() { ctx.request_repaint_after(std::time::Duration::from_millis(40)); }
+        if self.studio.worker.is_some() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(40));
+        }
     }
 
     pub(crate) fn studio_open(&mut self, path: &Path, ctx: &Context) {
-        if self.studio.worker.is_some() { self.fail("Studio is busy; wait for the current operation."); return; }
+        if self.studio.worker.is_some() {
+            self.fail("Studio is busy; wait for the current operation.");
+            return;
+        }
         let path = path.to_path_buf();
         self.studio.opening = true;
         self.studio.work(ctx, move || {
@@ -201,10 +288,28 @@ impl App {
     }
 
     pub(crate) fn studio_save(&mut self, path: &Path, ctx: &Context) {
-        if self.studio.worker.is_some() { self.after_save = None; self.fail("Studio is busy; wait before saving."); return; }
-        let song = match self.song_bytes() { Ok(song) => song, Err(e) => { self.after_save = None; self.fail(e); return; } };
-        let Some(project) = self.studio.project(song.clone(), self.settings.sidechain.clone(),
-            self.settings.closed_hat_level) else { self.after_save = None; self.fail("Studio is still preparing; try again."); return; };
+        if self.studio.worker.is_some() {
+            self.after_save = None;
+            self.fail("Studio is busy; wait before saving.");
+            return;
+        }
+        let song = match self.song_bytes() {
+            Ok(song) => song,
+            Err(e) => {
+                self.after_save = None;
+                self.fail(e);
+                return;
+            }
+        };
+        let Some(project) = self.studio.project(
+            song.clone(),
+            self.settings.sidechain.clone(),
+            self.settings.closed_hat_level,
+        ) else {
+            self.after_save = None;
+            self.fail("Studio is still preparing; try again.");
+            return;
+        };
         let mut path = path.to_path_buf();
         path.set_extension("orb338");
         let revision = self.studio.revision;
@@ -218,40 +323,85 @@ impl App {
     }
 
     fn studio_load_wave(&mut self, ctx: &Context, lane: usize) {
-        let Some(path) = rfd::FileDialog::new().add_filter("Audio", &["wav", "aif", "aiff"]).pick_file() else { return; };
-        let existing: usize = self.studio.waves.iter().enumerate().filter(|(i, _)| *i != lane)
-            .filter_map(|(_, w)| w.as_ref()).map(|w| w.frames.len() * 8).sum();
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Audio", &["wav", "aif", "aiff"])
+            .pick_file()
+        else {
+            return;
+        };
+        let existing: usize = self
+            .studio
+            .waves
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i != lane)
+            .filter_map(|(_, w)| w.as_ref())
+            .map(|w| w.frames.len() * 8)
+            .sum();
         self.studio.work(ctx, move || {
             let wave = load_wave(&path)?;
             if existing + wave.frames.len() * 8 > 240 * 1024 * 1024 {
-                return Err("Sampler bank exceeds 240 MiB; shorten or remove another sample".into());
+                return Err(
+                    "Sampler bank exceeds 240 MiB; shorten or remove another sample".into(),
+                );
             }
             let runtime = Box::new(wave.clone());
-            let name = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
+            let name = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned();
             Ok(Completed::Wave(lane, name, Arc::new(wave), runtime))
         });
     }
 
     fn studio_build_ir(&mut self, ctx: &Context, imported: bool) {
-        let path = if imported { rfd::FileDialog::new().add_filter("Impulse response", &["wav", "aif", "aiff"]).pick_file() }
-            else { None };
-        if imported && path.is_none() { return; }
+        let path = if imported {
+            rfd::FileDialog::new()
+                .add_filter("Impulse response", &["wav", "aif", "aiff"])
+                .pick_file()
+        } else {
+            None
+        };
+        if imported && path.is_none() {
+            return;
+        }
         let preset = self.studio.preset;
         let decay = self.studio.decay;
         self.studio.work(ctx, move || {
             let (name, mut wave) = match path {
                 Some(path) => {
                     let wave = load_wave(&path)?;
-                    if wave.frames.len() > 6 * 44100 { return Err("IR must be at most 6 seconds".into()); }
-                    (path.file_name().unwrap_or_default().to_string_lossy().into_owned(), wave)
+                    if wave.frames.len() > 6 * 44100 {
+                        return Err("IR must be at most 6 seconds".into());
+                    }
+                    (
+                        path.file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .into_owned(),
+                        wave,
+                    )
                 }
-                None => (format!("{} / {decay:.1} s", IR_NAMES[preset]),
-                    Wave { frames: convolution::synthetic(preset, decay) }),
+                None => (
+                    format!("{} / {decay:.1} s", IR_NAMES[preset]),
+                    Wave {
+                        frames: convolution::synthetic(preset, decay),
+                    },
+                ),
             };
             // Energy normalization prevents arbitrary file gain from overloading the return.
-            let energy = wave.frames.iter().flatten().map(|&x| f64::from(x).powi(2)).sum::<f64>() * 0.5;
+            let energy = wave
+                .frames
+                .iter()
+                .flatten()
+                .map(|&x| f64::from(x).powi(2))
+                .sum::<f64>()
+                * 0.5;
             let gain = (1.0 / energy.sqrt().max(1.0)) as f32;
-            for x in wave.frames.iter_mut().flatten() { *x *= gain; }
+            for x in wave.frames.iter_mut().flatten() {
+                *x *= gain;
+            }
             let processor = Box::new(Convolver::new(&wave.frames)?);
             Ok(Completed::Reverb(name, Arc::new(wave), processor))
         });
@@ -265,4 +415,9 @@ fn load_wave(path: &Path) -> Result<Wave, String> {
     Wave::decode(&std::fs::read(path).map_err(|e| e.to_string())?)
 }
 
-const IR_NAMES: [&str; 4] = ["Tight room", "Concrete chamber", "Warehouse", "Diffuse plate"];
+const IR_NAMES: [&str; 4] = [
+    "Tight room",
+    "Concrete chamber",
+    "Warehouse",
+    "Diffuse plate",
+];

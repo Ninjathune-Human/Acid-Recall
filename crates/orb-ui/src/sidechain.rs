@@ -100,7 +100,9 @@ impl App {
             && self.settings.closed_hat_level != Some(level)
         {
             self.settings.closed_hat_level = Some(level);
-            if self.studio.content { self.doc.modified = true; }
+            if self.studio.content {
+                self.doc.modified = true;
+            }
             self.sidechain.save_at = Some(now + 0.35);
         }
         if let Some(link) = &mut self.link {
@@ -209,7 +211,9 @@ impl App {
             });
         self.sidechain.open = open;
         if changed {
-            if self.studio.content { self.doc.modified = true; }
+            if self.studio.content {
+                self.doc.modified = true;
+            }
             self.settings.sidechain.sanitize();
             self.sidechain.save_at = Some(ctx.input(|i| i.time) + 0.35);
             self.sync_effects(ctx);

@@ -18,6 +18,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
+        with:
+          cache-on-failure: true
       - name: Install formatting toolchain
         run: rustup toolchain install nightly-2026-10-18 --profile minimal --component rustfmt
       - name: Format check (print any required patch)

@@ -194,7 +194,12 @@ mod tests {
                 }
             })
             .collect();
-        let events: Vec<_> = signal.iter().copied().enumerate().filter(|(_, x)| *x != 0.0).collect();
+        let events: Vec<_> = signal
+            .iter()
+            .copied()
+            .enumerate()
+            .filter(|(_, x)| *x != 0.0)
+            .collect();
         for block in 0..signal.len() / 64 {
             let input = std::array::from_fn(|c| {
                 std::array::from_fn(|j| signal[block * 64 + j] * if c == 0 { 1.0 } else { -0.4 })
@@ -204,7 +209,9 @@ mod tests {
             for c in 0..2 {
                 for (j, &sample) in output[c].iter().enumerate() {
                     let n = block * 64 + j;
-                    let direct: f64 = events.iter().filter(|(k, _)| *k <= n)
+                    let direct: f64 = events
+                        .iter()
+                        .filter(|(k, _)| *k <= n)
                         .filter_map(|&(k, x)| ir.get(n - k).map(|h| x * f64::from(h[c])))
                         .sum::<f64>()
                         * if c == 0 { 1.0 } else { -0.4 };
