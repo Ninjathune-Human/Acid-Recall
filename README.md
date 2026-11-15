@@ -9,9 +9,9 @@
 </div>
 
 <p align="center">
-  <a href="https://github.com/pingw33n/openrb-338/releases"><b>Download</b></a> �
-  <a href="assets/readme/screenshot.png"><b>Screenshot</b></a> �
-  <a href="https://github.com/pingw33n/rb-songs"><b>Song collection</b></a> �
+  <a href="https://github.com/pingw33n/openrb-338/releases"><b>Download</b></a> ·
+  <a href="assets/readme/screenshot.png"><b>Screenshot</b></a> ·
+  <a href="https://github.com/pingw33n/rb-songs"><b>Song collection</b></a> ·
   <a href="https://github.com/pingw33n/rb-mods"><b>Mod collection</b></a>
 </p>
 
@@ -21,6 +21,9 @@ and Windows.
 
 ## Features
 
+- **Kick Sidechain and CH level:** kick-triggered TB ducking with separate depths and a
+  return control, plus an independent MIDI-learnable 909 Closed Hat LEVEL knob.
+  Click **SC** or open **Options > Kick Sidechain...**. See [the mix extensions](docs/sidechain.md).
 - **Graphite interface:** a built-in black and gray vector rack, dark knobs with white
   pointers, restrained active-state accents and grouped step pads. No external mod needed.
   See [Graphite](docs/graphite.md).

@@ -350,6 +350,7 @@ impl Panel {
                 "knob" => {
                     let v = match c.name() {
                         "shuffle" | "delay" => 0,
+                        "ch_level" if c.section == "tr909" => behavior::knob_from_engine(100),
                         _ => 500,
                     };
                     p.knobs.insert(c.id, v);

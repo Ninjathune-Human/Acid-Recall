@@ -29,4 +29,5 @@ pub mod palette;
 pub mod session;
 pub mod settings;
 pub mod shortcuts;
+pub mod sidechain;
 pub mod version;

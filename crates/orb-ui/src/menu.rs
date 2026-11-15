@@ -762,9 +762,13 @@ impl App {
         };
         let out = path.to_path_buf();
         let label = self.doc.name();
+        let sidechain = self.settings.sidechain.engine_config();
+        let closed_hat_level = self.settings.closed_hat_level;
         let (tx, rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             let mut r = Renderer::new(mods);
+            r.sidechain = sidechain;
+            r.closed_hat_level = closed_hat_level;
             let result = r
                 .render_to_file(
                     &label,
@@ -949,7 +953,7 @@ impl App {
                 Event::Press { .. } => false,
                 Event::Set { id, .. } => !matches!(
                     id.as_str(),
-                    "transport.position" | "transport.bar" | "transport.record"
+                    "transport.position" | "transport.bar" | "transport.record" | "tr909.ch_level"
                 ),
                 _ => true,
             }
@@ -1217,6 +1221,9 @@ impl App {
                         ui.menu_button("Options", |ui| {
                             if item(ui, "Pattern Generator...", None) {
                                 self.generator.open = true;
+                            }
+                            if item(ui, "Kick Sidechain...", None) {
+                                self.sidechain.open = true;
                             }
                             if item(ui, "Arpeggiator / TB-303 A...", None) {
                                 self.open_arpeggiator(0);

@@ -424,6 +424,12 @@ impl Link {
         &mut self.player
     }
 
+    /// App effects use the same ordered queue and snapshot barrier as panel edits.
+    pub fn effect_command(&mut self, command: Command) {
+        self.backlog.push_back(command);
+        self.flush_marked();
+    }
+
     /// The pattern arrays as the link knows them (the song's, with the panel's edits).
     pub fn patterns(&self) -> &[Vec<u8>; 4] {
         &self.patterns
@@ -474,6 +480,10 @@ impl Link {
             panel.adopt(id, payloads[d as usize][c as usize] as i32);
         }
         let m = &payloads[Device::Mixer as usize];
+        panel.adopt(
+            "tr909.ch_level",
+            payloads[Device::Tr909 as usize][22] as i32,
+        );
         panel.adopt("master.fader", m[0] as i32);
         panel.adopt("mixer.comp_id", m[1] as i32);
         panel.adopt("mixer.pcf_id", m[2] as i32);
@@ -974,6 +984,7 @@ impl Link {
         t.recording = s.recording && t.song_mode;
         panel.adopt("transport.shuffle", s.shuffle as i32);
         panel.vintage = s.vintage;
+        panel.adopt("tr909.ch_level", s.closed_hat_level as i32);
         self.saved = s.song_mode.then_some(SavedBlocks {
             blocks: s.saved,
             mixer: s.saved_mixer,

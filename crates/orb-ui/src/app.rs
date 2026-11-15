@@ -129,6 +129,7 @@ pub struct App {
     pub generator: crate::generator::Generator,
     /// Two independent arpeggio pattern tools, each with preview and guarded undo.
     pub arpeggiator: crate::arpeggiator::Arpeggiator,
+    pub sidechain: crate::sidechain::SidechainUi,
     /// The open file browser, if any (`open_browser`).
     browser: Option<Browser>,
     /// The open song: its file, its mod, whether it has unsaved changes (task-047).
@@ -220,6 +221,7 @@ impl App {
             midi: crate::midi::Midi::default(),
             generator: crate::generator::Generator::default(),
             arpeggiator: crate::arpeggiator::Arpeggiator::default(),
+            sidechain: crate::sidechain::SidechainUi::default(),
             browser: None,
             doc: Document::new(),
             settled: false,
@@ -670,6 +672,8 @@ impl App {
         self.instrument_selection(ui, &view);
         self.generator_buttons(ui, &view);
         self.arpeggiator_buttons(ui, &view);
+        self.sidechain_button(ui, &view);
+        self.sync_effects(ui.ctx());
 
         // Send what was done, take what the engine did (the panel follows playback).
         self.note_edits();
@@ -707,6 +711,7 @@ impl App {
         self.midi_ui(&ctx);
         self.generator_ui(&ctx);
         self.arpeggiator_ui(&ctx);
+        self.sidechain_ui(&ctx);
         self.poll_export(&ctx);
         self.update_title(&ctx);
         self.close_if_allowed(&ctx);

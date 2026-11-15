@@ -179,6 +179,11 @@ fn background(part: &Part) -> Part {
         ("#1c1d1f", "#29292d"),
     ]);
     let mut body = flatten_headers(recolor(&part.body, &colors));
+    if part.name == "bg_tr909" {
+        let mut s = Svg { s: body };
+        text(&mut s, 288.5, 25.3, 2.8, Anchor::Middle, INK, "LEVEL");
+        body = s.s;
+    }
     // The original 303 uses BLACK for both label ink and the two dark key-band fills.
     // Restore those surfaces after brightening the labels.
     if part.name == "bg_tb303" {
