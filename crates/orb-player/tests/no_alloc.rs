@@ -86,6 +86,31 @@ fn the_counter_counts() {
     assert_eq!(n, 2);
 }
 
+#[test]
+fn midi_clock_bridge_does_not_allocate_on_the_audio_thread() {
+    use orb_player::clock::{MASTER, SLAVE, OFF, InputFrame};
+    let (mut player, mut audio) = Player::new(tables(), None);
+    let mut connection = player.take_midi_clock().unwrap();
+    let mut buf = [0; 2 * CALL_FRAMES];
+    connection.shared.mode.store(MASTER, Ordering::Release);
+    send(&mut player, Command::Play);
+    assert_eq!(render(&mut audio, &mut buf, 8), 0);
+    while connection.output.pop().is_ok() {}
+    connection.shared.mode.store(SLAVE, Ordering::Release);
+    connection.shared.write(InputFrame {
+        at: connection.shared.now(), tick: 96, period: 20_833_333,
+        playing: true, generation: 1,
+    });
+    assert_eq!(render(&mut audio, &mut buf, 8), 0);
+    connection.shared.write(InputFrame {
+        at: connection.shared.now(), tick: 144, period: 20_833_333,
+        playing: false, generation: 2,
+    });
+    assert_eq!(render(&mut audio, &mut buf, 8), 0);
+    connection.shared.mode.store(OFF, Ordering::Release);
+    assert_eq!(render(&mut audio, &mut buf, 8), 0);
+}
+
 /// `calls` engine calls through `render_i16`, armed; returns the events.
 fn render(a: &mut Audio, buf: &mut [i16], calls: usize) -> usize {
     armed(|| {

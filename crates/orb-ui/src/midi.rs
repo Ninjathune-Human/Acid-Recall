@@ -1,8 +1,8 @@
 //! MIDI controller input, mapping and pickup, outside the audio callback.
 //!
 //! The first device backend is Windows WinMM (no extra driver or Rust dependency). Mapping
-//! is platform independent and uses the same Panel events as mouse edits. Clock and live
-//! instrument notes are deliberately not handled here.
+//! is platform independent and uses the same Panel events as mouse edits. A dedicated worker
+//! handles MIDI Clock independently from GUI updates. Live instrument notes are not handled.
 
 use std::collections::HashMap;
 
@@ -15,6 +15,7 @@ use crate::layout;
 use crate::model::Panel;
 
 pub mod preset;
+pub mod sync;
 
 #[cfg(test)]
 mod tests;
@@ -35,7 +36,7 @@ mod backend {
     }
 
     impl Input {
-        pub fn open(_id: u32) -> Result<Self, String> {
+        pub fn open(_id: u32, _clock: Option<super::sync::Sender>) -> Result<Self, String> {
             Err("MIDI controller input is currently available on Windows only.".into())
         }
 
@@ -47,6 +48,15 @@ mod backend {
             0
         }
     }
+
+    pub fn output_ports() -> Result<Vec<Port>, String> { ports() }
+    pub struct Output;
+    impl Output {
+        pub fn open(_id: u32) -> Result<Self, String> { Err("MIDI requires Windows.".into()) }
+        pub fn send(&mut self, _word: u32) -> Result<(), String> { Err("MIDI requires Windows.".into()) }
+    }
+    pub struct Timer;
+    impl Timer { pub fn new() -> Self { Self } }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -101,6 +111,7 @@ pub struct InputSettings {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
+    pub clock: sync::Config,
     pub enabled: bool,
     pub port: Option<String>,
     /// Additional controller slots. Empty slots keep their number and saved assignments.
@@ -116,6 +127,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            clock: sync::Config::default(),
             enabled: false,
             port: None,
             additional_inputs: Vec::new(),
@@ -130,6 +142,10 @@ impl Default for Config {
 impl Config {
     /// Keep valid assignments only. A source and a target each have one owner; last wins.
     pub fn sanitize(&mut self) {
+        self.clock.output_delay_ms = self.clock.output_delay_ms.min(500);
+        for port in [&mut self.clock.input, &mut self.clock.output] {
+            if port.as_ref().is_some_and(|p| p.trim().is_empty()) { *port = None; }
+        }
         self.minimum_cc = calibration_floor(self.minimum_cc, self.minimum_one);
         self.minimum_one = false;
         let bindings = std::mem::take(&mut self.bindings);
@@ -393,6 +409,9 @@ fn normalized(panel: &Panel, id: &str, k: Kind) -> u8 {
 /// Runtime owned by the app. Opening the window is also possible without any MIDI hardware.
 #[derive(Default)]
 pub struct Midi {
+    clock: sync::Runtime,
+    clock_input: Option<backend::Input>,
+    outputs: Vec<Port>,
     pub open: bool,
     started: bool,
     ports: Vec<Port>,
@@ -502,10 +521,12 @@ impl Midi {
 
     fn connect(&mut self, config: &Config) {
         self.inputs.clear();
+        self.clock_input = None;
+        self.clock.stop();
         self.router.reset();
         self.learning = None;
         self.error = None;
-        if !config.enabled && !self.open {
+        if !config.enabled && !self.open && config.clock.mode == sync::Mode::Off {
             return;
         }
         match backend::ports() {
@@ -515,12 +536,15 @@ impl Midi {
                 return;
             }
         }
-        if !config.enabled {
-            return;
-        }
+        self.outputs = backend::output_ports().unwrap_or_default();
         let mut errors = Vec::new();
+        if let Err(e) = self.clock.configure(&config.clock) {
+            self.clock.error = Some(e.clone());
+            errors.push(e);
+        }
         let mut opened = std::collections::HashSet::new();
-        for (slot, name) in config.inputs() {
+        let mut clock_opened = false;
+        for (slot, name) in config.inputs().into_iter().filter(|_| config.enabled) {
             let matches: Vec<_> = self.ports.iter().filter(|p| p.name == name).collect();
             if matches.len() != 1 {
                 errors.push(if matches.is_empty() {
@@ -542,8 +566,13 @@ impl Midi {
                 ));
                 continue;
             }
-            match backend::Input::open(matches[0].id) {
+            let clock = if config.clock.mode == sync::Mode::Slave
+                && config.clock.input.as_deref() == Some(name) {
+                self.clock.sender.clone()
+            } else { None };
+            match backend::Input::open(matches[0].id, clock.clone()) {
                 Ok(input) => {
+                    clock_opened |= clock.is_some();
                     self.inputs.push(ActiveInput {
                         slot,
                         name: name.to_string(),
@@ -554,6 +583,17 @@ impl Midi {
                 Err(e) => errors.push(format!("Input {}: {e}", slot + 1)),
             }
         }
+        if config.clock.mode == sync::Mode::Slave && !clock_opened && self.clock.sender.is_some() {
+            let matches: Vec<_> = self.ports.iter()
+                .filter(|p| Some(&p.name) == config.clock.input.as_ref()).collect();
+            let result = if matches.len() == 1 {
+                backend::Input::open(matches[0].id, self.clock.sender.clone())
+            } else { Err("Clock IN unavailable or name is ambiguous.".into()) };
+            match result {
+                Ok(input) => self.clock_input = Some(input),
+                Err(e) => { self.clock.stop(); self.clock.error = Some(e.clone()); errors.push(e); }
+            }
+        }
         if !errors.is_empty() {
             self.error = Some(errors.join("\n"));
         }
@@ -562,12 +602,18 @@ impl Midi {
 
 impl App {
     pub(crate) fn midi_tick(&mut self, ctx: &Context) {
+        if let Some(link) = &mut self.link {
+            self.midi.clock.attach(link.player().take_midi_clock());
+        }
         // App::new is also used by headless tests. Only an enabled preference opens a device.
         if !self.midi.started {
             self.midi.started = true;
             self.midi.connect(&self.settings.midi);
         }
         if self.midi.inputs.is_empty() {
+            if self.settings.midi.clock.mode != sync::Mode::Off {
+                ctx.request_repaint_after(std::time::Duration::from_millis(33));
+            }
             return;
         }
         let mut words = Vec::new();
@@ -646,7 +692,53 @@ impl App {
                         Err(e) => self.midi.error = Some(e),
                     }
                 }
+                if self.midi.outputs.is_empty() {
+                    self.midi.outputs = backend::output_ports().unwrap_or_default();
+                }
                 let config = &mut self.settings.midi;
+                ui.separator();
+                ui.strong("MIDI CLOCK / SYNC");
+                ui.horizontal(|ui| {
+                    for (mode, label) in [(sync::Mode::Off, "OFF"),
+                        (sync::Mode::Master, "MASTER / OUT"), (sync::Mode::Slave, "SLAVE / IN")] {
+                        if ui.selectable_value(&mut config.clock.mode, mode, label).changed() {
+                            changed = true; reconnect = true;
+                        }
+                    }
+                });
+                if config.clock.mode == sync::Mode::Slave {
+                    egui::ComboBox::from_id_salt("clock-in")
+                        .selected_text(config.clock.input.as_deref().unwrap_or("Choose Clock IN..."))
+                        .show_ui(ui, |ui| {
+                            for port in &self.midi.ports {
+                                if ui.selectable_value(&mut config.clock.input,
+                                    Some(port.name.clone()), &port.name).changed() {
+                                    changed = true; reconnect = true;
+                                }
+                            }
+                        });
+                    ui.small("External Start/Continue controls playback. Local STOP is an emergency stop.");
+                }
+                if config.clock.mode == sync::Mode::Master {
+                    egui::ComboBox::from_id_salt("clock-out")
+                        .selected_text(config.clock.output.as_deref().unwrap_or("Choose Clock OUT..."))
+                        .show_ui(ui, |ui| {
+                            for port in &self.midi.outputs {
+                                if ui.selectable_value(&mut config.clock.output,
+                                    Some(port.name.clone()), &port.name).changed() {
+                                    changed = true; reconnect = true;
+                                }
+                            }
+                        });
+                    if ui.add(egui::DragValue::new(&mut config.clock.output_delay_ms)
+                        .range(0..=500).prefix("OUT delay ").suffix(" ms")).changed() {
+                        changed = true; reconnect = true;
+                    }
+                    ui.small("Delay MIDI to match your audio interface latency. Receiver must use external sync.");
+                }
+                ui.label(self.midi.clock.status());
+                ui.small("24 pulses/quarter note. One master only; no Clock IN-to-OUT forwarding.");
+                ui.separator();
                 ui.horizontal(|ui| {
                     if ui
                         .checkbox(&mut config.enabled, "Enable MIDI input")

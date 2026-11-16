@@ -30,7 +30,7 @@ jobs:
       - name: Lint
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Tests
-        run: cargo test --locked -p orb-ui --lib --test sidechain --test theme --test arpeggiator --test generator --test midi_preset --test midi --test settings --test wired --test repaint --test menu
+        run: cargo test --locked -p orb-ui --lib --test sidechain --test theme --test arpeggiator --test generator --test midi_preset --test midi --test midi_clock --test settings --test wired --test repaint --test menu
       - name: Engine and sidechain regression tests
         run: cargo test --locked -p orb-engine
       - name: Check default skin and render preview
@@ -41,8 +41,8 @@ jobs:
           cargo run --locked -p orb-ui-art -- graphite graphite-preview
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Write-Output ('GRAPHITE_PREVIEW:' + [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $PWD 'graphite-preview/panel.png'))))
-      - name: Audio callback allocation guard
-        run: cargo test --locked -p orb-player --test no_alloc
+      - name: Audio callback allocation and MIDI Clock guards
+        run: cargo test --locked -p orb-player --lib --test no_alloc --test midi_clock
       - name: Studio release performance
         run: |
           cargo test --release --locked -p orb-engine studio::tests::release_ -- --nocapture
@@ -79,6 +79,7 @@ jobs:
           Copy-Item assets/brand/acid-recall.png,assets/brand/acid-recall.ico midi-preview/assets/brand/
           Copy-Item LICENSE midi-preview/
           Copy-Item docs/midi-controller.md midi-preview/README-MIDI.md
+          Copy-Item docs/midi-clock.md midi-preview/README-MIDI-CLOCK.md
           Copy-Item docs/pattern-generator.md midi-preview/README-RANDOM.md
           Copy-Item docs/arpeggiator.md midi-preview/README-ARP.md
           Copy-Item graphite-preview/panel.png midi-preview/Graphite-preview.png
