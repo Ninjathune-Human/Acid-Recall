@@ -7,6 +7,7 @@ fn config() -> Config {
         port: Some("UC-33 on first PC".into()),
         pickup: false,
         minimum_one: false,
+        minimum_cc: 0,
         additional_inputs: Vec::new(),
         bindings: targets()
             .into_iter()
@@ -32,6 +33,7 @@ fn all_assignments_round_trip_and_input_selection_remains_local() {
     let mut other = Config {
         port: Some("Focusrite USB MIDI".into()),
         minimum_one: true,
+        minimum_cc: 4,
         ..Config::default()
     };
     let count = RoutingPreset::decode(&encoded)
@@ -47,7 +49,9 @@ fn all_assignments_round_trip_and_input_selection_remains_local() {
         other.minimum_one,
         "hardware calibration remains local on import"
     );
+    assert_eq!(other.minimum_cc, 4, "numeric calibration remains local on import");
     assert!(!encoded.contains("minimum_one"));
+    assert!(!encoded.contains("minimum_cc"));
 }
 
 #[test]
@@ -111,6 +115,7 @@ fn multiple_controller_slots_export_without_machine_specific_names() {
         additional_inputs: vec![orb_ui::midi::InputSettings {
             port: Some("Pads local device".into()),
             minimum_one: true,
+            minimum_cc: 5,
         }],
         ..Config::default()
     };

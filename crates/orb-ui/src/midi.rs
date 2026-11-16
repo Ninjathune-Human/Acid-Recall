@@ -93,7 +93,9 @@ fn is_primary(input: &u8) -> bool {
 #[serde(default)]
 pub struct InputSettings {
     pub port: Option<String>,
+    /// Legacy switch, migrated to a two-count floor when loading old UC-33e settings.
     pub minimum_one: bool,
+    pub minimum_cc: u8,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -106,6 +108,8 @@ pub struct Config {
     pub pickup: bool,
     /// Hardware calibration stays local, like the selected input port.
     pub minimum_one: bool,
+    /// Raw continuous CC values up to this device-specific floor represent silence/zero.
+    pub minimum_cc: u8,
     pub bindings: Vec<Binding>,
 }
 
@@ -117,6 +121,7 @@ impl Default for Config {
             additional_inputs: Vec::new(),
             pickup: true,
             minimum_one: false,
+            minimum_cc: 0,
             bindings: Vec::new(),
         }
     }
@@ -125,6 +130,8 @@ impl Default for Config {
 impl Config {
     /// Keep valid assignments only. A source and a target each have one owner; last wins.
     pub fn sanitize(&mut self) {
+        self.minimum_cc = calibration_floor(self.minimum_cc, self.minimum_one);
+        self.minimum_one = false;
         let bindings = std::mem::take(&mut self.bindings);
         for b in bindings {
             if b.input < 16
@@ -140,6 +147,8 @@ impl Config {
         }
         self.additional_inputs.truncate(15);
         for input in &mut self.additional_inputs {
+            input.minimum_cc = calibration_floor(input.minimum_cc, input.minimum_one);
+            input.minimum_one = false;
             if input.port.as_ref().is_some_and(|p| p.trim().is_empty()) {
                 input.port = None;
             }
@@ -171,15 +180,24 @@ impl Config {
             .collect()
     }
 
-    fn calibrated(&self, input: u8) -> bool {
+    pub fn minimum_cc_for(&self, input: u8) -> u8 {
         if input == 0 {
-            self.minimum_one
+            calibration_floor(self.minimum_cc, self.minimum_one)
         } else {
             self.additional_inputs
                 .get(usize::from(input - 1))
-                .is_some_and(|s| s.minimum_one)
+                .map_or(0, |s| calibration_floor(s.minimum_cc, s.minimum_one))
         }
     }
+}
+
+fn calibration_floor(minimum_cc: u8, legacy: bool) -> u8 {
+    minimum_cc.max(if legacy { 2 } else { 0 }).min(16)
+}
+
+fn continuous_value(raw: u8, floor: u8) -> u8 {
+    let span = u16::from(127 - floor.min(16));
+    ((u16::from(raw.min(127).saturating_sub(floor.min(16))) * 127 + span / 2) / span) as u8
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -341,11 +359,7 @@ impl Router {
                 }
             }
             Kind::Knob | Kind::Fader | Kind::Number => {
-                let value = if config.calibrated(input) {
-                    ((u16::from(cc.value.min(127).saturating_sub(1)) * 127 + 63) / 126) as u8
-                } else {
-                    cc.value
-                };
+                let value = continuous_value(cc.value, config.minimum_cc_for(input));
                 let current = normalized(panel, id, k);
                 let state = self.pickup.entry((input, b.target.clone())).or_default();
                 if !state.accepts(value, current, config.pickup) {
@@ -683,17 +697,18 @@ impl App {
                     self.midi.router.reset();
                     changed = true;
                 }
-                if ui
-                    .checkbox(
-                        &mut config.minimum_one,
-                        "Input 1 minimum is 1 (calibrate to zero)",
-                    )
-                    .changed()
-                {
-                    self.midi.router.reset();
-                    changed = true;
-                }
-                ui.small("Enable only if knobs/faders send 1 at minimum. Maps 1-127 to 0-127.");
+                let mut minimum = config.minimum_cc_for(0);
+                ui.horizontal(|ui| {
+                    ui.label("Input 1 minimum CC");
+                    if ui.add(egui::DragValue::new(&mut minimum).range(0..=16)).changed() {
+                        config.minimum_cc = minimum;
+                        config.minimum_one = false;
+                        self.midi.router.reset();
+                        changed = true;
+                    }
+                });
+                ui.small("0 keeps standard MIDI. Set 2 for UC-33e minima fluctuating between 1 and 2.");
+                ui.small("Values at or below this minimum map to zero; 127 stays full scale.");
                 for (i, input) in config.additional_inputs.iter_mut().enumerate() {
                     ui.push_id(("additional-midi", i), |ui| {
                         ui.horizontal(|ui| {
@@ -723,13 +738,16 @@ impl App {
                                     }
                                 });
                         });
-                        if ui
-                            .checkbox(&mut input.minimum_one, "This input sends 1 at minimum")
-                            .changed()
-                        {
-                            self.midi.router.reset();
-                            changed = true;
-                        }
+                        let mut minimum = calibration_floor(input.minimum_cc, input.minimum_one);
+                        ui.horizontal(|ui| {
+                            ui.label("Minimum CC");
+                            if ui.add(egui::DragValue::new(&mut minimum).range(0..=16)).changed() {
+                                input.minimum_cc = minimum;
+                                input.minimum_one = false;
+                                self.midi.router.reset();
+                                changed = true;
+                            }
+                        });
                     });
                 }
                 if config.additional_inputs.len() < 15 && ui.button("Add MIDI input").clicked() {

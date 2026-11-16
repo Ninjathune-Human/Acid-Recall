@@ -180,10 +180,10 @@ fn calibration_is_per_device_and_legacy_bindings_stay_on_input_one() {
     }
     let mut router = Router::default();
     let mut panel = Panel::new();
-    router.apply_from(0, cc(74, 1), &config, &mut panel, 0.0);
-    router.apply_from(1, cc(74, 1), &config, &mut panel, 0.0);
+    router.apply_from(0, cc(74, 2), &config, &mut panel, 0.0);
+    router.apply_from(1, cc(74, 2), &config, &mut panel, 0.0);
     assert_eq!(panel.value("mixer1.level"), Some(0));
-    assert_eq!(panel.value("mixer2.level"), Some(1));
+    assert_eq!(panel.value("mixer2.level"), Some(2));
     let old: Config = toml::from_str(
         "port='UC33'\n[[bindings]]\nchannel=1\ncontroller=74\ntarget='mixer1.level'",
     )
@@ -201,6 +201,7 @@ fn controller_slots_are_stable_when_an_input_is_disconnected() {
             InputSettings {
                 port: Some("Pads".into()),
                 minimum_one: false,
+                minimum_cc: 0,
             },
         ],
         ..Config::default()
@@ -230,4 +231,96 @@ fn button_edges_are_isolated_between_controller_inputs() {
     router.apply_from(0, cc(74, 0), &config, &mut panel, 0.0);
     router.apply_from(0, cc(74, 127), &config, &mut panel, 0.0);
     assert_eq!(panel.events.len(), 3);
+}
+
+#[test]
+fn every_numeric_floor_is_monotone_and_standard_midi_is_an_exact_identity() {
+    for floor in 0..=16 {
+        let mut previous = 0;
+        let mut values = std::collections::BTreeSet::new();
+        for raw in 0..=127 {
+            let actual = continuous_value(raw, floor);
+            if raw <= floor { assert_eq!(actual, 0); }
+            if floor == 0 { assert_eq!(actual, raw); }
+            assert!(actual >= previous, "floor={floor}, raw={raw}");
+            previous = actual;
+            values.insert(actual);
+        }
+        assert_eq!(previous, 127);
+        assert_eq!(values.len(), 128 - usize::from(floor));
+    }
+    assert_eq!(continuous_value(1, 1), 0);
+    assert_eq!(continuous_value(2, 1), 1);
+    assert_eq!(continuous_value(2, 2), 0);
+    assert_eq!(continuous_value(3, 2), 1);
+}
+
+#[test]
+fn old_uc33_settings_migrate_each_input_and_numeric_floors_survive_restart() {
+    let old = "[midi]\nminimum_one=true\n[[midi.additional_inputs]]\nport='Pads'\nminimum_one=true\n";
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("ui.toml");
+    std::fs::write(&path, old).unwrap();
+    let mut settings = crate::settings::Settings::load_from(&path);
+    assert_eq!(settings.midi.minimum_cc, 2);
+    assert_eq!(settings.midi.additional_inputs[0].minimum_cc, 2);
+    assert!(!settings.midi.minimum_one);
+    assert!(!settings.midi.additional_inputs[0].minimum_one);
+    settings.midi.minimum_cc = 0;
+    settings.midi.additional_inputs[0].minimum_cc = 5;
+    settings.save().unwrap();
+    assert_eq!(crate::settings::Settings::load_from(&path), settings);
+    settings.midi.minimum_cc = 200;
+    settings.midi.additional_inputs[0].minimum_cc = 200;
+    settings.midi.sanitize();
+    assert_eq!(settings.midi.minimum_cc, 16);
+    assert_eq!(settings.midi.additional_inputs[0].minimum_cc, 16);
+}
+
+#[test]
+fn sampler_audio_can_be_silenced_by_a_controller_whose_minimum_is_two() {
+    use orb_engine::studio::{audio_file::Wave, Studio};
+    use orb_player::Command;
+    let samples = Some(rbm::standard::builtin_samples());
+    let (link, mut audio) = Link::new(Arc::new(Tables::new()), samples.clone());
+    let mut app = App::with_link(Panel::new(), link, None);
+    app.samples = samples;
+    app.new_now();
+    app.studio.modern = true;
+    let ctx = egui::Context::default();
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(15);
+    loop {
+        app.studio_poll(&ctx);
+        calls(&mut audio);
+        if audio.current_mut().frame.studio.is_some() { break; }
+        assert!(std::time::Instant::now() < until, "Studio preparation timed out");
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    let wave = Box::new(Wave { frames: vec![[0.25; 2]; 44100] });
+    app.link.as_mut().unwrap().effect_command(Command::StudioWave { lane: 0, wave: Some(wave) });
+    app.studio.settings.lanes[0].steps[0] = 127;
+    let mut config = Config { minimum_cc: 2, pickup: false, ..Config::default() };
+    config.assign(Binding { input: 0, channel: 1, controller: 74, target: "sampler1.level".into() });
+    let mut router = Router::default();
+    router.apply(cc(74, 127), &config, &mut app.panel, 0.0);
+    app.studio_midi();
+    app.studio_poll(&ctx);
+    app.panel.press("transport.play", 0.0);
+    app.link.as_mut().unwrap().sync(&mut app.panel);
+    let mut out = vec![0i16; 2 * CALL_FRAMES];
+    let mut audible = false;
+    for _ in 0..12 {
+        audio.render_i16(&mut out);
+        audible |= out.iter().any(|v| v.unsigned_abs() > 100);
+    }
+    assert!(audible, "the sampler must actually sound before testing zero");
+    router.apply(cc(74, 2), &config, &mut app.panel, 0.0);
+    app.studio_midi();
+    app.studio_poll(&ctx);
+    app.link.as_mut().unwrap().sync(&mut app.panel);
+    for _ in 0..12 { audio.render_i16(&mut out); }
+    let studio: &Studio = audio.current_mut().frame.studio.as_ref().unwrap();
+    assert_eq!(studio.settings.lanes[0].gain, 0.0);
+    assert_eq!(app.panel.value("sampler1.level"), Some(0));
+    assert!(out.iter().all(|v| v.unsigned_abs() <= 1));
 }

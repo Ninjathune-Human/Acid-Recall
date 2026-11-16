@@ -675,8 +675,8 @@ impl App {
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
                         let size = Vec2::new(
-                            ui.available_width().max(1584.0),
-                            ui.available_height().max(990.0),
+                            ui.available_width().max(crate::graphite_rack::WIDTH * 0.9),
+                            ui.available_height().max(crate::graphite_rack::HEIGHT * 0.9),
                         );
                         let (canvas, _) = ui.allocate_exact_size(size, Sense::hover());
                         let (sampler, fx) = self.graphite_rack(ui, canvas);

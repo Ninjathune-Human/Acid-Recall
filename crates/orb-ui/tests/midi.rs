@@ -15,6 +15,7 @@ fn config(target: &str, pickup: bool) -> Config {
         port: Some("UC-33 USB MIDI".into()),
         pickup,
         minimum_one: false,
+        minimum_cc: 0,
         additional_inputs: Vec::new(),
         bindings: vec![Binding {
             input: 0,
@@ -84,7 +85,7 @@ fn continuous_controls_keep_the_full_range_and_ignore_other_channels() {
 }
 
 #[test]
-fn minimum_one_calibration_reaches_both_endpoints_for_every_knob_and_fader() {
+fn legacy_uc33_calibration_tolerates_a_minimum_of_one_or_two_for_every_control() {
     for (id, k) in targets() {
         if !matches!(k, Kind::Knob | Kind::Fader) {
             continue;
@@ -93,7 +94,7 @@ fn minimum_one_calibration_reaches_both_endpoints_for_every_knob_and_fader() {
         let mut router = Router::default();
         let mut c = config(&id, false);
         c.minimum_one = true;
-        for (raw, expected) in [(0, 0), (1, 0), (2, 1), (64, 64), (126, 126), (127, 127)] {
+        for (raw, expected) in [(0, 0), (1, 0), (2, 0), (3, 1), (64, 63), (126, 126), (127, 127)] {
             router.apply(cc(1, raw), &c, &mut p, 0.0);
             assert_eq!(p.value(&id), Some(expected), "{id}: raw {raw}");
         }
@@ -106,7 +107,7 @@ fn minimum_one_calibration_reaches_both_endpoints_for_every_knob_and_fader() {
             previous = actual;
             values.insert(actual);
         }
-        assert_eq!(values.len(), 127, "{id}: no lost controller resolution");
+        assert_eq!(values.len(), 126, "{id}: no extra lost resolution above the calibrated floor");
     }
 }
 
@@ -117,10 +118,10 @@ fn calibration_keeps_pickup_and_button_edges_in_their_correct_domains() {
     let mut c = config("mixer1.level", true);
     c.minimum_one = true;
     p.adopt("mixer1.level", 64);
-    router.apply(cc(1, 1), &c, &mut p, 0.0);
+    router.apply(cc(1, 2), &c, &mut p, 0.0);
     assert_eq!(p.value("mixer1.level"), Some(64));
     router.apply(cc(1, 100), &c, &mut p, 0.0);
-    router.apply(cc(1, 1), &c, &mut p, 0.0);
+    router.apply(cc(1, 2), &c, &mut p, 0.0);
     assert_eq!(p.value("mixer1.level"), Some(0));
     let mut c = config("mixer1.dist", false);
     c.minimum_one = true;
@@ -140,7 +141,9 @@ fn calibration_is_saved_locally_and_old_settings_keep_the_full_midi_range() {
     let mut settings = Settings::load_from(&file);
     settings.midi.minimum_one = true;
     settings.save().unwrap();
-    assert!(Settings::load_from(&file).midi.minimum_one);
+    let migrated = Settings::load_from(&file);
+    assert_eq!(migrated.midi.minimum_cc, 2);
+    assert!(!migrated.midi.minimum_one);
     std::fs::write(&file, "[midi]\nenabled = true\npickup = false\n").unwrap();
     let old = Settings::load_from(&file);
     assert!(old.midi.enabled);
@@ -173,7 +176,7 @@ fn a_calibrated_master_minimum_reaches_the_engine_and_silences_a_playing_pattern
         audible |= out.iter().any(|&v| v.unsigned_abs() > 1);
     }
     assert!(audible, "the source must really play before testing mute");
-    router.apply(cc(1, 1), &c, &mut p, 0.0);
+    router.apply(cc(1, 2), &c, &mut p, 0.0);
     link.sync(&mut p);
     for _ in 0..12 {
         audio.render_i16(&mut out);

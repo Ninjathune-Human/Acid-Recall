@@ -19,6 +19,10 @@ velocity, copy/paste/repeat, envelopes and less frequent controls. Rack content 
 smaller windows so sequence controls remain reachable. Each machine's EDIT retains its
 detailed controls; waveform/synthesis, patterns and effects continue to use the same MIDI IDs.
 
+The TR modules expose their real per-voice controls in aligned columns: Level, Tune/Tone,
+Decay, Attack, Snappy and other parameters where that instrument supports them. Unavailable
+parameters are left blank rather than represented by inactive or nonfunctional knobs.
+
 ## Pattern styles
 
 The generator offers **Techno | IDM | Break**, shared by both TBs and both TRs.
@@ -128,7 +132,7 @@ The existing MIDI Learn and pickup work with the new controls:
 - Sampler: Level, Pan, Pitch and Reverb send for each of the eight lanes.
 
 Search **SPACE** or **Sampler / Lane N** in MIDI Controller. Existing mappings keep their IDs.
-The UC-33 minimum-one calibration applies to the new knobs as well.
+The per-input minimum-CC calibration applies to the new knobs as well.
 
 ## Saving and exporting
 
@@ -178,7 +182,13 @@ Input 2 and further slots, choose a different device in each, then Learn as usua
 CC identifies both its controller slot and channel, so two devices may use the same CC
 number for different parameters. Unavailable inputs do not stop the other inputs.
 Keep the same slot order when moving a routing preset between PCs; device names and each
-input's minimum-one calibration stay local. A disconnected slot keeps its assignments.
+input's minimum-CC calibration stay local. A disconnected slot keeps its assignments.
+
+Set each input's **Minimum CC** to the lowest value its knobs/faders send (0-16). Values at
+or below that threshold become exact zero, and 127 remains full scale. Existing minimum-one
+calibration migrates to a two-count tolerance, so an UC-33 returning 1 or 2 at its physical
+minimum still mutes. Ordinary uncalibrated inputs preserve low values such as CC 1. The
+controller's own display continues showing its raw value; only the software value is remapped.
 
 Studio MIDI targets cover SPACE enable, return, filters, pre-delay, width and four sends,
 plus every lane's gain, pan, pitch, send, trim, envelope, gate, mode, reverse, mute, solo,
