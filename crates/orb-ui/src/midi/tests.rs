@@ -284,7 +284,7 @@ fn old_uc33_settings_migrate_each_input_and_numeric_floors_survive_restart() {
 
 #[test]
 fn sampler_audio_can_be_silenced_by_a_controller_whose_minimum_is_two() {
-    for target in ["sampler1.level", "sampler.level"] {
+    for target in ["sampler1.level", "sampler.level", "sampler.on"] {
         assert_sampler_midi_mute(target);
     }
 }
@@ -366,7 +366,9 @@ fn assert_sampler_midi_mute(target: &str) {
         audio.render_i16(&mut out);
     }
     let studio: &Studio = audio.current_mut().frame.studio.as_ref().unwrap();
-    if target == "sampler.level" {
+    if target == "sampler.on" {
+        assert!(!studio.settings.sampler_bus.enabled);
+    } else if target == "sampler.level" {
         assert_eq!(studio.settings.sampler_bus.gain, 0.0);
     } else {
         assert_eq!(studio.settings.lanes[0].gain, 0.0);

@@ -39,6 +39,7 @@ pub fn controls() -> Vec<(String, String)> {
         out.push((id.into(), label.into()));
     }
     for (name, label) in [
+        ("on", "On / Off"),
         ("level", "Global level"),
         ("pan", "Global pan"),
         ("dist", "Distortion routing"),
@@ -87,7 +88,7 @@ pub fn is_action(id: &str) -> bool {
 
 pub fn is_boolean(id: &str) -> bool {
     id == "studio.enabled"
-        || matches!(id, "duck1.on" | "duck2.on" | "sampler.dist")
+        || matches!(id, "duck1.on" | "duck2.on" | "sampler.dist" | "sampler.on")
         || id.starts_with("sampler")
             && [".reverse", ".mute", ".solo", ".sidechain"]
                 .iter()
@@ -167,6 +168,7 @@ fn value(settings: &Settings, id: &str) -> f64 {
         "studio.width" => settings.width / 2.0,
         "studio.low_cut" => (settings.low_cut - 20.0) / 1980.0,
         "studio.high_cut" => (settings.high_cut - 2000.0) / 18000.0,
+        "sampler.on" => f64::from(u8::from(settings.sampler_bus.enabled)),
         "sampler.level" => settings.sampler_bus.gain / 2.0,
         "sampler.pan" => (settings.sampler_bus.pan + 1.0) / 2.0,
         "sampler.dist" => f64::from(u8::from(settings.sampler_bus.dist)),
@@ -240,6 +242,7 @@ impl App {
                 "studio.width" => s.width = v * 2.0,
                 "studio.low_cut" => s.low_cut = 20.0 + v * 1980.0,
                 "studio.high_cut" => s.high_cut = 2000.0 + v * 18000.0,
+                "sampler.on" => s.sampler_bus.enabled = raw >= 64,
                 "sampler.level" => s.sampler_bus.gain = v * 2.0,
                 "sampler.pan" => s.sampler_bus.pan = v * 2.0 - 1.0,
                 "sampler.dist" => s.sampler_bus.dist = raw >= 64,
@@ -428,8 +431,23 @@ mod tests {
     }
 
     #[test]
+    fn sampler_midi_on_off_retains_the_individual_mix_and_global_level() {
+        let mut app = App::new(Panel::new(), None);
+        let mut router = Router::default();
+        app.studio.settings.sampler_bus.gain = 0.6;
+        let lanes = app.studio.settings.lanes.clone();
+        move_cc(&mut app, &mut router, "sampler.on", 0, false);
+        assert!(!app.studio.settings.sampler_bus.enabled);
+        assert_eq!(app.panel.value("sampler.on"), Some(0));
+        move_cc(&mut app, &mut router, "sampler.on", 127, false);
+        assert!(app.studio.settings.sampler_bus.enabled);
+        assert_eq!(app.studio.settings.sampler_bus.gain, 0.6);
+        assert_eq!(app.studio.settings.lanes, lanes);
+    }
+
+    #[test]
     fn all_studio_controls_are_registered_with_correct_midi_behavior() {
-        assert_eq!(controls().len(), 198);
+        assert_eq!(controls().len(), 199);
         for (id, _) in controls() {
             assert!(kind(&id).is_some(), "{id}");
             assert!(Panel::new().value(&id).is_some(), "{id}");
@@ -439,6 +457,7 @@ mod tests {
         assert_eq!(kind("studio.enabled"), Some(Kind::Switch));
         assert_eq!(kind("duck1.on"), Some(Kind::Switch));
         assert_eq!(kind("sampler.dist"), Some(Kind::Switch));
+        assert_eq!(kind("sampler.on"), Some(Kind::Switch));
     }
 
     #[test]

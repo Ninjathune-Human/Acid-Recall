@@ -1,23 +1,28 @@
 <p align="center">
-  <img src="assets/readme/logo.gif" alt="OpenRB-338" width="378">
+  <img src="assets/brand/acid-recall.png" alt="ACID RECALL" width="160">
 </p>
 
 <div align="center">
 
-# OpenRB-338
+# ACID RECALL
 
 </div>
 
 <p align="center">
-  <a href="https://github.com/pingw33n/openrb-338/releases"><b>Download</b></a> ·
-  <a href="assets/readme/screenshot.png"><b>Screenshot</b></a> ·
+  <a href="https://github.com/smldms/openrb-338/actions/workflows/midi-windows.yml"><b>Download Windows preview</b></a> ·
+  <a href="docs/studio.md"><b>Studio guide</b></a> ·
   <a href="https://github.com/pingw33n/rb-songs"><b>Song collection</b></a> ·
   <a href="https://github.com/pingw33n/rb-mods"><b>Mod collection</b></a>
 </p>
 
-OpenRB-338 is a reimplementation of [ReBirth RB-338](https://en.wikipedia.org/wiki/ReBirth_RB-338),
+ACID RECALL is a performance-focused fork of [OpenRB-338](https://github.com/pingw33n/openrb-338),
+a reimplementation of [ReBirth RB-338](https://en.wikipedia.org/wiki/ReBirth_RB-338),
 the 1997 software synth of two TB-303 bass lines, a TR-808 and a TR-909, for today's macOS, Linux
 and Windows.
+
+Read the [project story and fork features](docs/acid-recall.md) (French).
+This fork distributes Windows preview builds as **ACID-RECALL.exe**. The upstream project
+provides its own releases. MIDI controller input is available; MIDI Clock IN/OUT sync is deferred.
 
 ## Features
 
@@ -40,7 +45,7 @@ and Windows.
   **Options > MIDI Controller...**. See the [UC-33e setup guide](docs/midi-controller.md).
   Download the Windows MIDI preview from
   [MIDI Windows preview builds](https://github.com/smldms/openrb-338/actions/workflows/midi-windows.yml):
-  open a successful run, then download its **OpenRB-338-UC33-MIDI-Windows-x64** artifact.
+  open a successful run, then download its **ACID-RECALL-Windows-x64** artifact.
 - **Sounds exactly like the original.** The audio engine was rebuilt from ReBirth 2.01 to the
   bit. A song's exported loop equals the original's "Export Loop as Audio File" byte for byte. This
   is tested on 1,268 songs of the song collection, 531 of them on 43 third-party mods, and on a

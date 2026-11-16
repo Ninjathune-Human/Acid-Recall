@@ -283,7 +283,7 @@ impl App {
 
     fn rack_transport(&mut self, ui: &mut Ui, rack: Rack) {
         rack.card(ui, rack.rect(14.0, 10.0, 1252.0, 60.0));
-        rack.text(ui, 30.0, 32.0, 22.0, "OPENRB-338", INK);
+        rack.text(ui, 30.0, 32.0, 22.0, "ACID RECALL", INK);
         rack.text(ui, 31.0, 53.0, 8.0, "GRAPHITE / STUDIO", DIM);
         for (i, (id, label, on)) in [
             ("transport.play", "PLAY", self.panel.transport.playing),

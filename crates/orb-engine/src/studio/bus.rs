@@ -9,6 +9,7 @@ use crate::frame::{Block, BlockContext, InsertEffect, SongDevice};
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct SamplerBusSettings {
+    pub enabled: bool,
     pub gain: f64,
     pub pan: f64,
     pub dist: bool,
@@ -19,6 +20,7 @@ pub struct SamplerBusSettings {
 impl Default for SamplerBusSettings {
     fn default() -> Self {
         Self {
+            enabled: true,
             gain: 1.0,
             pan: 0.0,
             dist: false,
@@ -103,7 +105,8 @@ impl Bus {
         }
         // Match the machines: insert first, then fader/pan and post-fader sends.
         for j in 0..64 {
-            super::smooth(&mut self.gain, settings.gain, 0.004);
+            let target = if settings.enabled { settings.gain } else { 0.0 };
+            super::smooth(&mut self.gain, target, 0.004);
             super::smooth(&mut self.pan, settings.pan, 0.004);
             let gains = [
                 self.gain * (1.0 - self.pan).min(1.0),

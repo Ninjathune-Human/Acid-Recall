@@ -69,6 +69,9 @@ cards to edit all their controls, including PCF faders/pattern/mode and Delay st
 
 ## Sampler — eight lanes, up to 64 bars per lane
 
+The sampler has a global ON/OFF switch (MIDI target **sampler.on**) that retains its level
+and lane settings. OFF smoothly silences the bus and new sends while existing effect tails
+decay; its playheads keep time so it resumes in sync. Old projects default to ON.
 The sampler has a global mixer strip with Level, stereo signal meters, Pan, DIST routing,
 Delay send and REV send. DIST and Delay use the same shared effects configured in the FX
 column; enable those effects there as for the other machines. Global level and pan act on

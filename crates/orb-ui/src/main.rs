@@ -53,7 +53,7 @@ use orb_ui::session;
 use orb_ui::settings::Settings;
 
 /// The visible help: only the song. The developer options are hidden (task-137).
-const USAGE: &str = "usage: OpenRB-338 [SONG]\n\
+const USAGE: &str = "usage: ACID-RECALL [SONG]\n\
                      SONG is a ReBirth song (.rbs) or a Studio project (.orb338) to open";
 
 /// The command line, parsed.
@@ -276,7 +276,7 @@ fn main() -> eframe::Result {
 
     // The window starts maximized; an explicit --size opens at that size instead.
     let viewport = egui::ViewportBuilder::default()
-        .with_title("OpenRB-338")
+        .with_title(orb_ui::about::NAME)
         .with_app_id("OpenRB-338")
         .with_icon(Arc::new(orb_ui::art::app_icon(256)))
         // the menu bar is above the panel
@@ -289,7 +289,7 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     eframe::run_native(
-        "OpenRB-338",
+        orb_ui::about::NAME,
         options,
         Box::new(move |cc| {
             // always dark, whatever the system theme (task-127; `App::show` keeps it)

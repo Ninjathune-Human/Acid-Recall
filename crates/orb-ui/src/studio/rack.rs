@@ -237,9 +237,15 @@ impl App {
             ui.ctx().request_repaint_after(crate::app::METER_FRAME);
         }
         surface(ui, rect, "sampler-mixer", |ui| {
-            ui.colored_label(ACID, egui::RichText::new("SAMPLER MIX").strong());
-            ui.separator();
             let bus = &mut self.studio.settings.sampler_bus;
+            ui.horizontal(|ui| {
+                ui.colored_label(ACID, egui::RichText::new("SAMPLER MIX").strong());
+                let label = if bus.enabled { "ON" } else { "OFF" };
+                if ui.selectable_label(bus.enabled, label).clicked() {
+                    bus.enabled = !bus.enabled;
+                }
+            });
+            ui.separator();
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
                     ui.small("LEVEL");

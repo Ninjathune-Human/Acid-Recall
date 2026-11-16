@@ -54,6 +54,36 @@ fn global_zero_cuts_dry_delay_and_both_kinds_of_space_send() {
 }
 
 #[test]
+fn switching_off_preserves_level_and_can_resume_the_sampler_bus() {
+    let mut bus = Bus::default();
+    let mut settings = SamplerBusSettings {
+        enabled: false,
+        gain: 0.6,
+        delay: 0.5,
+        reverb_send: 0.5,
+        ..SamplerBusSettings::default()
+    };
+    for _ in 0..160 {
+        bus.dry = [[0.25; 64]; 2];
+        bus.reverb = [[0.125; 64]; 2];
+        bus.route(settings, None, &mut [0.0; 64], &mut [[0.0; 64]; 2]);
+    }
+    let mut delay = [0.0; 64];
+    let mut space = [[0.0; 64]; 2];
+    bus.dry = [[0.25; 64]; 2];
+    bus.reverb = [[0.125; 64]; 2];
+    bus.route(settings, None, &mut delay, &mut space);
+    assert_eq!(bus.dry, [[0.0; 64]; 2]);
+    assert_eq!(delay, [0.0; 64]);
+    assert_eq!(space, [[0.0; 64]; 2]);
+    assert_eq!(settings.gain, 0.6);
+    settings.enabled = true;
+    bus.dry = [[0.25; 64]; 2];
+    bus.route(settings, None, &mut delay, &mut space);
+    assert!(bus.dry.iter().flatten().any(|&v| v > 0.0));
+}
+
+#[test]
 fn sampler_pan_also_pans_its_per_lane_sends() {
     let mut bus = Bus::default();
     let settings = SamplerBusSettings {

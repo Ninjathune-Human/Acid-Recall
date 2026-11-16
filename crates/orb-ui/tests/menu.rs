@@ -2055,12 +2055,12 @@ fn the_about_window_opens_centered_and_closes() {
     let r = rect(&h).expect("the window is drawn");
     let off = (r.center() - screen.center()).abs();
     assert!(off.x < 3.0 && off.y < 3.0, "centered: {r:?} in {screen:?}");
-    assert!(shapes.contains("OpenRB-338"), "the name is drawn");
+    assert!(shapes.contains("ACID RECALL"), "the name is drawn");
     assert!(
         shapes.contains(orb_ui::about::VERSION),
         "the version is drawn"
     );
-    assert_eq!(orb_ui::about::URL, "https://github.com/pingw33n/openrb-338");
+    assert_eq!(orb_ui::about::URL, "https://github.com/smldms/openrb-338");
     assert_eq!(
         orb_ui::about::SONGS_URL,
         "https://github.com/pingw33n/rb-songs"
@@ -2369,11 +2369,11 @@ fn the_startup_sound_plays_only_when_the_kit_changes() {
 fn the_window_title_is_the_app_name_the_song_and_the_modified_mark() {
     let mut h = Harness::new();
     h.frame(vec![]);
-    assert_eq!(h.app.title, "OpenRB-338 - Untitled");
+    assert_eq!(h.app.title, "ACID RECALL - Untitled");
     h.app.panel.set_knob("tb303_1.cutoff", 900);
     h.frame(vec![]);
     assert!(h.app.doc.modified);
-    assert_eq!(h.app.title, "OpenRB-338 - Untitled *");
+    assert_eq!(h.app.title, "ACID RECALL - Untitled *");
 }
 
 /// A ReBirth 1.x song (a MIDI file, docs/song_load.md section 12) whose import gives the mixer
@@ -3376,3 +3376,4 @@ fn the_info_fields_fill_the_window_and_follow_its_width() {
         win(&h).width()
     );
 }
+

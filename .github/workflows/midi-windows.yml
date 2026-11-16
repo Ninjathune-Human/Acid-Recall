@@ -70,7 +70,8 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path midi-preview
-          Copy-Item target/release/OpenRB-338.exe midi-preview/
+          Copy-Item target/release/OpenRB-338.exe midi-preview/ACID-RECALL.exe
+          Copy-Item docs/acid-recall.md midi-preview/ACID-RECALL.md
           Copy-Item LICENSE midi-preview/
           Copy-Item docs/midi-controller.md midi-preview/README-MIDI.md
           Copy-Item docs/pattern-generator.md midi-preview/README-RANDOM.md
@@ -87,7 +88,7 @@ jobs:
           if (Test-Path graphite-preview/desktop.png) { Copy-Item graphite-preview/desktop.png midi-preview/Graphite-desktop.png }
       - uses: actions/upload-artifact@v4
         with:
-          name: OpenRB-338-UC33-MIDI-Windows-x64
+          name: ACID-RECALL-Windows-x64
           path: midi-preview/
           if-no-files-found: error
           retention-days: 30
