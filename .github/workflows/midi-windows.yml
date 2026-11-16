@@ -98,3 +98,55 @@ jobs:
           path: midi-preview/
           if-no-files-found: error
           retention-days: 30
+
+  publish-preview:
+    name: Publish public Windows download
+    needs: windows
+    if: github.ref == 'refs/heads/feat/studio-v2'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: acid-recall-public-windows-preview
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ACID-RECALL-Windows-x64
+          path: midi-preview
+      - name: Publish portable ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BUILD_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd midi-preview && zip -r ../ACID-RECALL-Windows-x64.zip .)
+          cat > release-notes.md <<EOF
+          # ACID RECALL — Windows preview
+
+          Download **ACID-RECALL-Windows-x64.zip**, extract it and run **ACID-RECALL.exe**.
+          No installer or GitHub account is required to download the ZIP.
+
+          Includes MIDI Learn, multiple controller inputs, MIDI Clock **MASTER / OUT** and
+          **SLAVE / IN**, Start/Continue/Stop, Song Position Pointer, sampler TIME WARP,
+          arpeggiators, pattern generators, sidechain and convolution reverb.
+
+          MIDI Clock is available under **MIDI > MIDI CLOCK / SYNC**. This is a preview:
+          hardware timing still needs testing on real interfaces and external machines.
+
+          This rolling preview is updated after successful Studio Windows builds.
+          Build source: https://github.com/${GH_REPO}/commit/${BUILD_SHA}
+          EOF
+          if gh release view windows-preview > /dev/null 2>&1; then
+            gh release upload windows-preview ACID-RECALL-Windows-x64.zip --clobber
+            gh api --method PATCH "repos/${GH_REPO}/git/refs/tags/windows-preview" \
+              -f "sha=${BUILD_SHA}" -F force=true > /dev/null
+            gh release edit windows-preview --title "ACID RECALL — Windows preview" \
+              --prerelease --notes-file release-notes.md
+          else
+            gh release create windows-preview ACID-RECALL-Windows-x64.zip \
+              --target "${BUILD_SHA}" --title "ACID RECALL — Windows preview" \
+              --prerelease --notes-file release-notes.md
+          fi

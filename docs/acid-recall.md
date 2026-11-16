@@ -12,11 +12,11 @@ an integrated sampler and a graphite rack.
 Two acid bass lines. An 808. A 909. Eight sample lanes. A controller under your hands.
 
 <p align="center">
-  <a href="https://github.com/smldms/Acid-Recall/actions/runs/43959557378/artifacts/14274191339">
+  <a href="https://github.com/smldms/Acid-Recall/releases/download/windows-preview/ACID-RECALL-Windows-x64.zip">
     <img src="https://raw.githubusercontent.com/smldms/Acid-Recall/feat/studio-v2/assets/brand/download-windows.svg" alt="DOWNLOAD — Windows x64 portable ZIP" width="300" height="64">
   </a>
   <br>
-  <sub>Windows x64 · Free preview · Portable ZIP · GitHub sign-in required</sub>
+  <sub>Windows x64 · Free preview · No installation · No GitHub account required</sub>
 </p>
 
 ## Start playing
@@ -25,10 +25,11 @@ The ACID RECALL Studio features described here are currently developed on
 [`feat/studio-v2`](https://github.com/smldms/Acid-Recall/tree/feat/studio-v2).
 The default branch still contains the upstream application code while integration is in progress.
 
-- **[Download the Windows preview ZIP](https://github.com/smldms/Acid-Recall/actions/runs/43959557378/artifacts/14274191339)**:
-  sign in to GitHub, extract the ZIP and launch **ACID-RECALL.exe**. No installer is needed.
-  This tested preview includes MIDI Clock IN/OUT. The current artifact expires on
-  **December 16, 2026**; for newer previews, see
+- **[Download the Windows preview ZIP](https://github.com/smldms/Acid-Recall/releases/download/windows-preview/ACID-RECALL-Windows-x64.zip)**:
+  extract the ZIP and launch **ACID-RECALL.exe**. No installer or GitHub account is needed.
+  The download updates after successful Studio builds; it does not expire after 30 days.
+- **[Release notes](https://github.com/smldms/Acid-Recall/releases/tag/windows-preview)**
+  identify the current build. For previous test builds, see
   [GitHub Actions](https://github.com/smldms/Acid-Recall/actions/workflows/midi-windows.yml).
 - **[Read the Studio guide](https://github.com/smldms/Acid-Recall/blob/feat/studio-v2/docs/studio.md)** for sampler, effects, MIDI setup and project limits.
 - **[Visit the original OpenRB-338 project](https://github.com/pingw33n/OpenRB-338)** for the
