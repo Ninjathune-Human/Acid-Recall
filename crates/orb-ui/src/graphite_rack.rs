@@ -254,9 +254,10 @@ impl App {
                         "ARP",
                         false,
                     )
+                    .on_hover_text("Apply arpeggio now. Configure it in Options > Arpeggiator.")
                     .clicked()
                     {
-                        self.open_arpeggiator(row);
+                        self.apply_arpeggiator_from_rack(row);
                     }
                     if button(
                         ui,
@@ -619,7 +620,7 @@ impl App {
                     rack,
                     &format!("{section}.{id}"),
                     label,
-                    rack.rect(x + 9.0, y + 35.0 + parameter as f32 * 40.0, 28.0, 40.0),
+                    rack.rect(x + 12.0, y + 35.0 + parameter as f32 * 40.0, 22.0, 40.0),
                 );
             }
             if row == 2 && (3..=7).contains(&i) {
@@ -1007,6 +1008,41 @@ mod tests {
     use crate::model::Panel;
 
     #[test]
+    fn native_arp_buttons_apply_each_tbs_settings_without_opening_the_editor() {
+        for row in 0..2 {
+            let ctx = egui::Context::default();
+            let mut app = App::new(Panel::new(), None);
+            app.arpeggiator.options[row].root = if row == 0 { 0 } else { 9 };
+            app.arpeggiator.options[row].length = 7;
+            app.panel.press(&format!("pattern{}.bankD", row + 1), 0.0);
+            app.panel.press(&format!("pattern{}.pattern8", row + 1), 0.0);
+            let before = [app.panel.pattern_bytes(0), app.panel.pattern_bytes(1)];
+            let expected = app.arpeggiator_preview(row).unwrap().bytes;
+            let selected = app.panel.rows[row].pattern;
+            let screen = Rect::from_min_size(Pos2::ZERO, Vec2::new(WIDTH, HEIGHT));
+            let position = Rack::fit(screen).rect(685.0, ROWS[row].0 + 9.0, 49.0, 19.0).center();
+            for pressed in [None, Some(true), Some(false)] {
+                let events = pressed.map_or_else(Vec::new, |pressed| {
+                    vec![egui::Event::PointerMoved(position), egui::Event::PointerButton {
+                        pos: position, button: egui::PointerButton::Primary, pressed,
+                        modifiers: egui::Modifiers::default(),
+                    }]
+                });
+                let mut output = ctx.run_ui(egui::RawInput { screen_rect: Some(screen), events,
+                    ..Default::default() }, |ui| { app.graphite_rack(ui, screen); });
+                output.textures_delta.clear();
+            }
+            assert_eq!(app.panel.pattern_bytes(row), expected);
+            assert_eq!(app.panel.pattern_bytes(1 - row), before[1 - row]);
+            assert_eq!(app.panel.rows[row].pattern, selected);
+            assert_eq!(app.arpeggiator.open, [false, false]);
+            assert!(app.doc.modified);
+            assert!(app.undo_arpeggiator(row));
+            assert_eq!(app.panel.pattern_bytes(row), before[row]);
+        }
+    }
+
+    #[test]
     fn every_real_drum_parameter_is_directly_available_with_no_invented_controls() {
         use std::collections::BTreeSet;
         for (section, voices) in [("tr808", VOICES_808), ("tr909", VOICES_909)] {
@@ -1041,9 +1077,9 @@ mod tests {
             let rack = Rack::fit(screen);
             let pos = rack
                 .rect(
-                    233.0 + instrument as f32 * 50.0,
+                    236.0 + instrument as f32 * 50.0,
                     ROWS[row].0 + 35.0 + parameter as f32 * 40.0,
-                    28.0,
+                    22.0,
                     40.0,
                 )
                 .center();

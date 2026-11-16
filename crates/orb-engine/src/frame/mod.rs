@@ -968,15 +968,14 @@ impl Frame {
             // 0x1001F3B3: the tempo (globals +4) the step loop passes, into its local there
             self.stack_word = Some(self.seq.globals.tempo as i32);
         }
-        let kicks = [
-            self.devices.channels[2].kick_count(),
-            self.devices.channels[3].kick_count(),
-        ];
+        let drum_counts = std::array::from_fn(|d| {
+            std::array::from_fn(|voice| self.devices.channels[d + 2].drum_trigger_count(voice))
+        });
         let audible = std::array::from_fn(|i| {
             let channel = self.devices.mixer.live.channels[i + 2];
             channel.enabled != 0 && channel.level != 0
         });
-        let duck = self.sidechain.gains(kicks, audible);
+        let duck = self.sidechain.gains_for_voices(drum_counts, audible);
         let mi = (self.state.meter_index + METER_STEP) & 63;
         self.state.meter_index = mi;
         let mi = mi as usize;
@@ -1057,10 +1056,6 @@ impl Frame {
                 gr += dr;
             }
         }
-        // 0x10013844: the send effect
-        ctx.stack_word = None;
-        self.devices.delay.process(&mut self.state.send, l, r, &ctx);
-        self.stack_word = self.devices.delay.stack_word(self.out_end, self.stack_word);
         if let Some(studio) = &mut self.studio {
             let advance = f64::from(self.seq.globals.tempo) * f64::from_bits(0x3ED3_7A72_81B2_2126)
                 / BLOCK as f64;
@@ -1075,12 +1070,21 @@ impl Frame {
             studio.modulation(crate::studio::Modulation {
                 gates,
                 drum_triggers,
-                kicks,
+                drum_counts,
                 audible,
                 config: self.sidechain.config(),
                 ticks_per_frame: advance,
             });
-            studio.process(self.seq.pos, advance, self.seq.globals.play != 0, l, r);
+            studio.prepare_sampler(self.seq.pos, advance, self.seq.globals.play != 0);
+            ctx.stack_word = None;
+            studio.route_sampler(Some((&*self.devices.dist, &ctx)), &mut self.state.send);
+        }
+        // 0x10013844: the native delay receives legacy channels and the optional sampler bus.
+        ctx.stack_word = None;
+        self.devices.delay.process(&mut self.state.send, l, r, &ctx);
+        self.stack_word = self.devices.delay.stack_word(self.out_end, self.stack_word);
+        if let Some(studio) = &mut self.studio {
+            studio.mix(l, r);
         }
         // 0x10013883: the compressor on the master
         if self.state.master_comp {

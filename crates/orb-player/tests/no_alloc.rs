@@ -112,6 +112,10 @@ fn the_callback_does_not_allocate() {
     let convolver = || Box::new(orb_engine::studio::convolution::Convolver::new(&ir).unwrap());
     let mut studio = Box::new(orb_engine::studio::Studio::new(convolver()));
     studio.settings.sends = [0.3; 4];
+    studio.settings.sampler_bus.dist = true;
+    studio.settings.sampler_bus.delay = 0.3;
+    studio.settings.sampler_bus.reverb_send = 0.2;
+    studio.settings.sampler_bus.pan = -0.25;
     for (i, lane) in studio.settings.lanes.iter_mut().enumerate() {
         lane.mode = [
             orb_engine::studio::sampler::Mode::OneShot,

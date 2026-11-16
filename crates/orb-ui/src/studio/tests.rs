@@ -60,6 +60,11 @@ fn save_and_open_restore_embedded_sample_last_step_and_mix_settings() {
     app.studio.settings.lanes[7].bars = 64;
     app.studio.settings.lanes[7].steps[1023] = 117;
     app.studio.settings.return_gain = 0.73;
+    app.studio.settings.sampler_bus.gain = 0.42;
+    app.studio.settings.sampler_bus.dist = true;
+    app.studio.settings.sampler_bus.delay = 0.31;
+    app.studio.settings.sampler_bus.reverb_send = 0.24;
+    app.studio.settings.lanes[7].reverse = true;
     app.studio.waves[7] = Some(Arc::new(Wave {
         frames: vec![[0.2, -0.1]; 1000],
     }));
@@ -76,6 +81,11 @@ fn save_and_open_restore_embedded_sample_last_step_and_mix_settings() {
     assert!(app.studio.opening);
     finish(&mut app, &mut audio, &ctx);
     assert_eq!(app.studio.settings.lanes[7].steps[1023], 117);
+    assert!(app.studio.settings.lanes[7].reverse);
+    assert_eq!(app.studio.settings.sampler_bus.gain, 0.42);
+    assert!(app.studio.settings.sampler_bus.dist);
+    assert_eq!(app.studio.settings.sampler_bus.delay, 0.31);
+    assert_eq!(app.studio.settings.sampler_bus.reverb_send, 0.24);
     assert_eq!(app.panel.value("studio.return"), Some(93));
     assert_eq!(app.studio.waves[7].as_ref().unwrap().frames.len(), 1000);
     assert_eq!(app.settings.sidechain.depth, [21, 48]);

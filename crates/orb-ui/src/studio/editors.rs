@@ -235,6 +235,8 @@ impl App {
                 {
                     slider(ui, &mut self.studio.settings.sends[i], 0.0, 1.0, name);
                 }
+                slider(ui, &mut self.studio.settings.sampler_bus.reverb_send,
+                    0.0, 1.0, "Sampler / global send");
                 ui.small(
                     "Sampler lanes have individual sends. Turning a send down \
             leaves the reverb tail.",
@@ -598,8 +600,8 @@ impl App {
                 });
                 ui.small(
                     "Gater follows the selected TR instrument, even with its mixer volume down. \
-                     Kick sidechain follows the global sidechain \
-                     On, source and release (65% depth).",
+                     Sidechain follows the global sidechain \
+                     On, TR source, voice and release (65% depth).",
                 );
                 ui.small(
                     "Pitch changes playback speed. Choke 0 is independent; lanes \

@@ -9,7 +9,9 @@ COMP MASTER stays visible in the transport and master strip; it uses the existin
 bus selector, so selecting master compression moves that compressor from a machine to master.
 
 Each TB has a SIDECHAIN block below its routing buttons, with independent enable and depth.
-Bypass retains the depth. Kick source and release remain shared, including sampler ducking.
+Bypass retains the depth. TR source, trigger voice and release remain shared, including
+sampler ducking. Select BD for kick pumping, or another native voice such as CH or OH.
+With BOTH, the labels show the matching native 808 / 909 columns where they differ.
 Enabling one TB from global bypass leaves the other TB bypassed. These settings are saved
 locally and in Studio projects; existing routing files remain compatible.
 
@@ -22,6 +24,8 @@ detailed controls; waveform/synthesis, patterns and effects continue to use the 
 The TR modules expose their real per-voice controls in aligned columns: Level, Tune/Tone,
 Decay, Attack, Snappy and other parameters where that instrument supports them. Unavailable
 parameters are left blank rather than represented by inactive or nonfunctional knobs.
+Smaller TR knobs leave more space between the control and its label. TB **ARP** applies
+the current arpeggiator settings immediately; **Options > Arpeggiator** opens configuration.
 
 ## Pattern styles
 
@@ -46,7 +50,8 @@ Undo restores both patterns with their original, separate lengths.
 
 Click **SPACE** in the right FX column, or Options > SPACE / Convolution Reverb.
 Turn up one or more machine sends. The **REV** button in each mixer strip toggles its send;
-SPACE provides its exact amount. Sampler lanes have their own sends.
+SPACE provides its exact amount. Sampler lanes have their own sends, plus a separate global
+sampler send on its mixer strip and in SPACE.
 
 SPACE convolves the audio with a stereo impulse response. Four original **synthetic** spaces
 are available: Tight room, Concrete chamber, Warehouse and Diffuse plate. Choose a space and
@@ -63,6 +68,17 @@ PCF, Delay, Distortion and Compressor retain their existing sound and routing. C
 cards to edit all their controls, including PCF faders/pattern/mode and Delay steps/triplet.
 
 ## Sampler — eight lanes, up to 64 bars per lane
+
+The sampler has a global mixer strip with Level, stereo signal meters, Pan, DIST routing,
+Delay send and REV send. DIST and Delay use the same shared effects configured in the FX
+column; enable those effects there as for the other machines. Global level and pan act on
+the summed lanes and their reverb sends without changing each lane's own settings. Global
+REV adds another send and does not replace individual lane REV amounts. Existing effect
+tails decay when sends or volume are lowered.
+
+Each sample name has **S** (Solo) and **M** (Mute) immediately to its right. These controls
+work without selecting that lane. **REVERSE** is visible beside the playback modes in the
+integrated sampler, and still follows its MIDI assignment and saved trim points.
 
 Click **SAMPLER**, or Options > Sampler / 64-bar sequencer.
 
@@ -114,8 +130,8 @@ an opening ramp. The sampler playhead keeps moving while closed, chopping a voca
 restarting on each drum hit. The source pattern must play an actual note. Old TB-gate source
 IDs remain supported for existing projects and MIDI routing; new UI selections use the TRs.
 
-**Kick sidechain** independently opts each lane into kick ducking, before dry mixing and its
-reverb send. It follows the global sidechain On, kick source and release with a separate
+**Sidechain** independently opts each lane into drum-triggered ducking, before dry mixing and its
+reverb send. It follows the global sidechain On, TR source, selected voice and release with a separate
 65% sampler depth; TB depth controls do not change sampler ducking. Gater transitions do not
 slow down the kick envelope. Both effects are included in offline export and saved in projects.
 
@@ -191,9 +207,11 @@ minimum still mutes. Ordinary uncalibrated inputs preserve low values such as CC
 controller's own display continues showing its raw value; only the software value is remapped.
 
 Studio MIDI targets cover SPACE enable, return, filters, pre-delay, width and four sends,
+sampler global level/pan/distortion/delay/reverb (`sampler.level`, `.pan`, `.dist`, `.delay`, `.send`),
 plus every lane's gain, pan, pitch, send, trim, envelope, gate, mode, reverse, mute, solo,
 choke, gater source/instrument/hold/depth/attack/release and kick sidechain. TB sidechain
-enable/depth, shared release and kick source have their own MIDI targets. Audition responds once per
+enable/depth, shared release, TR source and voice (`duck.instrument`) have their own MIDI targets.
+Audition responds once per
 CC button press (64-127 pressed, 0-63 released). Boolean controls use that same absolute
 threshold, while continuous controls retain pickup. Quantized pitch and mode selectors
 preserve the controller position until an external UI or project change requires pickup.

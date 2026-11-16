@@ -284,6 +284,12 @@ fn old_uc33_settings_migrate_each_input_and_numeric_floors_survive_restart() {
 
 #[test]
 fn sampler_audio_can_be_silenced_by_a_controller_whose_minimum_is_two() {
+    for target in ["sampler1.level", "sampler.level"] {
+        assert_sampler_midi_mute(target);
+    }
+}
+
+fn assert_sampler_midi_mute(target: &str) {
     use orb_engine::studio::{Studio, audio_file::Wave};
     use orb_player::Command;
     let samples = Some(rbm::standard::builtin_samples());
@@ -328,7 +334,7 @@ fn sampler_audio_can_be_silenced_by_a_controller_whose_minimum_is_two() {
         input: 0,
         channel: 1,
         controller: 74,
-        target: "sampler1.level".into(),
+        target: target.into(),
     });
     let mut router = Router::default();
     router.apply(cc(74, 127), &config, &mut app.panel, 0.0);
@@ -360,7 +366,11 @@ fn sampler_audio_can_be_silenced_by_a_controller_whose_minimum_is_two() {
         audio.render_i16(&mut out);
     }
     let studio: &Studio = audio.current_mut().frame.studio.as_ref().unwrap();
-    assert_eq!(studio.settings.lanes[0].gain, 0.0);
-    assert_eq!(app.panel.value("sampler1.level"), Some(0));
+    if target == "sampler.level" {
+        assert_eq!(studio.settings.sampler_bus.gain, 0.0);
+    } else {
+        assert_eq!(studio.settings.lanes[0].gain, 0.0);
+    }
+    assert_eq!(app.panel.value(target), Some(0));
     assert!(out.iter().all(|v| v.unsigned_abs() <= 1));
 }

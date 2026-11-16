@@ -5,6 +5,71 @@ use crate::{
 };
 use std::sync::Arc;
 
+fn sampler_engine(bus: SamplerBusSettings, lane_send: f64) -> Engine {
+    let mut engine = Engine::new(Arc::new(Tables::new()), Devices::implemented(None));
+    for channel in &mut engine.frame.devices.mixer.live.channels {
+        channel.enabled = 0;
+        channel.level = 0;
+    }
+    // Shared native effect settings are still authoritative for the sampler routes.
+    engine.frame.devices.dist.set_param(0, 1);
+    engine.frame.devices.dist.set_param(1, 110);
+    engine.frame.devices.delay.set_param(0, 1);
+    engine.frame.devices.delay.set_param(1, 1);
+    engine.frame.devices.delay.set_param(3, 90);
+    engine.frame.mixer_update();
+    let mut studio = Studio::new(Box::new(Convolver::new(&[[0.5; 2]; 64]).unwrap()));
+    studio.settings.sampler_bus = bus;
+    studio.settings.predelay_ms = 0.0;
+    studio.settings.lanes[0].send = lane_send;
+    studio.settings.lanes[0].mode = sampler::Mode::Loop;
+    studio.sampler.replace(0, Some(Box::new(audio_file::Wave {
+        frames: (0..44100).map(|j| {
+            let value = (j as f64 * std::f64::consts::TAU * 220.0 / 44100.0).sin() as f32 * 0.2;
+            [value; 2]
+        }).collect(),
+    })));
+    studio.sampler.audition(0);
+    engine.frame.studio = Some(Box::new(studio));
+    engine
+}
+
+fn render_sampler(engine: &mut Engine, calls: usize) -> Vec<i16> {
+    let mut result = Vec::new();
+    let mut block = vec![0; 2048];
+    for _ in 0..calls {
+        engine.render(&mut block, 1024);
+        result.extend_from_slice(&block);
+    }
+    result
+}
+
+#[test]
+fn sampler_bus_native_dist_delay_and_space_routes_are_audible() {
+    let baseline = render_sampler(&mut sampler_engine(SamplerBusSettings::default(), 0.0), 24);
+    assert!(baseline.iter().any(|v| v.unsigned_abs() > 100));
+    for bus in [
+        SamplerBusSettings { dist: true, ..SamplerBusSettings::default() },
+        SamplerBusSettings { delay: 1.0, ..SamplerBusSettings::default() },
+        SamplerBusSettings { reverb_send: 1.0, ..SamplerBusSettings::default() },
+    ] {
+        let output = render_sampler(&mut sampler_engine(bus, 0.0), 24);
+        assert!(output.iter().zip(&baseline).any(|(a, b)| a.abs_diff(*b) > 10), "{bus:?}");
+    }
+    let lane_only = render_sampler(&mut sampler_engine(SamplerBusSettings::default(), 1.0), 24);
+    assert!(lane_only.iter().zip(&baseline).any(|(a, b)| a.abs_diff(*b) > 10));
+}
+
+#[test]
+fn sampler_bus_gain_zero_silences_the_sampler_after_its_meter_detected_audio() {
+    let mut engine = sampler_engine(SamplerBusSettings::default(), 0.0);
+    assert!(render_sampler(&mut engine, 4).iter().any(|v| v.unsigned_abs() > 100));
+    assert!(engine.frame.studio.as_ref().unwrap().sampler_meter().iter().any(|&v| v > 0));
+    engine.frame.studio.as_mut().unwrap().settings.sampler_bus.gain = 0.0;
+    render_sampler(&mut engine, 12);
+    assert!(render_sampler(&mut engine, 1).iter().all(|v| v.unsigned_abs() <= 1));
+}
+
 #[test]
 fn an_empty_studio_is_sample_exact_with_the_legacy_engine() {
     let tables = Arc::new(Tables::new());

@@ -364,6 +364,8 @@ impl LiveBlock {
 /// What the UI reads back: the current song's state after the last engine call.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Snapshot {
+    /// Sampler stereo bus peaks after its global fader/insert, before the master fader.
+    pub sampler_meter: [u8; 2],
     pub closed_hat_level: u8,
     /// Current TB gain reductions, in percent, from the optional sidechain processor.
     pub sidechain_reduction: [u8; 2],
@@ -948,6 +950,7 @@ impl Audio {
         let s = self.snapshot.input_buffer_mut();
         s.closed_hat_level = f.devices.channels[3].closed_hat_level();
         s.sidechain_reduction = f.sidechain.reduction();
+        s.sampler_meter = f.studio.as_ref().map_or([0; 2], |studio| studio.sampler_meter());
         s.frames = self.frames;
         s.generation = self.generation;
         s.pending = self.pending.is_some();

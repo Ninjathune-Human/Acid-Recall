@@ -165,13 +165,98 @@ pub(super) fn gater_controls(ui: &mut Ui, lane: &mut Lane) {
                 .prefix("Smooth ")
                 .suffix("ms"),
         );
-        ui.checkbox(&mut lane.sidechain, "KICK SC").on_hover_text(
-            "Sampler ducking follows the global kick sidechain enable, source and release",
+        ui.checkbox(&mut lane.sidechain, "SIDECHAIN").on_hover_text(
+            "Sampler ducking follows the selected sidechain drum voice, source and release",
         );
     });
 }
 
+fn lane_row(
+    ui: &mut Ui, index: usize, name: &str, active: bool, lane: &mut Lane, selected: &mut usize,
+) -> [Rect; 3] {
+    let mut regions = [Rect::NOTHING; 3];
+    ui.push_id(("sampler-lane", index), |ui| {
+        ui.horizontal(|ui| {
+            let width = (ui.available_width() - 50.0).max(40.0);
+            let (rect, response) = ui.allocate_exact_size(Vec2::new(width, 20.0), Sense::click());
+            regions[0] = rect;
+            ui.painter().rect_filled(rect, 3.0,
+                if active { Color32::from_rgb(67, 78, 46) } else { Color32::from_gray(43) });
+            ui.painter().with_clip_rect(rect.shrink(3.0)).text(
+                rect.left_center() + Vec2::new(4.0, 0.0), Align2::LEFT_CENTER,
+                format!("{}  {name}", index + 1), FontId::proportional(11.0),
+                if lane.muted { Color32::GRAY } else { Color32::WHITE },
+            );
+            if response.on_hover_text(name).clicked() { *selected = index; }
+            let solo = ui.add_sized([20.0, 20.0], egui::Button::new("S").selected(lane.solo));
+            regions[1] = solo.rect;
+            if solo.on_hover_text("Solo this sample").clicked() { lane.solo = !lane.solo; }
+            let mute = ui.add_sized([20.0, 20.0], egui::Button::new("M").selected(lane.muted));
+            regions[2] = mute.rect;
+            if mute.on_hover_text("Mute this sample").clicked() { lane.muted = !lane.muted; }
+        });
+    });
+    regions
+}
+
 impl App {
+    fn graphite_sampler_mixer(&mut self, ui: &mut Ui, rect: Rect) {
+        let meter = self.link.as_mut()
+            .map(|link| link.player().snapshot().sampler_meter).unwrap_or([0; 2]);
+        if meter.iter().any(|&v| v > 0) {
+            ui.ctx().request_repaint_after(crate::app::METER_FRAME);
+        }
+        surface(ui, rect, "sampler-mixer", |ui| {
+            ui.colored_label(ACID, egui::RichText::new("SAMPLER MIX").strong());
+            ui.separator();
+            let bus = &mut self.studio.settings.sampler_bus;
+            ui.horizontal_top(|ui| {
+                ui.vertical(|ui| {
+                    ui.small("LEVEL");
+                    ui.add_sized([26.0, 102.0],
+                        egui::Slider::new(&mut bus.gain, 0.0..=2.0)
+                            .vertical().show_value(false));
+                    ui.small(format!("{:.0}%", bus.gain * 100.0));
+                });
+                let (meters, _) = ui.allocate_exact_size(Vec2::new(17.0, 132.0), Sense::hover());
+                for (channel, &value) in meter.iter().enumerate() {
+                    for led in 0..12 {
+                        let r = Rect::from_min_size(
+                            egui::pos2(meters.left() + channel as f32 * 8.0,
+                                meters.bottom() - (led + 1) as f32 * 11.0),
+                            Vec2::new(5.0, 8.0),
+                        );
+                        let lit = u16::from(value) * 12 > led as u16 * 127;
+                        let color = if !lit { Color32::from_gray(47) }
+                            else if led >= 11 { Color32::from_rgb(220, 94, 72) }
+                            else if led >= 9 { Color32::from_rgb(222, 196, 90) }
+                            else { ACID };
+                        ui.painter().rect_filled(r, 0.5, color);
+                    }
+                }
+                ui.vertical(|ui| {
+                    ui.set_width(96.0);
+                    float_knob(ui, &mut bus.pan, -1.0..=1.0, "PAN");
+                    float_knob(ui, &mut bus.delay, 0.0..=1.0, "DELAY");
+                });
+            });
+            ui.horizontal(|ui| {
+                ui.vertical(|ui| {
+                if ui.add_sized([52.0, 22.0],
+                    egui::Button::new("DIST").selected(bus.dist)).clicked() {
+                    bus.dist = !bus.dist;
+                }
+                let on = bus.reverb_send > 0.0;
+                if ui.add_sized([52.0, 22.0],
+                    egui::Button::new("REV").selected(on)).clicked() {
+                    bus.reverb_send = if on { 0.0 } else { 0.3 };
+                }
+                });
+                float_knob(ui, &mut bus.reverb_send, 0.0..=1.0, "REV SEND");
+            });
+        });
+    }
+
     pub(crate) fn graphite_sampler(&mut self, ui: &mut Ui, rect: Rect) {
         let before = self.studio.settings.clone();
         let mut load = None;
@@ -180,6 +265,13 @@ impl App {
         let busy = self.studio.worker.is_some() || !self.studio.ready;
         let context = ui.ctx().clone();
         let tick = self.panel.transport.position.max(0) as usize;
+        let mixer_width = rect.width() * 0.185;
+        let mixer = Rect::from_min_max(
+            egui::pos2(rect.right() - mixer_width, rect.top()), rect.right_bottom(),
+        );
+        let rect = Rect::from_min_max(
+            rect.left_top(), egui::pos2(mixer.left() - 6.0, rect.bottom()),
+        );
         surface(ui, rect, "graphite-sampler", |ui| {
             egui::ScrollArea::vertical()
                 .id_salt("sampler-rack-scroll")
@@ -212,22 +304,15 @@ impl App {
                     ui.separator();
                     ui.horizontal_top(|ui| {
                         ui.vertical(|ui| {
-                            ui.set_width(rect.width() * 0.14);
+                            ui.set_width(rect.width() * 0.22);
                             for i in 0..8 {
-                                let name = format!("{}  {}", i + 1, self.studio.names[i]);
-                                if ui
-                                    .add_sized(
-                                        [ui.available_width(), 16.0],
-                                        egui::Button::new(name).selected(i == selected),
-                                    )
-                                    .clicked()
-                                {
-                                    self.studio.selected = i;
-                                }
+                                let lane = &mut self.studio.settings.lanes[i];
+                                lane_row(ui, i, &self.studio.names[i], i == selected, lane,
+                                    &mut self.studio.selected);
                             }
                         });
                         ui.vertical(|ui| {
-                            ui.set_width((rect.width() * 0.82 - 16.0).max(100.0));
+                            ui.set_width((rect.width() * 0.75 - 16.0).max(100.0));
                             let lane = &mut self.studio.settings.lanes[selected];
                             if let Some(wave) = &self.studio.waves[selected] {
                                 let response = waveform(
@@ -299,7 +384,7 @@ impl App {
                                     },
                                 );
                             }
-                            ui.horizontal(|ui| {
+                            ui.horizontal_wrapped(|ui| {
                                 for (mode, label) in [
                                     (Mode::OneShot, "ONE SHOT"),
                                     (Mode::AutoCut, "AUTO CUT"),
@@ -307,6 +392,9 @@ impl App {
                                     (Mode::Loop, "LOOP"),
                                 ] {
                                     ui.selectable_value(&mut lane.mode, mode, label);
+                                }
+                                if ui.selectable_label(lane.reverse, "REVERSE").clicked() {
+                                    lane.reverse = !lane.reverse;
                                 }
                                 ui.add(
                                     egui::DragValue::new(&mut lane.pitch)
@@ -351,8 +439,6 @@ impl App {
                                     self.studio.bar = bar - 1;
                                     self.studio.follow = false;
                                 }
-                                ui.checkbox(&mut lane.muted, "M");
-                                ui.checkbox(&mut lane.solo, "S");
                             });
                             ui.horizontal(|ui| {
                                 let width = ((ui.available_width() - 15.0 * 3.0) / 16.0).max(8.0);
@@ -388,6 +474,7 @@ impl App {
                     });
                 });
         });
+        self.graphite_sampler_mixer(ui, mixer);
         if self.studio.settings != before {
             self.studio.changed();
             self.doc.modified = true;
@@ -529,6 +616,40 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn solo_and_mute_are_independent_clicks_next_to_the_sample_name() {
+        let ctx = egui::Context::default();
+        let mut lane = Lane::default();
+        let mut selected = 0;
+        let mut regions = [Rect::NOTHING; 3];
+        let mut draw = |events: Vec<egui::Event>| {
+            let mut output = ctx.run_ui(egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, Vec2::new(300.0, 100.0))),
+                events, ..Default::default()
+            }, |ui| {
+                ui.set_width(240.0);
+                regions = lane_row(ui, 4, "A very long sample name to truncate.wav", false,
+                    &mut lane, &mut selected);
+            });
+            output.textures_delta.clear();
+            regions
+        };
+        let regions = draw(Vec::new());
+        assert!(regions[0].right() < regions[1].left());
+        assert!(regions[1].right() < regions[2].left());
+        for index in [1, 2] {
+            let pos = regions[index].center();
+            for pressed in [true, false] {
+                draw(vec![egui::Event::PointerMoved(pos), egui::Event::PointerButton {
+                    pos, button: egui::PointerButton::Primary, pressed,
+                    modifiers: Default::default(),
+                }]);
+            }
+        }
+        assert!(lane.solo && lane.muted);
+        assert_eq!(selected, 0, "Quick mix actions must not change the editing lane");
+    }
 
     #[test]
     fn cards_keep_the_scroll_viewport_clip() {

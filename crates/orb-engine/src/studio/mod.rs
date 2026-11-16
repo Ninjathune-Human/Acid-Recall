@@ -1,6 +1,8 @@
 //! Optional Studio instruments and convolution send. Legacy frames have no Studio instance.
 
 pub mod audio_file;
+mod bus;
+pub use bus::SamplerBusSettings;
 pub mod convolution;
 mod fft;
 mod mp3;
@@ -16,7 +18,8 @@ pub struct Modulation {
     pub gates: [bool; 2],
     /// New hits in this block, by machine and native pattern column (accent is unused).
     pub drum_triggers: [[u64; 12]; 2],
-    pub kicks: [u64; 2],
+    /// Cumulative native counters, used to follow sidechain instrument changes without replay.
+    pub drum_counts: [[u64; 12]; 2],
     pub audible: [bool; 2],
     pub config: crate::sidechain::Config,
     pub ticks_per_frame: f64,
@@ -37,6 +40,8 @@ fn clean(value: f64) -> f64 {
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Settings {
+    #[serde(default)]
+    pub sampler_bus: SamplerBusSettings,
     pub sends: [f64; 4],
     pub enabled: bool,
     pub return_gain: f64,
@@ -50,6 +55,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            sampler_bus: SamplerBusSettings::default(),
             lanes: std::array::from_fn(|_| Lane::default()),
             sends: [0.0; 4],
             enabled: true,
@@ -64,6 +70,7 @@ impl Default for Settings {
 
 impl Settings {
     pub fn sanitize(&mut self) {
+        self.sampler_bus.sanitize();
         fn finite(v: f64, lo: f64, hi: f64) -> f64 {
             if v.is_finite() { v.clamp(lo, hi) } else { lo }
         }
@@ -82,6 +89,7 @@ impl Settings {
 pub struct Studio {
     pub settings: Box<Settings>,
     pub sampler: Sampler,
+    sampler_bus: bus::Bus,
     convolver: Box<Convolver>,
     previous: Option<Box<Convolver>>,
     pending: Option<Box<Convolver>>,
@@ -104,6 +112,7 @@ impl Studio {
         Self {
             settings: Box::default(),
             sampler: Sampler::default(),
+            sampler_bus: bus::Bus::default(),
             convolver,
             previous: None,
             pending: None,
@@ -157,7 +166,7 @@ impl Studio {
         // TB depth controls stay independent from the sampler's opt-in lanes.
         data.config.depth = [65; 2];
         self.ducker.set_config(data.config);
-        let duck = self.ducker.gains(data.kicks, data.audible);
+        let duck = self.ducker.gains_for_voices(data.drum_counts, data.audible);
         self.sampler.set_modulation(data.gates, duck[0]);
         self.sampler
             .set_drum_modulation(data.drum_triggers, data.ticks_per_frame);
@@ -182,15 +191,36 @@ impl Studio {
         left: &mut [f32; 64],
         right: &mut [f32; 64],
     ) {
-        let mut dry = [[0.0; 64]; 2];
+        self.prepare_sampler(tick, ticks_per_frame, playing);
+        self.route_sampler(None, &mut [0.0; 64]);
+        self.mix(left, right);
+    }
+
+    /// Render the sampler before the shared native delay, retaining per-lane SPACE sends.
+    pub fn prepare_sampler(&mut self, tick: f64, ticks_per_frame: f64, playing: bool) {
+        self.sampler_bus.clear();
         self.sampler.process(
             &self.settings.lanes,
             tick,
             ticks_per_frame,
             playing,
-            &mut dry,
-            &mut self.send,
+            &mut self.sampler_bus.dry,
+            &mut self.sampler_bus.reverb,
         );
+    }
+
+    pub fn route_sampler(&mut self,
+        distortion: Option<(&dyn crate::frame::InsertEffect, &crate::frame::BlockContext<'_>)>,
+        delay: &mut crate::frame::Block) {
+        self.sampler_bus.route(self.settings.sampler_bus, distortion, delay, &mut self.send);
+    }
+
+    pub fn sampler_meter(&self) -> [u8; 2] {
+        self.sampler_bus.meter()
+    }
+
+    /// Add the prepared sampler and convolution return after the shared native delay.
+    pub fn mix(&mut self, left: &mut [f32; 64], right: &mut [f32; 64]) {
         let delay = self.settings.predelay_ms * 44.1;
         let hp = (-std::f64::consts::TAU * self.settings.low_cut / 44100.0).exp();
         let lp = (-std::f64::consts::TAU * self.settings.high_cut / 44100.0).exp();
@@ -243,8 +273,8 @@ impl Studio {
             let mid = (wet[0][j] + wet[1][j]) * 0.5;
             let side = (wet[0][j] - wet[1][j]) * 0.5 * self.settings.width;
             let add = [
-                (mid + side) * self.smooth_return + dry[0][j],
-                (mid - side) * self.smooth_return + dry[1][j],
+                (mid + side) * self.smooth_return + self.sampler_bus.dry[0][j],
+                (mid - side) * self.smooth_return + self.sampler_bus.dry[1][j],
             ];
             if add[0] != 0.0 {
                 left[j] = (f64::from(left[j]) + add[0]) as f32;

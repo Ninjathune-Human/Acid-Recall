@@ -399,10 +399,12 @@ impl Link {
         let mark = self.mark;
         let s = self.player.snapshot();
         let (playing, frames) = (s.playing, s.frames);
+        let sampler_lit = s.sampler_meter.iter().any(|&v| v != 0);
         // the compressor's reduction holds its last value in silence: it moves only when it
         // changes
         let gr_moved = self.shown_gr.replace(panel.gr_leds) != Some(panel.gr_leds);
         playing
+            || sampler_lit
             || frames <= mark
             || !self.backlog.is_empty()
             || panel.meters.values().any(|&m| m > 0)

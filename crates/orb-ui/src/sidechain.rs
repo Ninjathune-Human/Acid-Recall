@@ -13,6 +13,7 @@ use crate::model::Event;
 pub struct Settings {
     pub enabled: bool,
     pub source: u8,
+    pub instrument: u8,
     pub depth: [u8; 2],
     pub release_ms: u16,
     pub bypass: [bool; 2],
@@ -23,6 +24,7 @@ impl Default for Settings {
         Self {
             enabled: false,
             source: 2,
+            instrument: 1,
             depth: [55, 55],
             release_ms: 180,
             bypass: [false; 2],
@@ -41,6 +43,7 @@ impl Settings {
 
     pub fn sanitize(&mut self) {
         self.source = self.source.min(2);
+        self.instrument = self.instrument.clamp(1, 11);
         self.depth = self.depth.map(|v| v.min(100));
         self.release_ms = self.release_ms.clamp(20, 1000);
     }
@@ -48,6 +51,7 @@ impl Settings {
     pub fn engine_config(&self) -> Config {
         Config {
             enabled: self.enabled,
+            instrument: self.instrument,
             source: match self.source {
                 0 => Source::Tr808,
                 1 => Source::Tr909,
@@ -65,6 +69,22 @@ pub struct SidechainUi {
     sent: Option<Config>,
     hat_sent: Option<Option<u8>>,
     save_at: Option<f64>,
+}
+
+fn instrument_selector(ui: &mut Ui, settings: &mut Settings) {
+    let labels = match settings.source {
+        0 => ["BD", "SD", "LT", "MT", "HT", "RS", "CP", "CB", "CY", "OH", "CH"],
+        1 => ["BD", "SD", "LT", "MT", "HT", "RS", "CP", "CH", "OH", "CC", "RC"],
+        _ => ["BD", "SD", "LT", "MT", "HT", "RS", "CP", "CB/CH", "CY/OH", "OH/CC", "CH/RC"],
+    };
+    egui::ComboBox::from_id_salt("sidechain-instrument")
+        .width(48.0)
+        .selected_text(labels[usize::from(settings.instrument.clamp(1, 11) - 1)])
+        .show_ui(ui, |ui| {
+            for (i, label) in labels.into_iter().enumerate() {
+                ui.selectable_value(&mut settings.instrument, i as u8 + 1, label);
+            }
+        }).response.on_hover_text("Trigger voice. BOTH labels show 808 / 909 native columns.");
 }
 
 impl Default for SidechainUi {
@@ -122,20 +142,21 @@ impl App {
                 });
                 ui.horizontal(|ui| {
                     egui::ComboBox::from_id_salt("kick-source")
-                        .width(55.0)
+                        .width(48.0)
                         .selected_text(["808", "909", "BOTH"][usize::from(s.source.min(2))])
                         .show_ui(ui, |ui| {
                             for (value, label) in [(0, "808"), (1, "909"), (2, "BOTH")] {
                                 ui.selectable_value(&mut s.source, value, label);
                             }
                         });
+                    instrument_selector(ui, s);
                     ui.add(
                         egui::DragValue::new(&mut s.release_ms)
                             .range(20..=1000)
                             .suffix("ms"),
                     )
                     .on_hover_text(
-                        "Kick source and return time are shared by both TBs and sampler",
+                        "Trigger voice and return time are shared by both TBs and sampler",
                     );
                 });
             },
@@ -227,7 +248,7 @@ impl App {
             crate::palette::INK,
         );
         if response
-            .on_hover_text("Kick sidechain: make room for the 808/909 kick")
+            .on_hover_text("TR sidechain: make room for the selected 808/909 voice")
             .clicked()
         {
             self.sidechain.open = true;
@@ -245,18 +266,21 @@ impl App {
             .unwrap_or([0; 2]);
         let mut open = true;
         let mut changed = false;
-        egui::Window::new("Kick Sidechain")
+        egui::Window::new("TR Sidechain")
             .open(&mut open)
             .default_width(420.0)
             .show(ctx, |ui| {
                 let s = &mut self.settings.sidechain;
-                changed |= ui.checkbox(&mut s.enabled, "Enable kick ducking").changed();
-                ui.label("Each kick briefly lowers the TBs, leaving room for its transient.");
+                changed |= ui.checkbox(&mut s.enabled, "Enable ducking").changed();
+                ui.label("Each selected TR hit briefly lowers the TBs.");
                 ui.horizontal(|ui| {
                     ui.label("Trigger");
-                    for (source, label) in [(0, "808 kick"), (1, "909 kick"), (2, "Both")] {
+                    for (source, label) in [(0, "TR-808"), (1, "TR-909"), (2, "Both")] {
                         changed |= ui.selectable_value(&mut s.source, source, label).changed();
                     }
+                    let before = s.instrument;
+                    instrument_selector(ui, s);
+                    changed |= before != s.instrument;
                 });
                 for (row, label) in ["TB-303 A", "TB-303 B"].into_iter().enumerate() {
                     let mut active = !s.bypass[row];

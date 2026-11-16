@@ -34,8 +34,15 @@ pub fn controls() -> Vec<(String, String)> {
         ("duck2.depth", "TB-303 B / Sidechain depth"),
         ("duck.release", "Sidechain / Release"),
         ("duck.source", "Sidechain / Kick source"),
+        ("duck.instrument", "Sidechain / TR instrument"),
     ] {
         out.push((id.into(), label.into()));
+    }
+    for (name, label) in [
+        ("level", "Global level"), ("pan", "Global pan"),
+        ("dist", "Distortion routing"), ("delay", "Delay send"), ("send", "Reverb send"),
+    ] {
+        out.push((format!("sampler.{name}"), format!("Sampler / {label}")));
     }
     for i in 1..=8 {
         for name in [
@@ -77,7 +84,7 @@ pub fn is_action(id: &str) -> bool {
 
 pub fn is_boolean(id: &str) -> bool {
     id == "studio.enabled"
-        || matches!(id, "duck1.on" | "duck2.on")
+        || matches!(id, "duck1.on" | "duck2.on" | "sampler.dist")
         || id.starts_with("sampler")
             && [".reverse", ".mute", ".solo", ".sidechain"]
                 .iter()
@@ -92,6 +99,7 @@ fn duck_value(settings: &crate::sidechain::Settings, id: &str) -> Option<f64> {
         "duck2.depth" => f64::from(settings.depth[1]) / 100.0,
         "duck.release" => (f64::from(settings.release_ms) - 20.0) / 980.0,
         "duck.source" => f64::from(settings.source) / 2.0,
+        "duck.instrument" => f64::from(settings.instrument.saturating_sub(1)) / 10.0,
         _ => return None,
     })
 }
@@ -156,6 +164,11 @@ fn value(settings: &Settings, id: &str) -> f64 {
         "studio.width" => settings.width / 2.0,
         "studio.low_cut" => (settings.low_cut - 20.0) / 1980.0,
         "studio.high_cut" => (settings.high_cut - 2000.0) / 18000.0,
+        "sampler.level" => settings.sampler_bus.gain / 2.0,
+        "sampler.pan" => (settings.sampler_bus.pan + 1.0) / 2.0,
+        "sampler.dist" => f64::from(u8::from(settings.sampler_bus.dist)),
+        "sampler.delay" => settings.sampler_bus.delay,
+        "sampler.send" => settings.sampler_bus.reverb_send,
         _ => {
             if let Some(i) = id
                 .strip_prefix("studio.send")
@@ -210,6 +223,7 @@ impl App {
                 "duck2.depth" => duck.depth[1] = (v * 100.0).round() as u8,
                 "duck.release" => duck.release_ms = (20.0 + v * 980.0).round() as u16,
                 "duck.source" => duck.source = (v * 2.0).round() as u8,
+                "duck.instrument" => duck.instrument = gater_instrument(v),
                 _ => {}
             }
             if id.starts_with("duck") {
@@ -223,6 +237,11 @@ impl App {
                 "studio.width" => s.width = v * 2.0,
                 "studio.low_cut" => s.low_cut = 20.0 + v * 1980.0,
                 "studio.high_cut" => s.high_cut = 2000.0 + v * 18000.0,
+                "sampler.level" => s.sampler_bus.gain = v * 2.0,
+                "sampler.pan" => s.sampler_bus.pan = v * 2.0 - 1.0,
+                "sampler.dist" => s.sampler_bus.dist = raw >= 64,
+                "sampler.delay" => s.sampler_bus.delay = v,
+                "sampler.send" => s.sampler_bus.reverb_send = v,
                 _ => {
                     if let Some(index) = id
                         .strip_prefix("studio.send")
@@ -294,6 +313,7 @@ impl App {
                         "duck1.depth" => (normalized * 100.0).round() as u8 == duck.depth[0],
                         "duck2.depth" => (normalized * 100.0).round() as u8 == duck.depth[1],
                         "duck.source" => (normalized * 2.0).round() as u8 == duck.source,
+                        "duck.instrument" => gater_instrument(normalized) == duck.instrument,
                         "duck.release" => {
                             (20.0 + normalized * 980.0).round() as u16 == duck.release_ms
                         }
@@ -368,8 +388,31 @@ mod tests {
     }
 
     #[test]
+    fn sampler_global_midi_controls_preserve_each_lanes_mix_and_send() {
+        let mut app = App::new(Panel::new(), None);
+        let mut router = Router::default();
+        app.studio.settings.lanes[0].send = 0.3;
+        let lanes = app.studio.settings.lanes.clone();
+        for id in ["sampler.level", "sampler.pan", "sampler.dist", "sampler.delay", "sampler.send"] {
+            move_cc(&mut app, &mut router, id, 127, false);
+        }
+        let bus = &app.studio.settings.sampler_bus;
+        assert_eq!((bus.gain, bus.pan, bus.delay, bus.reverb_send), (2.0, 1.0, 1.0, 1.0));
+        assert!(bus.dist);
+        for id in ["sampler.level", "sampler.dist", "sampler.delay", "sampler.send"] {
+            for raw in (0..=127).rev() {
+                move_cc(&mut app, &mut router, id, raw, true);
+            }
+        }
+        let bus = &app.studio.settings.sampler_bus;
+        assert_eq!((bus.gain, bus.delay, bus.reverb_send), (0.0, 0.0, 0.0));
+        assert!(!bus.dist);
+        assert_eq!(app.studio.settings.lanes, lanes);
+    }
+
+    #[test]
     fn all_studio_controls_are_registered_with_correct_midi_behavior() {
-        assert_eq!(controls().len(), 192);
+        assert_eq!(controls().len(), 198);
         for (id, _) in controls() {
             assert!(kind(&id).is_some(), "{id}");
             assert!(Panel::new().value(&id).is_some(), "{id}");
@@ -378,6 +421,7 @@ mod tests {
         assert_eq!(kind("sampler1.mute"), Some(Kind::Switch));
         assert_eq!(kind("studio.enabled"), Some(Kind::Switch));
         assert_eq!(kind("duck1.on"), Some(Kind::Switch));
+        assert_eq!(kind("sampler.dist"), Some(Kind::Switch));
     }
 
     #[test]
@@ -545,7 +589,7 @@ mod tests {
 
     #[test]
     fn duck_selectors_and_percentages_do_not_rearm_their_own_pickup() {
-        for id in ["duck1.depth", "duck2.depth", "duck.source", "duck.release"] {
+        for id in ["duck1.depth", "duck2.depth", "duck.source", "duck.release", "duck.instrument"] {
             let mut app = App::new(Panel::new(), None);
             let mut router = Router::default();
             let current = app.panel.value(id).unwrap();
