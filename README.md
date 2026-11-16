@@ -1,139 +1,126 @@
 <p align="center">
-  <img src="assets/readme/logo.gif" alt="OpenRB-338" width="378">
+  <img src="assets/brand/acid-recall.png" alt="ACID RECALL logo" width="160">
 </p>
 
-<div align="center">
+# ACID RECALL
 
-# OpenRB-338
+**The memory returns. The machines come alive.**
 
-</div>
+ACID RECALL is a performance-focused fork of **[OpenRB-338 by pingw33n](https://github.com/pingw33n/OpenRB-338)**,
+the open-source reimplementation of ReBirth RB-338. It builds on that foundation with hands-on
+MIDI control, musical pattern generation, two arpeggiators, an integrated sampler and a graphite rack.
 
-<p align="center">
-  <a href="https://github.com/pingw33n/openrb-338/releases"><b>Download</b></a> ·
-  <a href="assets/readme/screenshot.png"><b>Screenshot</b></a> ·
-  <a href="https://github.com/pingw33n/rb-songs"><b>Song collection</b></a> ·
-  <a href="https://github.com/pingw33n/rb-mods"><b>Mod collection</b></a>
-</p>
+Two acid bass lines. An 808. A 909. Eight sample lanes. A controller under your hands.
 
-OpenRB-338 is a reimplementation of [ReBirth RB-338](https://en.wikipedia.org/wiki/ReBirth_RB-338),
-the 1997 software synth of two TB-303 bass lines, a TR-808 and a TR-909, for today's macOS, Linux
-and Windows.
+## Start playing
 
-## Features
+The ACID RECALL Studio features described here are currently developed on
+[`feat/studio-v2`](https://github.com/smldms/Acid-Recall/tree/feat/studio-v2).
+The default branch still contains the upstream application code while integration is in progress.
 
-- **Sounds exactly like the original.** The audio engine was rebuilt from ReBirth 2.01 to the
-  bit. A song's exported loop equals the original's "Export Loop as Audio File" byte for byte. This
-  is tested on 1,268 songs of the song collection, 531 of them on 43 third-party mods, and on a
-  175-render reference corpus.
-- **The whole machine on screen:** the two 303s, the 808 and the 909, the mixer, the delay,
-  distortion, PCF and compressor, with pattern and song mode, the loop, shuffle and recording.
-- **A scalable vector-graphics panel** that stays sharp at any window size and pixel density.
-- **Songs:** opens ReBirth 2.x songs (`.rbs`, RBS 4.0 to 4.2) and ReBirth 1.x songs, and saves
-  RBS 4.2 files that the original opens. File > Info shows and edits the song's title, text, web
-  page and copyright.
-- **Mods:** plays the drum samples of ReBirth mods (`.rbm`), chosen per song, with the mod's
-  startup sound. The standard kit is built in, so no file of the original is needed.
-- **Audio export** of the loop to WAV, FLAC or Ogg Vorbis.
-- **Plays from the computer keyboard:** program the synths and select patterns without a mouse
-  (Help > Keyboard Shortcuts).
-- **`orb`, a command-line tool,** to work with songs and mods from the terminal:
-  - `orb render`: render a song's loop to WAV, FLAC or Ogg, far faster than real time (a
-    five-minute song takes about a second and a half);
-  - `orb play`: play a song without the UI;
-  - `orb info`: print a song's facts (format, title, mod, tempo, loop), also as JSON;
-  - `orb mod`: recrypt mods, and unpack a mod to a folder or pack one from it.
-- **Packages** for macOS (Apple silicon and Intel), Windows (x64 and ARM64) and Linux (x86_64 and
-  ARM64).
+- **[Download the Windows preview](https://github.com/smldms/Acid-Recall/actions/workflows/midi-windows.yml)**:
+  open a successful run and download **ACID-RECALL-Windows-x64** from its Artifacts section.
+  A GitHub sign-in may be required. Extract the ZIP and launch **ACID-RECALL.exe**.
+- **[Read the Studio guide](https://github.com/smldms/Acid-Recall/blob/feat/studio-v2/docs/studio.md)** for sampler, effects, MIDI setup and project limits.
+- **[Visit the original OpenRB-338 project](https://github.com/pingw33n/OpenRB-338)** for the
+  upstream implementation, its releases and documentation.
 
-## Not implemented
+## The story — finding that first spark again
 
-- MIDI, VST and ReWire. OpenRB-338 is a standalone application only, with no MIDI input or sync.
-- Mod themes: a mod changes the drum sounds, not the look of the panel.
-- The original's Edit menu functions on patterns (copy, paste, clear, shift, randomize and the
-  like), and undo.
-- The original's preferences and its Windows menu.
-- Export to AIFF (use WAV, FLAC or Ogg).
+ReBirth was the first music software I ever installed on my PC.
 
-## Quick start
+That is where this story starts: with the discovery that a computer could become a place
+to make music. Years later, finding OpenRB-338 brought that feeling back. Someone had
+recreated ReBirth, and I was thrilled. I could play with those familiar machines again.
 
-1. **Download** the package for your system and CPU from
-   [Releases](https://github.com/pingw33n/openrb-338/releases):
+There was another part of that reunion: my old Evolution UC-33e controller.
+Its revival is thanks to my friend **Matthieu**, who is skilled at restoring this kind of
+older equipment. He also builds **analog x0xb0x synthesizers — TB-303 clones**.
+He brought the UC-33e back into action, and I wanted to put its faders and knobs to work.
 
-   | System | File |
-   |---|---|
-   | macOS, Apple silicon | `OpenRB-338-<version>-aarch64-apple-darwin.dmg` |
-   | macOS, Intel | `OpenRB-338-<version>-x86_64-apple-darwin.dmg` |
-   | Windows, x64 | `OpenRB-338-<version>-x64-setup.exe` |
-   | Windows, ARM64 | `OpenRB-338-<version>-arm64-setup.exe` |
-   | Linux, x86_64 | `OpenRB-338-<version>-x86_64.AppImage` |
-   | Linux, ARM64 | `OpenRB-338-<version>-aarch64.AppImage` |
+The first idea was simple: connect the controller and play the machines with my hands.
 
-   Plain archives (`.tar.gz`, or `.zip` on Windows) with the two binaries are there too.
+That became a fork, MIDI input and a few assignments. I am not a software developer;
+I work with AI assistance to turn musical ideas into features, try them out, identify
+what gets in the way and improve them.
 
-2. **Install it.**
-   - macOS: open the `.dmg` and drag OpenRB-338 to Applications.
-   - Windows: run the installer. It can add `orb` to the PATH.
-   - Linux: make the AppImage executable (`chmod +x OpenRB-338-*.AppImage`).
+One idea led to another. Generate bass lines that stay in harmony. Let one 303 answer
+the other. Give each one an arpeggiator. Run eight steps on one and sixteen on the other.
+Make room for the kick.
 
-3. **Optionally, get songs and mods:** download the
-   [song collection](https://github.com/pingw33n/rb-songs) and the
-   [mod collection](https://github.com/pingw33n/rb-mods), and unpack them anywhere.
+Then came the sampler, vocals chopped to the hats, convolution reverb and a graphite
+interface with the controls in plain sight. The software started to follow the way
+I want to make music today.
 
-4. **Run OpenRB-338.** The binaries are not signed, so the first start needs your permission:
-   - **macOS:** the first launch is refused. Open System Settings > Privacy & Security, click
-     "Open Anyway" next to OpenRB-338, and confirm. On macOS 14 and older, right-click the app >
-     Open > Open works too. Or, in Terminal: `xattr -dr com.apple.quarantine
-     /Applications/OpenRB-338.app`.
-   - **Windows:** SmartScreen says "Windows protected your PC". Click "More info", then
-     "Run anyway".
-   - **Linux:** nothing more. If the AppImage does not start because FUSE is missing, install
-     `libfuse2` or run it with `--appimage-extract-and-run`.
+ACID RECALL grew out of that process: rediscover a first spark, reconnect the hardware,
+and see where the next session takes it.
 
-5. **Point it at your songs and mods.**
-   - **Songs:** File > Open... opens the file browser. Go to the folder of your songs and click
-     "Use as songs folder", so the browser starts there next time. Then open a song (`.rbs`).
-   - **Mods:** Mods > Choose file... opens the browser on mods. Go to your mods folder and click
-     "Use as mods folder". The Mods menu then lists every mod in it, and a song finds its mod
-     there by name. Mods must be recrypted to load (see below); the mods of the mod collection
-     already are.
+## What this fork adds
 
-6. **Play:** press Play, or Space.
+OpenRB-338 provides the original reimplementation and compatibility work.
+The additions below belong to the ACID RECALL Studio preview built on top of it.
 
-## Making mods work in OpenRB-338
+| Area | ACID RECALL additions |
+|---|---|
+| Hands-on control | Windows MIDI Learn, multiple simultaneous controller inputs, soft takeover and per-device calibration. |
+| Portable mappings | Import and export MIDI assignments to move between computers. |
+| Pattern generation | Techno, IDM and Break styles, with notes, accents, slides and Undo. |
+| Linked bass lines | Harmonically linked TB patterns with independent lengths, such as 8 and 16 steps. |
+| Arpeggiators | One per TB, using a chosen chord or existing pattern notes; ARP applies the current settings immediately. |
+| Sidechain | Ducking triggered by a selected 808 or 909 voice, with independent depth for each TB. |
+| Independent hats | Separate TR-909 CH/OH notes and levels. |
+| Convolution reverb | Stereo convolution, synthetic spaces and WAV/AIFF impulse-response import. |
+| Sampler | Eight lanes, sequences up to 64 bars, WAV/AIFF/MP3, IN/OUT trimming and Reverse. |
+| Sample performance | One Shot, Auto Cut, Gate and Loop, with Solo/Mute beside each sample name. |
+| Rhythmic gating | A gater driven by a selected TR voice, tempo-based Hold, smoothing and optional sidechain. |
+| Sampler mixer | MIDI-assignable ON/OFF, global level, stereo meters, pan, distortion, delay and global reverb alongside individual sends. |
+| Interface | A graphite rack with visible TR voice parameters, an integrated sampler and a permanent FX column. |
+| Portable sessions | `.orb338` projects containing samples, impulse responses and Studio settings. |
 
-The mods of the [mod collection](https://github.com/pingw33n/rb-mods) already work: open them
-as they are.
+Sampler, reverb and sidechain controls can be mapped to MIDI. The UC-33e inspired the first
+steps; the mapping system is not limited to that controller.
 
-Other mods need one step first. A ReBirth mod's samples are encrypted with a key that ReBirth
-reads from `RB20FUL.DAT`, a file on the ReBirth CD. Instead of making you keep that file around,
-OpenRB-338 carries the small part of the key that mods use, and needs mods re-encrypted with that
-part. `orb mod recrypt` does this:
+## Why ACID RECALL?
 
-```sh
-# one mod
-orb mod recrypt --rb20ful RB20FUL.DAT MyMod.rbm -o MyMod-recrypted.rbm
+**ACID** points to the bass lines, sequencers and musical territory of the project.
+**RECALL** is about bringing back a memory and calling the machines into play again.
 
-# every mod of a folder, into another folder
-orb mod recrypt --rb20ful RB20FUL.DAT ~/Mods -o ~/Mods-recrypted
+The AR monogram incorporates a recall arrow. Graphite and acid green carry the same idea
+into the interface: a dark workspace, clear active states and restrained decoration.
 
-# the key read straight from the ReBirth CD image
-orb mod recrypt --iso "ReBirth.iso" ~/Mods -o ~/Mods-recrypted
-```
+## Short description
 
-Recrypting changes nothing else in the mod: its samples, panel pictures and text stay as they
-were. The recrypted file is still a complete mod, and the original ReBirth opens it as before.
-`RB20FUL.DAT` must be the one of the 2001 reissue CD (its checksum is checked). A mod that is
-already recrypted is only checked and copied.
+ACID RECALL is a fork of OpenRB-338 that extends the spirit of ReBirth with hands-on MIDI
+control, musical pattern generators, two arpeggiators and an integrated sampler.
+A graphite rack for rediscovering familiar machines and building new sessions.
 
-## Building
+## Launch copy
 
-See [docs/building.md](docs/building.md).
+ReBirth was the first music software I ever installed on my PC. Discovering OpenRB-338
+years later made me want to play those machines again. My friend Matthieu had brought
+my old UC-33e back to life, so I started by connecting it. Then came harmonically linked
+patterns, arpeggiators, sidechain, a sampler and a new interface.
+This fork is now called ACID RECALL. The memory returns. The machines come alive.
 
-## License
+## Current scope
 
-OpenRB-338 is free software under the [GNU General Public License v3.0](LICENSE) (GPL-3.0-only).
-Copyright (C) 2026 the OpenRB-338 authors.
+This is an evolving standalone rack and sequencer. **MIDI Clock IN/OUT synchronization
+with external machines is not implemented yet.** Current MIDI input controls parameters;
+it does not make ACID RECALL a MIDI clock master or slave.
 
-ReBirth RB-338 is a trademark of Propellerhead Software (now Reason Studios). OpenRB-338 is not
-affiliated with or endorsed by them. The built-in standard kit (`assets/Standard.rbm`) holds
-ReBirth's own drum samples and panel pictures. See [assets/README.md](assets/README.md).
+The sampler loads audio into memory. File-size and memory limits are explained in the
+[Studio guide](https://github.com/smldms/Acid-Recall/blob/feat/studio-v2/docs/studio.md). Windows preview builds provide the current ACID RECALL experience;
+the upstream project's release packages are a separate distribution.
+
+## Credits and thanks
+
+- **[pingw33n and the OpenRB-338 contributors](https://github.com/pingw33n/OpenRB-338)**:
+  the original open-source reimplementation, engine and historical compatibility work.
+  ACID RECALL builds on their work.
+- **Matthieu**: for restoring my Evolution UC-33e and keeping older music hardware alive,
+  alongside his work building analog x0xb0x TB-303 clones.
+- **Propellerhead's ReBirth RB-338**: the software that started this story.
+- **[smldms / ACID RECALL](https://github.com/smldms/Acid-Recall)**: this fork's musical direction, additions and continuing development,
+  with AI-assisted implementation.
+
+The code remains licensed under **GPL-3.0-only**. See LICENSE in the repository root.
