@@ -240,11 +240,24 @@ impl App {
             let bus = &mut self.studio.settings.sampler_bus;
             ui.horizontal(|ui| {
                 ui.colored_label(ACID, egui::RichText::new("SAMPLER MIX").strong());
-                let label = if bus.enabled { "ON" } else { "OFF" };
-                if ui.selectable_label(bus.enabled, label).clicked() {
-                    bus.enabled = !bus.enabled;
-                }
             });
+            let scale = rect.height() / 320.0;
+            let x_scale = crate::graphite_rack::WIDTH / 1280.0 * scale;
+            let power_rect = Rect::from_min_size(
+                egui::pos2(rect.right() - 53.0 * x_scale, rect.top() + 9.0 * scale),
+                Vec2::new(42.0 * x_scale, 19.0 * scale),
+            );
+            if crate::graphite_rack::machine_power_button(
+                ui,
+                power_rect,
+                scale,
+                "sampler.on",
+                bus.enabled,
+            )
+            .clicked()
+            {
+                bus.enabled = !bus.enabled;
+            }
             ui.separator();
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {

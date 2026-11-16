@@ -179,6 +179,26 @@ pub(crate) fn sidechain_areas(avail: Rect) -> [Rect; 2] {
     [0, 1].map(|row| rack.rect(858.0, ROWS[row].0 + 119.0, 176.0, 39.0))
 }
 
+pub(crate) fn machine_power_button(
+    ui: &mut Ui,
+    rect: Rect,
+    scale: f32,
+    id: impl std::hash::Hash + std::fmt::Debug,
+    enabled: bool,
+) -> egui::Response {
+    button(
+        ui,
+        Rack {
+            origin: Pos2::ZERO,
+            scale,
+        },
+        rect,
+        id,
+        "ON",
+        enabled,
+    )
+}
+
 impl App {
     /// Draw transport, four instruments and their mixer strips. The caller embeds the sampler
     /// and effects in the returned rectangles, in screen coordinates.
@@ -743,12 +763,11 @@ impl App {
         let mixer = format!("mixer{}", row + 1);
         rack.text(ui, 859.0, y + 19.0, 10.0, "MIX", DIM);
         let mute = self.panel.toggle_on(&format!("{mixer}.mute"));
-        if button(
+        if machine_power_button(
             ui,
-            rack,
             rack.rect(991.0, y + 9.0, 42.0, 19.0),
+            rack.scale,
             (row, "mute"),
-            "ON",
             mute,
         )
         .clicked()
