@@ -44,7 +44,10 @@ jobs:
       - name: Audio callback allocation guard
         run: cargo test --locked -p orb-player --test no_alloc
       - name: Studio release performance
-        run: cargo test --release --locked -p orb-engine studio::tests::release_ -- --nocapture
+        run: |
+          cargo test --release --locked -p orb-engine studio::tests::release_ -- --nocapture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --release --locked -p orb-engine release_time_warp_32_voice_performance -- --nocapture
       - name: Portable Windows build
         run: cargo build --release --locked -p orb-ui
       - name: Capture the desktop interface

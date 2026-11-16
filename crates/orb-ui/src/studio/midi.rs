@@ -61,6 +61,10 @@ pub fn controls() -> Vec<(String, String)> {
             "gate",
             "mode",
             "reverse",
+            "warp",
+            "warp_bpm",
+            "warp_beats",
+            "warp_fit",
             "mute",
             "solo",
             "audition",
@@ -83,14 +87,14 @@ pub fn controls() -> Vec<(String, String)> {
 }
 
 pub fn is_action(id: &str) -> bool {
-    id.starts_with("sampler") && id.ends_with(".audition")
+    id.starts_with("sampler") && (id.ends_with(".audition") || id.ends_with(".warp_fit"))
 }
 
 pub fn is_boolean(id: &str) -> bool {
     id == "studio.enabled"
         || matches!(id, "duck1.on" | "duck2.on" | "sampler.dist" | "sampler.on")
         || id.starts_with("sampler")
-            && [".reverse", ".mute", ".solo", ".sidechain"]
+            && [".reverse", ".mute", ".solo", ".sidechain", ".warp"]
                 .iter()
                 .any(|s| id.ends_with(s))
 }
@@ -128,6 +132,12 @@ fn gater_instrument(value: f64) -> u8 {
     1 + (value * 10.0).round() as u8
 }
 
+const WARP_BEATS: [u16; 16] = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256];
+
+fn warp_beat_count(value: f64) -> u16 {
+    WARP_BEATS[((value * 15.0).round() as usize).min(15)]
+}
+
 fn lane_value(lane: &Lane, name: &str) -> f64 {
     match name {
         "level" => lane.gain / 2.0,
@@ -153,6 +163,11 @@ fn lane_value(lane: &Lane, name: &str) -> f64 {
         "gater_attack_ms" => (lane.gater_attack_ms - 0.1) / 99.9,
         "gater_release_ms" => (lane.gater_release_ms - 1.0) / 499.0,
         "reverse" => f64::from(u8::from(lane.reverse)),
+        "warp" => f64::from(u8::from(lane.warp)),
+        "warp_bpm" => (lane.warp_bpm - 20.0) / 380.0,
+        "warp_beats" => WARP_BEATS.iter().enumerate()
+            .min_by_key(|(_, beats)| beats.abs_diff(lane.warp_beats))
+            .map_or(0.0, |(index, _)| index as f64 / 15.0),
         "mute" => f64::from(u8::from(lane.muted)),
         "solo" => f64::from(u8::from(lane.solo)),
         "sidechain" => f64::from(u8::from(lane.sidechain)),
@@ -212,6 +227,15 @@ impl App {
             if let Event::Press { id } = event {
                 if let Some((i, "audition")) = lane_field(id) {
                     auditions.push(i);
+                }
+                if let Some((i, "warp_fit")) = lane_field(id)
+                    && let Some(wave) = &self.studio.waves[i]
+                {
+                    let lane = &mut self.studio.settings.lanes[i];
+                    if let Some(bpm) = lane.fitted_warp_bpm(wave.frames.len()) {
+                        lane.warp_bpm = bpm;
+                        lane.warp = true;
+                    }
                 }
                 continue;
             }
@@ -280,6 +304,9 @@ impl App {
                             "gater_attack_ms" => lane.gater_attack_ms = 0.1 + v * 99.9,
                             "gater_release_ms" => lane.gater_release_ms = 1.0 + v * 499.0,
                             "reverse" => lane.reverse = raw >= 64,
+                            "warp" => lane.warp = raw >= 64,
+                            "warp_bpm" => lane.warp_bpm = 20.0 + v * 380.0,
+                            "warp_beats" => lane.warp_beats = warp_beat_count(v),
                             "mute" => lane.muted = raw >= 64,
                             "solo" => lane.solo = raw >= 64,
                             "sidechain" => lane.sidechain = raw >= 64,
@@ -345,6 +372,7 @@ impl App {
                     "choke" => (v * 8.0).round() as u8 == lane.choke,
                     "gater_source" => (v * 4.0).round() as u8 == lane.gater_source,
                     "gater_instrument" => gater_instrument(v) == lane.gater_instrument,
+                    "warp_beats" => warp_beat_count(v) == lane.warp_beats,
                     "end" => {
                         ((1e-9 + v * (1.0 - 1e-9)).max(lane.start + 1e-9) - lane.end).abs() < 1e-12
                     }
@@ -446,8 +474,38 @@ mod tests {
     }
 
     #[test]
+    fn warp_source_tempo_fit_and_midi_pickup_reach_the_sampler_settings() {
+        use std::sync::Arc;
+        use orb_engine::studio::audio_file::Wave;
+        let mut app = App::new(Panel::new(), None);
+        app.studio.waves[0] = Some(Arc::new(Wave { frames: vec![[0.0; 2]; 88200] }));
+        let mut router = Router::default();
+        move_cc(&mut app, &mut router, "sampler1.warp_bpm", 0, false);
+        assert_eq!(app.studio.settings.lanes[0].warp_bpm, 20.0);
+        move_cc(&mut app, &mut router, "sampler1.warp_bpm", 127, true);
+        assert_eq!(app.studio.settings.lanes[0].warp_bpm, 400.0);
+        move_cc(&mut app, &mut router, "sampler1.warp_beats", 25, false);
+        assert_eq!(app.studio.settings.lanes[0].warp_beats, 4);
+        move_cc(&mut app, &mut router, "sampler1.warp_fit", 127, false);
+        assert!(app.studio.settings.lanes[0].warp);
+        assert_eq!(app.studio.settings.lanes[0].warp_bpm, 120.0);
+        app.studio.settings.lanes[0].warp_bpm = 111.0;
+        move_cc(&mut app, &mut router, "sampler1.warp_fit", 127, false);
+        assert_eq!(app.studio.settings.lanes[0].warp_bpm, 111.0);
+        move_cc(&mut app, &mut router, "sampler1.warp_fit", 0, false);
+        move_cc(&mut app, &mut router, "sampler1.warp_fit", 127, false);
+        assert_eq!(app.studio.settings.lanes[0].warp_bpm, 120.0);
+        for value in 0..=127 {
+            move_cc(&mut app, &mut router, "sampler1.warp_beats", value, true);
+            assert_eq!(app.panel.value("sampler1.warp_beats"), Some(i32::from(value)));
+        }
+        move_cc(&mut app, &mut router, "sampler1.warp", 0, false);
+        assert!(!app.studio.settings.lanes[0].warp);
+    }
+
+    #[test]
     fn all_studio_controls_are_registered_with_correct_midi_behavior() {
-        assert_eq!(controls().len(), 199);
+        assert_eq!(controls().len(), 231);
         for (id, _) in controls() {
             assert!(kind(&id).is_some(), "{id}");
             assert!(Panel::new().value(&id).is_some(), "{id}");
@@ -458,6 +516,8 @@ mod tests {
         assert_eq!(kind("duck1.on"), Some(Kind::Switch));
         assert_eq!(kind("sampler.dist"), Some(Kind::Switch));
         assert_eq!(kind("sampler.on"), Some(Kind::Switch));
+        assert_eq!(kind("sampler1.warp"), Some(Kind::Switch));
+        assert_eq!(kind("sampler8.warp_fit"), Some(Kind::Button));
     }
 
     #[test]

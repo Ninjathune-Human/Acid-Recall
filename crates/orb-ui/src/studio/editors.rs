@@ -579,6 +579,8 @@ impl App {
                     slider(&mut columns[2], &mut lane.gate, 0.01, 16.0, "Gate / steps");
                 });
                 ui.separator();
+                let frames = self.studio.waves[selected].as_ref().map(|wave| wave.frames.len());
+                super::rack::warp_controls(ui, lane, frames);
                 super::rack::gater_controls(ui, lane);
                 ui.columns(3, |columns| {
                     slider(

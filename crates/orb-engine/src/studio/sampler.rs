@@ -1,6 +1,7 @@
 //! Eight stereo lanes, fixed voice pools, sample-accurate sixteenth-note triggering.
 
 use super::audio_file::{Wave, sinc};
+mod warp;
 #[cfg(test)]
 mod tests;
 
@@ -28,6 +29,9 @@ pub struct Lane {
     pub pan: f64,
     pub pitch: i8,
     pub reverse: bool,
+    pub warp: bool,
+    pub warp_bpm: f64,
+    pub warp_beats: u16,
     pub start: f64,
     pub end: f64,
     pub attack_ms: f64,
@@ -58,6 +62,9 @@ impl Default for Lane {
             pan: 0.0,
             pitch: 0,
             reverse: false,
+            warp: false,
+            warp_bpm: 120.0,
+            warp_beats: 4,
             start: 0.0,
             end: 1.0,
             attack_ms: 1.0,
@@ -77,6 +84,14 @@ impl Default for Lane {
 }
 
 impl Lane {
+    pub fn fitted_warp_bpm(&self, frames: usize) -> Option<f64> {
+        let start = ((self.start * frames as f64) as usize).min(frames);
+        let end = ((self.end * frames as f64) as usize).min(frames);
+        let seconds = end.saturating_sub(start) as f64 / 44100.0;
+        let bpm = 60.0 * f64::from(self.warp_beats) / seconds;
+        (bpm.is_finite() && (20.0..=400.0).contains(&bpm)).then_some(bpm)
+    }
+
     pub fn sanitize(&mut self) {
         // Size is validated before settings enter the callback; this does not allocate.
         self.bars = self.bars.clamp(1, 64);
@@ -90,6 +105,8 @@ impl Lane {
             }
         }
         self.gain = finite(self.gain, 0.0, 0.0, 2.0);
+        self.warp_bpm = finite(self.warp_bpm, 120.0, 20.0, 400.0);
+        self.warp_beats = self.warp_beats.clamp(1, 256);
         self.pan = finite(self.pan, 0.0, -1.0, 1.0);
         self.start = finite(self.start, 0.0, 0.0, 1.0 - 1e-9);
         self.end = finite(self.end, 1.0, self.start + 1e-9, 1.0);
@@ -118,6 +135,7 @@ struct Voice {
     release: f64,
     until: f64,
     last: [f64; 2],
+    warp: warp::Warp,
 }
 
 pub struct Sampler {
@@ -292,6 +310,16 @@ impl Sampler {
         let solo = lanes.iter().any(|l| l.solo);
         let rates: [f64; LANES] =
             std::array::from_fn(|i| 2.0f64.powf(f64::from(lanes[i].pitch) / 12.0));
+        let tempo = ticks_per_frame * 44100.0 * 60.0 / 192.0;
+        let warp_rates: [f64; LANES] = std::array::from_fn(|i| {
+            if tempo.is_finite() && tempo > 0.0 {
+                let source = if lanes[i].warp_bpm.is_finite() {
+                    lanes[i].warp_bpm.clamp(20.0, 400.0)
+                } else { 120.0 };
+                let ratio = (tempo / source).clamp(0.01, 32.0);
+                if (ratio - 1.0).abs() < 1e-10 { 1.0 } else { ratio }
+            } else { 1.0 }
+        });
         let attacks: [f64; LANES] =
             std::array::from_fn(|i| 1.0 - (-1.0 / (lanes[i].gater_attack_ms * 44.1)).exp());
         let releases: [f64; LANES] =
@@ -329,6 +357,19 @@ impl Sampler {
                     let end = ((lane.end * frames as f64) as usize).min(frames);
                     let length = end.saturating_sub(start);
                     let rate = rates[i];
+                    let advance = if lane.warp { warp_rates[i] } else { rate };
+                    let warping = lane.warp && ((advance - 1.0).abs() > 1e-10 || lane.pitch != 0);
+                    let region = warp::Region {
+                        frames: &wave.frames,
+                        table: &self.table,
+                        start,
+                        end,
+                        reverse: lane.reverse,
+                        looping: lane.mode == Mode::Loop,
+                        pitch: (lane.pitch + 24) as usize,
+                        rate,
+                        advance,
+                    };
                     let seam = (length / 4).min(88) as f64;
                     for voice in &mut self.voices[i] {
                         if length < 2 {
@@ -350,6 +391,10 @@ impl Sampler {
                                 continue;
                             }
                         }
+                        let mut value = if warping {
+                            voice.warp.read(&region, voice.position)
+                        } else {
+                        voice.warp.reset();
                         let position = if lane.reverse {
                             end as f64 - 1.0 - voice.position
                         } else {
@@ -372,6 +417,9 @@ impl Sampler {
                                 }
                             }
                         }
+                        value
+                        };
+                        value = voice.warp.transition(value, warping);
                         if lane.mode == Mode::Loop && seam > 0.0 {
                             let fade = (voice.position / seam).min(1.0)
                                 * ((length as f64 - voice.position) / seam).min(1.0);
@@ -383,7 +431,7 @@ impl Sampler {
                         let ending = if lane.mode == Mode::Loop {
                             1.0
                         } else {
-                            ((length as f64 - voice.position) / (rate * lane.release_ms * 44.1))
+                            ((length as f64 - voice.position) / (advance * lane.release_ms * 44.1))
                                 .min(1.0)
                         };
                         let envelope =
@@ -393,7 +441,7 @@ impl Sampler {
                             *x += last;
                         }
                         voice.age += 1;
-                        voice.position += rate;
+                        voice.position += advance;
                         voice.until -= ticks_per_frame;
                         if voice.release >= 1.0 {
                             voice.active = false;

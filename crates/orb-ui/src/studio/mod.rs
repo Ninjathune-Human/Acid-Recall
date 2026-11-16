@@ -220,6 +220,9 @@ impl App {
                     self.studio.waves[lane] = Some(wave);
                     self.studio.settings.lanes[lane].start = 0.0;
                     self.studio.settings.lanes[lane].end = 1.0;
+                    self.studio.settings.lanes[lane].warp = false;
+                    self.studio.settings.lanes[lane].warp_bpm = 120.0;
+                    self.studio.settings.lanes[lane].warp_beats = 4;
                     self.studio.changed();
                     self.doc.modified = true;
                     self.studio_command(Command::StudioWave {

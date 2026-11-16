@@ -69,6 +69,44 @@ cards to edit all their controls, including PCF faders/pattern/mode and Delay st
 
 ## Sampler — eight lanes, up to 64 bars per lane
 
+### TIME WARP: follow tempo while retaining pitch
+
+Each lane has a TIME WARP switch and original **Src BPM** (20-400 BPM). Turn Warp on to
+follow the song tempo automatically while retaining the sample's pitch. With Warp enabled,
+Pitch transposes independently from duration. Turning Warp off restores the original
+sampler playback, where transposing also changes duration.
+
+For a known 120-BPM loop, enter 120 in Src BPM and enable TIME WARP. At a song tempo of
+150 BPM, a two-second loop lasts 1.6 seconds and retains its pitch. Select Loop playback
+and trigger a step to keep repeating it; One Shot, Auto Cut, Gate and Reverse also work.
+
+If you know the musical length instead of the BPM, first trim IN/OUT to the exact loop,
+enter its number of quarter-note **Beats**, then press **FIT**. A two-second, four-beat
+selection calculates 120 BPM and enables Warp. Four bars in 4/4 are sixteen beats. FIT
+uses the selected audio duration; Beats is independent from the sequencer's Length in bars.
+FIT is disabled if the calculation lies outside the supported source-BPM range. It does
+not detect beats from the audio; an incorrectly specified BPM or beat count will not sync.
+
+The built-in time-domain engine uses stereo waveform-similarity overlap-add with a fixed
+grain/search budget per voice. It reads the original PCM and does not allocate memory,
+copy whole stretched files or decode audio on the callback. Both stereo channels share
+grain alignment. Warp is off by default for old projects, and its settings are saved in
+portable projects. Loading a replacement sample resets Warp to off and its source BPM to 120.
+
+This is uniform tempo warping per sample. Warp markers, automatic tempo detection and
+Ableton's proprietary Complex/Complex Pro processing are not included. Dense polyphonic
+material and extreme tempo changes can color transients and timbre; use moderate ratios
+for more natural results. Tempo changes remain live and do not require rebuilding a sample.
+
+MIDI targets per lane: **warp** (On/Off), **warp_bpm**, **warp_beats**, and **warp_fit** (button).
+MIDI Beats selects musical lengths 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192
+or 256; press FIT after choosing the count. The mouse editor accepts all integer counts.
+Existing MIDI calibration, pickup, lane reverb, gater and sidechain remain available.
+
+Design references: [Ableton's Warp concepts](https://www.ableton.com/en/manual/audio-clips-tempo-and-warping/)
+and [SoundTouch's description of time-domain WSOLA](https://www.surina.net/soundtouch/README.html).
+The implementation here is built into ACID RECALL; neither library nor Ableton code is bundled.
+
 The sampler has a global ON/OFF switch (MIDI target **sampler.on**) that retains its level
 and lane settings. OFF smoothly silences the bus and new sends while existing effect tails
 decay; its playheads keep time so it resumes in sync. Old projects default to ON.

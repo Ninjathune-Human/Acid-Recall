@@ -15,6 +15,142 @@ fn setup(mode: Mode) -> (Sampler, [Lane; LANES]) {
     (sampler, lanes)
 }
 
+fn warped_tone(warp: bool, target_bpm: f64, pitch: i8) -> (Vec<f64>, usize) {
+    let mut sampler = Sampler::default();
+    sampler.replace(0, Some(Box::new(Wave {
+        frames: (0..44100).map(|n| {
+            let value = (n as f64 * std::f64::consts::TAU * 440.0 / 44100.0).sin() as f32;
+            [value, -value]
+        }).collect(),
+    })));
+    let mut lanes = std::array::from_fn(|_| Lane::default());
+    lanes[0].warp = warp;
+    lanes[0].warp_bpm = 120.0;
+    lanes[0].pitch = pitch;
+    sampler.audition(0);
+    let mut audio = Vec::new();
+    for _ in 0..(4 * 44100 / 64 + 1) {
+        let mut out = [[0.0; 64]; 2];
+        sampler.process(&lanes, 0.0, target_bpm * 192.0 / (60.0 * 44100.0),
+            false, &mut out, &mut [[0.0; 64]; 2]);
+        assert!(out.iter().flatten().all(|v| v.is_finite()));
+        for n in 0..64 { assert!((out[0][n] + out[1][n]).abs() < 1e-10); }
+        audio.extend(out[0]);
+        if !sampler.voices[0][0].active { break; }
+    }
+    (audio, sampler.voices[0][0].age)
+}
+
+fn crossing_frequency(audio: &[f64]) -> f64 {
+    let middle = &audio[4410..audio.len() - 2205];
+    let crossings = middle.windows(2).filter(|w| w[0] <= 0.0 && w[1] > 0.0).count();
+    crossings as f64 * 44100.0 / middle.len() as f64
+}
+
+#[test]
+fn time_warp_changes_duration_preserves_pitch_and_stereo() {
+    for bpm in [60.0, 90.0, 160.0, 240.0] {
+        let (audio, age) = warped_tone(true, bpm, 0);
+        let expected = 44100.0 * 120.0 / bpm;
+        assert!((age as f64 - expected).abs() <= 1.0, "{bpm}: age={age}");
+        let frequency = crossing_frequency(&audio);
+        assert!((frequency - 440.0).abs() < 6.0, "{bpm} BPM: {frequency} Hz");
+    }
+}
+
+#[test]
+fn warp_transpose_is_independent_of_duration_and_unity_is_exact() {
+    let (audio, age) = warped_tone(true, 90.0, 12);
+    assert!((age as f64 - 58800.0).abs() <= 1.0);
+    let frequency = crossing_frequency(&audio);
+    assert!((frequency - 880.0).abs() < 8.0, "{frequency} Hz");
+    assert_eq!(warped_tone(false, 120.0, 0), warped_tone(true, 120.0, 0));
+    assert_eq!(warped_tone(false, 90.0, 12).1, 22050);
+}
+
+#[test]
+fn warped_reverse_loops_honor_trim_and_follow_tempo_changes() {
+    let mut sampler = Sampler::default();
+    sampler.replace(0, Some(Box::new(Wave {
+        frames: (0..2048).map(|n| {
+            let value = if (512..1536).contains(&n) {
+                (n as f64 * 0.1).sin() as f32 * 0.2
+            } else { 42.0 };
+            [value, -value]
+        }).collect(),
+    })));
+    let mut lanes = std::array::from_fn(|_| Lane::default());
+    lanes[0].warp = true;
+    lanes[0].warp_bpm = 100.0;
+    lanes[0].mode = Mode::Loop;
+    lanes[0].reverse = true;
+    lanes[0].start = 0.25;
+    lanes[0].end = 0.75;
+    sampler.audition(0);
+    for _ in 0..32 {
+        let mut out = [[0.0; 64]; 2];
+        sampler.process(&lanes, 0.0, 150.0 * 192.0 / (60.0 * 44100.0),
+            false, &mut out, &mut [[0.0; 64]; 2]);
+        assert!(out.iter().flatten().all(|v| v.is_finite() && v.abs() < 0.25));
+    }
+    assert!(sampler.voices[0][0].position.rem_euclid(1024.0).abs() < 1e-8);
+    sampler.process(&lanes, 0.0, 90.0 * 192.0 / (60.0 * 44100.0),
+        false, &mut [[0.0; 64]; 2], &mut [[0.0; 64]; 2]);
+    assert!((sampler.voices[0][0].position - 57.6).abs() < 1e-8);
+    assert!(sampler.voices[0][0].active);
+    assert_eq!(lanes[0].fitted_warp_bpm(88200), Some(240.0));
+}
+
+#[test]
+fn release_time_warp_32_voice_performance() {
+    if cfg!(debug_assertions) { return; }
+    let mut sampler = Sampler::default();
+    let mut lanes = std::array::from_fn(|_| Lane::default());
+    for (i, lane) in lanes.iter_mut().enumerate() {
+        lane.warp = true;
+        lane.warp_bpm = 120.0;
+        lane.pitch = [-12, -5, 0, 7, 12, 0, 3, -7][i];
+        sampler.replace(i, Some(Box::new(Wave {
+            frames: (0..88200).map(|n| {
+                let t = n as f64 / 44100.0;
+                let v = ((t * std::f64::consts::TAU * 330.0).sin() * 0.05
+                    + (t * std::f64::consts::TAU * 731.0).sin() * 0.025) as f32;
+                [v, -v]
+            }).collect(),
+        })));
+    }
+    let ticks = 160.0 * 192.0 / (60.0 * 44100.0);
+    for _ in 0..4 {
+        for i in 0..8 { sampler.audition(i); }
+        sampler.process(&lanes, 0.0, ticks, false,
+            &mut [[0.0; 64]; 2], &mut [[0.0; 64]; 2]);
+    }
+    let start = std::time::Instant::now();
+    for _ in 0..690 {
+        let mut out = [[0.0; 64]; 2];
+        sampler.process(&lanes, 0.0, ticks, false, &mut out, &mut [[0.0; 64]; 2]);
+        assert!(out.iter().flatten().all(|v| v.is_finite()));
+    }
+    let elapsed = start.elapsed().as_secs_f64();
+    eprintln!("WARP_PERFORMANCE: 1.001 seconds audio / {elapsed:.3} seconds CPU / 32 voices");
+    assert!(elapsed < 4.0, "Warp render unexpectedly slow: {elapsed:.3} seconds");
+}
+
+#[test]
+fn old_projects_default_warp_to_off_and_controls_are_sanitized() {
+    let mut old = serde_json::to_value(Lane::default()).unwrap();
+    for field in ["warp", "warp_bpm", "warp_beats"] {
+        old.as_object_mut().unwrap().remove(field);
+    }
+    let mut lane: Lane = serde_json::from_value(old).unwrap();
+    assert!(!lane.warp);
+    assert_eq!((lane.warp_bpm, lane.warp_beats), (120.0, 4));
+    lane.warp_bpm = f64::NAN;
+    lane.warp_beats = 0;
+    lane.sanitize();
+    assert_eq!((lane.warp_bpm, lane.warp_beats), (120.0, 1));
+}
+
 fn block(sampler: &mut Sampler, lanes: &[Lane; LANES], tick: f64, playing: bool) -> [[f64; 64]; 2] {
     let mut out = [[0.0; 64]; 2];
     sampler.process(lanes, tick, 0.01, playing, &mut out, &mut [[0.0; 64]; 2]);

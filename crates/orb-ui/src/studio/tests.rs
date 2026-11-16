@@ -65,6 +65,9 @@ fn save_and_open_restore_embedded_sample_last_step_and_mix_settings() {
     app.studio.settings.sampler_bus.delay = 0.31;
     app.studio.settings.sampler_bus.reverb_send = 0.24;
     app.studio.settings.lanes[7].reverse = true;
+    app.studio.settings.lanes[7].warp = true;
+    app.studio.settings.lanes[7].warp_bpm = 137.5;
+    app.studio.settings.lanes[7].warp_beats = 8;
     app.studio.waves[7] = Some(Arc::new(Wave {
         frames: vec![[0.2, -0.1]; 1000],
     }));
@@ -82,6 +85,9 @@ fn save_and_open_restore_embedded_sample_last_step_and_mix_settings() {
     finish(&mut app, &mut audio, &ctx);
     assert_eq!(app.studio.settings.lanes[7].steps[1023], 117);
     assert!(app.studio.settings.lanes[7].reverse);
+    assert!(app.studio.settings.lanes[7].warp);
+    assert_eq!(app.studio.settings.lanes[7].warp_bpm, 137.5);
+    assert_eq!(app.studio.settings.lanes[7].warp_beats, 8);
     assert_eq!(app.studio.settings.sampler_bus.gain, 0.42);
     assert!(app.studio.settings.sampler_bus.dist);
     assert_eq!(app.studio.settings.sampler_bus.delay, 0.31);
