@@ -256,3 +256,18 @@ Audition responds once per
 CC button press (64-127 pressed, 0-63 released). Boolean controls use that same absolute
 threshold, while continuous controls retain pickup. Quantized pitch and mode selectors
 preserve the controller position until an external UI or project change requires pickup.
+
+## MIDI Clock IN / OUT (Windows)
+
+Open **MIDI > MIDI CLOCK / SYNC**. Choose **MASTER / OUT** to send tempo and
+Start/Continue/Stop to an external machine, or **SLAVE / IN** to follow its clock and
+transport. Clock uses 24 pulses per quarter note; Song Position Pointer locates in sixteenth
+notes. All four original machines and the sampler share the transport. Enable **TIME WARP**
+on samples that should follow tempo while preserving pitch.
+
+Select the corresponding MIDI port. The OUT delay (0–500 ms) can compensate audio output
+latency. Clock loss in slave mode stops playback; a new external Start or Continue resumes
+it. MIDI Learn and controller assignments remain available. IN and OUT are exclusive modes.
+
+See [MIDI Clock setup and limits](midi-clock.md) for hardware connections and transport
+behavior. This preview needs real-hardware timing feedback from testers.
