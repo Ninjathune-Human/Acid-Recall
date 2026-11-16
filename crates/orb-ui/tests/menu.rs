@@ -3376,4 +3376,3 @@ fn the_info_fields_fill_the_window_and_follow_its_width() {
         win(&h).width()
     );
 }
-
