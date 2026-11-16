@@ -88,7 +88,7 @@ fn the_counter_counts() {
 
 #[test]
 fn midi_clock_bridge_does_not_allocate_on_the_audio_thread() {
-    use orb_player::clock::{MASTER, SLAVE, OFF, InputFrame};
+    use orb_player::clock::{InputFrame, MASTER, OFF, SLAVE};
     let (mut player, mut audio) = Player::new(tables(), None);
     let mut connection = player.take_midi_clock().unwrap();
     let mut buf = [0; 2 * CALL_FRAMES];
@@ -98,13 +98,19 @@ fn midi_clock_bridge_does_not_allocate_on_the_audio_thread() {
     while connection.output.pop().is_ok() {}
     connection.shared.mode.store(SLAVE, Ordering::Release);
     connection.shared.write(InputFrame {
-        at: connection.shared.now(), tick: 96, period: 20_833_333,
-        playing: true, generation: 1,
+        at: connection.shared.now(),
+        tick: 96,
+        period: 20_833_333,
+        playing: true,
+        generation: 1,
     });
     assert_eq!(render(&mut audio, &mut buf, 8), 0);
     connection.shared.write(InputFrame {
-        at: connection.shared.now(), tick: 144, period: 20_833_333,
-        playing: false, generation: 2,
+        at: connection.shared.now(),
+        tick: 144,
+        period: 20_833_333,
+        playing: false,
+        generation: 2,
     });
     assert_eq!(render(&mut audio, &mut buf, 8), 0);
     connection.shared.mode.store(OFF, Ordering::Release);

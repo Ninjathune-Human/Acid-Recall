@@ -14,7 +14,9 @@ fn output_clock_is_24_ppqn_without_drift_across_audio_blocks() {
             let count = 64.min(total - frame);
             clock.master(frame as u64, count, true, tempo, 0);
             while let Ok(event) = connection.output.pop() {
-                if event.word == 0xf8 { pulses.push(event.at); }
+                if event.word == 0xf8 {
+                    pulses.push(event.at);
+                }
             }
             frame += count;
         }
@@ -55,7 +57,9 @@ fn input_start_waits_for_clock_stop_holds_and_continue_resumes() {
     follower.timeout(1_000_000, &shared);
     assert!(!shared.lost.load(Ordering::Relaxed));
     assert!(!shared.read().unwrap().playing);
-    for pulse in 0..25u64 { follower.receive(0xf8, pulse * 20_833_333 + 2_000_000, &shared); }
+    for pulse in 0..25u64 {
+        follower.receive(0xf8, pulse * 20_833_333 + 2_000_000, &shared);
+    }
     let state = shared.read().unwrap();
     assert_eq!(state.tick, 192);
     assert!(state.playing);
@@ -73,7 +77,10 @@ fn input_start_waits_for_clock_stop_holds_and_continue_resumes() {
     assert!(!shared.read().unwrap().playing);
     assert!(shared.lost.load(Ordering::Relaxed));
     follower.receive(0xf8, 1_200_000_000, &shared);
-    assert!(!shared.read().unwrap().playing, "clock alone cannot defeat the safety stop");
+    assert!(
+        !shared.read().unwrap().playing,
+        "clock alone cannot defeat the safety stop"
+    );
 }
 
 #[test]
@@ -85,7 +92,9 @@ fn input_spp_uses_sixteenth_notes_and_ignores_cc_active_sensing_and_bad_data() {
     follower.receive(0xfb, 20, &shared);
     follower.receive(0xf8, 30, &shared);
     assert_eq!(shared.read().unwrap().tick, 173 * 48);
-    for word in [0xfe, 0xff, 0x7f07b0, 0x0080f2] { follower.receive(word, 40, &shared); }
+    for word in [0xfe, 0xff, 0x7f07b0, 0x0080f2] {
+        follower.receive(word, 40, &shared);
+    }
     assert_eq!(shared.read().unwrap().tick, 173 * 48);
     follower.receive(0xfa, 50, &shared);
     follower.receive(0xf8, 60, &shared);
@@ -98,7 +107,11 @@ fn input_tempo_averages_timestamp_jitter_without_losing_pulses() {
     let mut follower = Follower::default();
     follower.receive(0xfa, 0, &shared);
     for pulse in 0..240u64 {
-        follower.receive(0xf8, 1_000_000 + pulse * 20_833_333 + (pulse % 2) * 500_000, &shared);
+        follower.receive(
+            0xf8,
+            1_000_000 + pulse * 20_833_333 + (pulse % 2) * 500_000,
+            &shared,
+        );
     }
     assert_eq!(shared.read().unwrap().tick, 239 * 8);
     assert!((i64::from(shared.bpm.load(Ordering::Relaxed)) - 120_000).abs() <= 1);

@@ -49,14 +49,24 @@ mod backend {
         }
     }
 
-    pub fn output_ports() -> Result<Vec<Port>, String> { ports() }
+    pub fn output_ports() -> Result<Vec<Port>, String> {
+        ports()
+    }
     pub struct Output;
     impl Output {
-        pub fn open(_id: u32) -> Result<Self, String> { Err("MIDI requires Windows.".into()) }
-        pub fn send(&mut self, _word: u32) -> Result<(), String> { Err("MIDI requires Windows.".into()) }
+        pub fn open(_id: u32) -> Result<Self, String> {
+            Err("MIDI requires Windows.".into())
+        }
+        pub fn send(&mut self, _word: u32) -> Result<(), String> {
+            Err("MIDI requires Windows.".into())
+        }
     }
     pub struct Timer;
-    impl Timer { pub fn new() -> Self { Self } }
+    impl Timer {
+        pub fn new() -> Self {
+            Self
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -144,7 +154,9 @@ impl Config {
     pub fn sanitize(&mut self) {
         self.clock.output_delay_ms = self.clock.output_delay_ms.min(500);
         for port in [&mut self.clock.input, &mut self.clock.output] {
-            if port.as_ref().is_some_and(|p| p.trim().is_empty()) { *port = None; }
+            if port.as_ref().is_some_and(|p| p.trim().is_empty()) {
+                *port = None;
+            }
         }
         self.minimum_cc = calibration_floor(self.minimum_cc, self.minimum_one);
         self.minimum_one = false;
@@ -567,9 +579,12 @@ impl Midi {
                 continue;
             }
             let clock = if config.clock.mode == sync::Mode::Slave
-                && config.clock.input.as_deref() == Some(name) {
+                && config.clock.input.as_deref() == Some(name)
+            {
                 self.clock.sender.clone()
-            } else { None };
+            } else {
+                None
+            };
             match backend::Input::open(matches[0].id, clock.clone()) {
                 Ok(input) => {
                     clock_opened |= clock.is_some();
@@ -584,14 +599,23 @@ impl Midi {
             }
         }
         if config.clock.mode == sync::Mode::Slave && !clock_opened && self.clock.sender.is_some() {
-            let matches: Vec<_> = self.ports.iter()
-                .filter(|p| Some(&p.name) == config.clock.input.as_ref()).collect();
+            let matches: Vec<_> = self
+                .ports
+                .iter()
+                .filter(|p| Some(&p.name) == config.clock.input.as_ref())
+                .collect();
             let result = if matches.len() == 1 {
                 backend::Input::open(matches[0].id, self.clock.sender.clone())
-            } else { Err("Clock IN unavailable or name is ambiguous.".into()) };
+            } else {
+                Err("Clock IN unavailable or name is ambiguous.".into())
+            };
             match result {
                 Ok(input) => self.clock_input = Some(input),
-                Err(e) => { self.clock.stop(); self.clock.error = Some(e.clone()); errors.push(e); }
+                Err(e) => {
+                    self.clock.stop();
+                    self.clock.error = Some(e.clone());
+                    errors.push(e);
+                }
             }
         }
         if !errors.is_empty() {

@@ -80,8 +80,8 @@
 //! into a second triple buffer whenever they change), which is what a save of a recorded song
 //! writes.
 
-pub mod output;
 pub mod clock;
+pub mod output;
 
 use std::sync::Arc;
 
@@ -669,9 +669,16 @@ impl Audio {
     }
 
     fn pull(&mut self, frames: usize, mut put: impl FnMut(usize, i16, i16)) {
-        if self.midi_clock.shared.mode.load(std::sync::atomic::Ordering::Acquire) != clock::OFF {
+        if self
+            .midi_clock
+            .shared
+            .mode
+            .load(std::sync::atomic::Ordering::Acquire)
+            != clock::OFF
+        {
             self.midi_clock.begin_pull(
-                self.frames.saturating_sub((self.buffer_len - self.pos) as u64),
+                self.frames
+                    .saturating_sub((self.buffer_len - self.pos) as u64),
             );
         }
         let mut i = 0;
@@ -697,16 +704,29 @@ impl Audio {
         }
         // a faulting call writes nothing (`Engine::fault`): silence rather than the last call
         self.buf.fill(0);
-        let mode = self.midi_clock.shared.mode.load(std::sync::atomic::Ordering::Acquire);
+        let mode = self
+            .midi_clock
+            .shared
+            .mode
+            .load(std::sync::atomic::Ordering::Acquire);
         let count = if mode == clock::OFF { CALL_FRAMES } else { 64 };
         let leaving_slave = self.midi_clock.was_slave() && mode != clock::SLAVE;
-        self.midi_clock.master(self.frames, count, self.current.playing(),
-            self.current.frame.seq.globals.tempo, self.current.frame.seq.tick_pos());
+        self.midi_clock.master(
+            self.frames,
+            count,
+            self.current.playing(),
+            self.current.frame.seq.globals.tempo,
+            self.current.frame.seq.tick_pos(),
+        );
         if leaving_slave {
             self.current.halt();
-            if let Some(studio) = &mut self.current.frame.studio { studio.sampler.stop(); }
+            if let Some(studio) = &mut self.current.frame.studio {
+                studio.sampler.stop();
+            }
         }
-        if mode == clock::SLAVE { self.follow_clock(); }
+        if mode == clock::SLAVE {
+            self.follow_clock();
+        }
         let faults = self.faults();
         self.current.render(&mut self.buf[..2 * count], count);
         if self.garbage.slots() > 0
@@ -736,34 +756,50 @@ impl Audio {
 
     fn follow_clock(&mut self) {
         use std::sync::atomic::Ordering;
-        if let Some(input) = self.midi_clock.shared.read() { self.midi_clock.input = input; }
+        if let Some(input) = self.midi_clock.shared.read() {
+            self.midi_clock.input = input;
+        }
         let input = self.midi_clock.input;
         let inhibited = self.midi_clock.shared.inhibit.load(Ordering::Acquire);
         if !input.playing || inhibited {
             if self.current.playing() {
                 self.current.halt();
-                if let Some(studio) = &mut self.current.frame.studio { studio.sampler.stop(); }
+                if let Some(studio) = &mut self.current.frame.studio {
+                    studio.sampler.stop();
+                }
             }
             return;
         }
-        let elapsed = self.midi_clock.shared.now().saturating_sub(input.at).min(500_000_000);
+        let elapsed = self
+            .midi_clock
+            .shared
+            .now()
+            .saturating_sub(input.at)
+            .min(500_000_000);
         let period = input.period.max(1);
         let mut target = input.tick as f64 + elapsed as f64 * 8.0 / period as f64;
         let g = &self.current.frame.seq.globals;
         let loop_length = if g.loop_on != 0 && g.loop_end > g.loop_start {
             let length = f64::from(g.loop_end - g.loop_start);
             if target >= f64::from(g.loop_end) {
-                target = f64::from(g.loop_start)
-                    + (target - f64::from(g.loop_start)).rem_euclid(length);
+                target =
+                    f64::from(g.loop_start) + (target - f64::from(g.loop_start)).rem_euclid(length);
             }
             Some(length)
-        } else { None };
+        } else {
+            None
+        };
         let mut error = target - self.current.frame.seq.pos;
-        if let Some(length) = loop_length { error = (error + length * 0.5).rem_euclid(length) - length * 0.5; }
-        if self.midi_clock.generation != input.generation || !self.current.playing()
+        if let Some(length) = loop_length {
+            error = (error + length * 0.5).rem_euclid(length) - length * 0.5;
+        }
+        if self.midi_clock.generation != input.generation
+            || !self.current.playing()
             || error.abs() > 96.0
         {
-            if let Some(new) = self.pending.take() { self.switch(new); }
+            if let Some(new) = self.pending.take() {
+                self.switch(new);
+            }
             self.current.halt();
             self.current.locate(target.max(0.0) as u32);
             self.current.play();
@@ -773,7 +809,8 @@ impl Audio {
         // A bounded phase-locked correction avoids seeking/retriggering on every clock pulse.
         let bpm = 2_500_000_000_000.0 / period as f64;
         let correction = (error / 192.0 * 0.5).clamp(-0.05, 0.05);
-        self.current.set_tempo((bpm * (1.0 + correction)).clamp(20_000.0, 400_000.0) as u32);
+        self.current
+            .set_tempo((bpm * (1.0 + correction)).clamp(20_000.0, 400_000.0) as u32);
     }
 
     fn faults(&self) -> u64 {
@@ -858,7 +895,13 @@ impl Audio {
                 }
             }
             Command::Play => {
-                if self.midi_clock.shared.mode.load(std::sync::atomic::Ordering::Acquire) == clock::SLAVE {
+                if self
+                    .midi_clock
+                    .shared
+                    .mode
+                    .load(std::sync::atomic::Ordering::Acquire)
+                    == clock::SLAVE
+                {
                     return;
                 }
                 if let Some(new) = self.pending.take() {
@@ -868,10 +911,21 @@ impl Audio {
                 }
             }
             Command::Stop => {
-                if self.midi_clock.shared.mode.load(std::sync::atomic::Ordering::Acquire) == clock::SLAVE {
-                    self.midi_clock.shared.inhibit.store(true, std::sync::atomic::Ordering::Release);
+                if self
+                    .midi_clock
+                    .shared
+                    .mode
+                    .load(std::sync::atomic::Ordering::Acquire)
+                    == clock::SLAVE
+                {
+                    self.midi_clock
+                        .shared
+                        .inhibit
+                        .store(true, std::sync::atomic::Ordering::Release);
                     self.current.halt();
-                    if let Some(studio) = &mut self.current.frame.studio { studio.sampler.stop(); }
+                    if let Some(studio) = &mut self.current.frame.studio {
+                        studio.sampler.stop();
+                    }
                     return;
                 }
                 self.target().stop();
@@ -880,7 +934,13 @@ impl Audio {
                 }
             }
             Command::Locate(t) => {
-                if self.midi_clock.shared.mode.load(std::sync::atomic::Ordering::Acquire) == clock::SLAVE {
+                if self
+                    .midi_clock
+                    .shared
+                    .mode
+                    .load(std::sync::atomic::Ordering::Acquire)
+                    == clock::SLAVE
+                {
                     return;
                 }
                 self.midi_clock.resync = true;
@@ -895,7 +955,13 @@ impl Audio {
             Command::LoopStart(t) => self.target().set_loop_start(t),
             Command::LoopEnd(t) => self.target().set_loop_end(t),
             Command::Tempo(t) => {
-                if self.midi_clock.shared.mode.load(std::sync::atomic::Ordering::Acquire) != clock::SLAVE {
+                if self
+                    .midi_clock
+                    .shared
+                    .mode
+                    .load(std::sync::atomic::Ordering::Acquire)
+                    != clock::SLAVE
+                {
                     self.target().set_tempo(t);
                 }
             }

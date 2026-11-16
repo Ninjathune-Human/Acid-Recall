@@ -1,8 +1,8 @@
 mod common;
 
+use orb_player::clock::{InputFrame, MASTER, OFF, SLAVE};
+use orb_player::{Command, Player};
 use std::sync::atomic::Ordering;
-use orb_player::clock::{InputFrame, MASTER, SLAVE, OFF};
-use orb_player::{Player, Command};
 
 #[test]
 fn external_transport_reaches_engine_and_local_stop_requires_a_new_external_start() {
@@ -14,8 +14,13 @@ fn external_transport_reaches_engine_and_local_stop_requires_a_new_external_star
     assert!(player.send(Command::Play).is_ok());
     audio.render_i16(&mut buffer);
     assert!(!player.snapshot().playing);
-    let mut input = InputFrame { at: shared.now(), tick: 96, period: 20_833_333,
-        playing: true, generation: 1 };
+    let mut input = InputFrame {
+        at: shared.now(),
+        tick: 96,
+        period: 20_833_333,
+        playing: true,
+        generation: 1,
+    };
     shared.write(input);
     audio.render_i16(&mut buffer);
     assert!(player.snapshot().playing);
@@ -47,13 +52,18 @@ fn external_transport_reaches_engine_and_local_stop_requires_a_new_external_star
     assert!(player.snapshot().playing);
     shared.mode.store(OFF, Ordering::Release);
     audio.render_i16(&mut buffer);
-    assert!(!player.snapshot().playing, "disconnect must not start free-running");
+    assert!(
+        !player.snapshot().playing,
+        "disconnect must not start free-running"
+    );
     shared.mode.store(MASTER, Ordering::Release);
     assert!(player.send(Command::Locate(0)).is_ok());
     assert!(player.send(Command::Play).is_ok());
     audio.render_i16(&mut [0; 2048]);
     let mut connection = connection;
     let mut messages = Vec::new();
-    while let Ok(event) = connection.output.pop() { messages.push(event.word); }
+    while let Ok(event) = connection.output.pop() {
+        messages.push(event.word);
+    }
     assert!(messages.starts_with(&[0xfa, 0xf8]));
 }

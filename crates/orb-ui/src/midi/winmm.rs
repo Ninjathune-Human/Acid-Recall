@@ -100,7 +100,9 @@ unsafe extern "system" fn receive(
     }
     // SAFETY: Input owns the context until a successful midiInClose. Callback only shares it.
     let callback = unsafe { &*(data as *const Callback) };
-    if let Some(clock) = &callback.clock { clock.receive(word as u32); }
+    if let Some(clock) = &callback.clock {
+        clock.receive(word as u32);
+    }
     if super::Cc::decode(word as u32).is_some() && callback.sender.try_send(word as u32).is_err() {
         callback.dropped.fetch_add(1, Ordering::Relaxed);
     }
@@ -159,8 +161,15 @@ impl Input {
 
 #[repr(C)]
 struct OutCaps {
-    manufacturer: u16, product: u16, version: u32, name: [u16; 32],
-    technology: u16, voices: u16, notes: u16, channel_mask: u16, support: u32,
+    manufacturer: u16,
+    product: u16,
+    version: u32,
+    name: [u16; 32],
+    technology: u16,
+    voices: u16,
+    notes: u16,
+    channel_mask: u16,
+    support: u32,
 }
 
 #[link(name = "winmm")]
@@ -180,34 +189,59 @@ pub fn output_ports() -> Result<Vec<Port>, String> {
     let mut ports = Vec::new();
     for id in 0..count {
         let mut caps: OutCaps = unsafe { std::mem::zeroed() };
-        check(unsafe { midiOutGetDevCapsW(id as usize, &mut caps,
-            std::mem::size_of::<OutCaps>() as u32) }, "List MIDI outputs")?;
-        let end = caps.name.iter().position(|&c| c == 0).unwrap_or(caps.name.len());
-        ports.push(Port { id, name: String::from_utf16_lossy(&caps.name[..end]) });
+        check(
+            unsafe {
+                midiOutGetDevCapsW(
+                    id as usize,
+                    &mut caps,
+                    std::mem::size_of::<OutCaps>() as u32,
+                )
+            },
+            "List MIDI outputs",
+        )?;
+        let end = caps
+            .name
+            .iter()
+            .position(|&c| c == 0)
+            .unwrap_or(caps.name.len());
+        ports.push(Port {
+            id,
+            name: String::from_utf16_lossy(&caps.name[..end]),
+        });
     }
     Ok(ports)
 }
 
 /// Opened, used and dropped on the clock worker only. No unsafe Send implementation.
-pub struct Output { handle: Handle }
+pub struct Output {
+    handle: Handle,
+}
 
 impl Output {
     pub fn open(id: u32) -> Result<Self, String> {
         let mut handle = std::ptr::null_mut();
         // SAFETY: writable handle, no callbacks or SysEx buffers.
-        check(unsafe { midiOutOpen(&mut handle, id, 0, 0, 0) }, "Open MIDI Clock output")?;
+        check(
+            unsafe { midiOutOpen(&mut handle, id, 0, 0, 0) },
+            "Open MIDI Clock output",
+        )?;
         Ok(Self { handle })
     }
     pub fn send(&mut self, word: u32) -> Result<(), String> {
         // SAFETY: this worker exclusively owns the valid open handle.
-        check(unsafe { midiOutShortMsg(self.handle, word) }, "Send MIDI Clock")
+        check(
+            unsafe { midiOutShortMsg(self.handle, word) },
+            "Send MIDI Clock",
+        )
     }
 }
 
 impl Drop for Output {
     fn drop(&mut self) {
         // SAFETY: only owner; no queued long buffers.
-        unsafe { midiOutClose(self.handle); }
+        unsafe {
+            midiOutClose(self.handle);
+        }
     }
 }
 
@@ -220,7 +254,11 @@ impl Timer {
 }
 impl Drop for Timer {
     fn drop(&mut self) {
-        if self.0 { unsafe { timeEndPeriod(1); } }
+        if self.0 {
+            unsafe {
+                timeEndPeriod(1);
+            }
+        }
     }
 }
 

@@ -36,21 +36,30 @@ pub struct Shared {
 impl Default for Shared {
     fn default() -> Self {
         Self {
-            epoch: Instant::now(), mode: AtomicU8::new(OFF),
-            inhibit: AtomicBool::new(false), lost: AtomicBool::new(false),
-            overflow: AtomicU64::new(0), bpm: AtomicU32::new(0),
+            epoch: Instant::now(),
+            mode: AtomicU8::new(OFF),
+            inhibit: AtomicBool::new(false),
+            lost: AtomicBool::new(false),
+            overflow: AtomicU64::new(0),
+            bpm: AtomicU32::new(0),
             audio_at: AtomicU64::new(0),
-            revision: AtomicU64::new(0), at: AtomicU64::new(0), tick: AtomicU64::new(0),
-            period: AtomicU64::new(20_833_333), playing: AtomicBool::new(false),
+            revision: AtomicU64::new(0),
+            at: AtomicU64::new(0),
+            tick: AtomicU64::new(0),
+            period: AtomicU64::new(20_833_333),
+            playing: AtomicBool::new(false),
             generation: AtomicU32::new(0),
         }
     }
 }
 
 impl Shared {
-    pub fn now(&self) -> u64 { self.epoch.elapsed().as_nanos() as u64 }
+    pub fn now(&self) -> u64 {
+        self.epoch.elapsed().as_nanos() as u64
+    }
 
-    /// Exactly one writer: the dedicated MIDI worker. Sequential atomics make the snapshot coherent.
+    /// Exactly one writer: the dedicated MIDI worker. Sequential atomics make the snapshot
+    /// coherent.
     pub fn write(&self, s: InputFrame) {
         self.revision.fetch_add(1, Ordering::SeqCst);
         self.at.store(s.at, Ordering::SeqCst);
@@ -64,9 +73,12 @@ impl Shared {
     /// One attempt, never a wait on the audio thread. Keep the previous state on contention.
     pub fn read(&self) -> Option<InputFrame> {
         let revision = self.revision.load(Ordering::SeqCst);
-        if revision & 1 != 0 { return None; }
+        if revision & 1 != 0 {
+            return None;
+        }
         let s = InputFrame {
-            at: self.at.load(Ordering::SeqCst), tick: self.tick.load(Ordering::SeqCst),
+            at: self.at.load(Ordering::SeqCst),
+            tick: self.tick.load(Ordering::SeqCst),
             period: self.period.load(Ordering::SeqCst),
             playing: self.playing.load(Ordering::SeqCst),
             generation: self.generation.load(Ordering::SeqCst),
@@ -76,7 +88,10 @@ impl Shared {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct Event { pub at: u64, pub word: u32 }
+pub struct Event {
+    pub at: u64,
+    pub word: u32,
+}
 
 pub struct Connection {
     pub shared: Arc<Shared>,
@@ -99,19 +114,36 @@ pub(crate) struct AudioClock {
 pub(crate) fn bridge() -> (Connection, AudioClock) {
     let shared = Arc::new(Shared::default());
     let (output, receiver) = rtrb::RingBuffer::new(1024);
-    (Connection { shared: shared.clone(), output: receiver }, AudioClock {
-        shared, output, phase: 0.0, playing: false, mode: OFF,
-        base_frame: 0, base_time: 0, input: InputFrame::default(),
-        generation: u32::MAX, resync: false,
-    })
+    (
+        Connection {
+            shared: shared.clone(),
+            output: receiver,
+        },
+        AudioClock {
+            shared,
+            output,
+            phase: 0.0,
+            playing: false,
+            mode: OFF,
+            base_frame: 0,
+            base_time: 0,
+            input: InputFrame::default(),
+            generation: u32::MAX,
+            resync: false,
+        },
+    )
 }
 
 impl AudioClock {
-    pub fn was_slave(&self) -> bool { self.mode == SLAVE }
+    pub fn was_slave(&self) -> bool {
+        self.mode == SLAVE
+    }
     pub fn begin_pull(&mut self, frame: u64) {
         self.base_frame = frame;
         self.base_time = self.shared.now();
-        self.shared.audio_at.store(self.base_time, Ordering::Release);
+        self.shared
+            .audio_at
+            .store(self.base_time, Ordering::Release);
     }
 
     fn send(&mut self, frame: u64, word: u32) {
@@ -129,13 +161,21 @@ impl AudioClock {
             self.generation = u32::MAX;
             self.mode = mode;
         }
-        if mode != MASTER { return; }
-        if self.playing && (!playing || self.resync) { self.send(frame, 0xfc); }
+        if mode != MASTER {
+            return;
+        }
+        if self.playing && (!playing || self.resync) {
+            self.send(frame, 0xfc);
+        }
         if playing && (!self.playing || self.resync) {
-            if tick <= 0 { self.send(frame, 0xfa); }
-            else {
+            if tick <= 0 {
+                self.send(frame, 0xfa);
+            } else {
                 let position = (tick as u32 / 48).min(16383);
-                self.send(frame, 0xf2 | ((position & 127) << 8) | ((position >> 7) << 16));
+                self.send(
+                    frame,
+                    0xf2 | ((position & 127) << 8) | ((position >> 7) << 16),
+                );
                 self.send(frame, 0xfb);
             }
             self.phase = 0.0;
@@ -143,7 +183,9 @@ impl AudioClock {
         }
         self.resync = false;
         self.playing = playing;
-        if !playing { return; }
+        if !playing {
+            return;
+        }
         let step = f64::from(tempo) * 24.0 / (60_000.0 * 44100.0);
         for offset in 0..count {
             // Test before increment: the pulse at the exact block end belongs to the next block.
@@ -173,9 +215,19 @@ pub struct Follower {
 
 impl Default for Follower {
     fn default() -> Self {
-        Self { state: InputFrame { period: 20_833_333, ..InputFrame::default() },
-            next_tick: 0, armed: false, armed_at: 0, previous: None, intervals: [0; 6],
-            count: 0, cursor: 0 }
+        Self {
+            state: InputFrame {
+                period: 20_833_333,
+                ..InputFrame::default()
+            },
+            next_tick: 0,
+            armed: false,
+            armed_at: 0,
+            previous: None,
+            intervals: [0; 6],
+            count: 0,
+            cursor: 0,
+        }
     }
 }
 
@@ -183,7 +235,9 @@ impl Follower {
     pub fn receive(&mut self, word: u32, at: u64, shared: &Shared) {
         match word as u8 {
             0xfa | 0xfb => {
-                if word as u8 == 0xfa { self.next_tick = 0; }
+                if word as u8 == 0xfa {
+                    self.next_tick = 0;
+                }
                 self.state.playing = false;
                 self.armed = true;
                 self.armed_at = at;
@@ -191,7 +245,10 @@ impl Follower {
                 shared.inhibit.store(false, Ordering::Release);
                 shared.lost.store(false, Ordering::Release);
             }
-            0xfc => { self.state.playing = false; self.armed = false; }
+            0xfc => {
+                self.state.playing = false;
+                self.armed = false;
+            }
             0xf2 if word & 0x808000 == 0 => {
                 self.next_tick = u64::from(((word >> 8) & 127) | (((word >> 16) & 127) << 7)) * 48;
                 self.state.tick = self.next_tick;
@@ -207,9 +264,15 @@ impl Follower {
                         self.cursor = (self.cursor + 1) % self.intervals.len();
                         self.count = (self.count + 1).min(self.intervals.len());
                         self.state.period = self.intervals.iter().sum::<u64>() / self.count as u64;
-                        shared.bpm.store((2_500_000_000_000u64 / self.state.period) as u32,
-                            Ordering::Relaxed);
-                    } else { self.intervals = [0; 6]; self.count = 0; self.cursor = 0; }
+                        shared.bpm.store(
+                            (2_500_000_000_000u64 / self.state.period) as u32,
+                            Ordering::Relaxed,
+                        );
+                    } else {
+                        self.intervals = [0; 6];
+                        self.count = 0;
+                        self.cursor = 0;
+                    }
                 }
                 self.previous = Some(at);
                 if self.armed || self.state.playing {
