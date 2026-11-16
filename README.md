@@ -39,7 +39,7 @@ The default branch still contains the upstream application code while integratio
 
 ## The story — finding that first spark again
 
-ReBirth was the first music software I ever installed on my PC.
+ReBirth was the first music software I ever installed on my PC in 1998.
 
 That is where this story starts: with the discovery that a computer could become a place
 to make music. Years later, finding OpenRB-338 brought that feeling back. Someone had
