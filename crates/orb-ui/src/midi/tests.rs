@@ -290,6 +290,8 @@ fn sampler_audio_can_be_silenced_by_a_controller_whose_minimum_is_two() {
     let (link, mut audio) = Link::new(Arc::new(Tables::new()), samples.clone());
     let mut app = App::with_link(Panel::new(), link, None);
     app.samples = samples;
+    // The kit startup preview bypasses the sampler and the four legacy mixer faders.
+    app.settings.startup_sound = false;
     app.new_now();
     app.studio.modern = true;
     let ctx = egui::Context::default();
@@ -332,6 +334,10 @@ fn sampler_audio_can_be_silenced_by_a_controller_whose_minimum_is_two() {
     router.apply(cc(74, 127), &config, &mut app.panel, 0.0);
     app.studio_midi();
     app.studio_poll(&ctx);
+    // Isolate the sampler so legacy channels cannot satisfy either audio assertion.
+    for channel in 1..=4 {
+        app.panel.set_fader(&format!("mixer{channel}.level"), 0);
+    }
     app.panel.press("transport.play", 0.0);
     app.link.as_mut().unwrap().sync(&mut app.panel);
     let mut out = vec![0i16; 2 * CALL_FRAMES];
@@ -344,6 +350,8 @@ fn sampler_audio_can_be_silenced_by_a_controller_whose_minimum_is_two() {
         audible,
         "the sampler must actually sound before testing zero"
     );
+    let mixer = &app.link.as_mut().unwrap().player().snapshot().mixer;
+    assert!(mixer.channels.iter().all(|channel| channel.level == 0));
     router.apply(cc(74, 2), &config, &mut app.panel, 0.0);
     app.studio_midi();
     app.studio_poll(&ctx);
