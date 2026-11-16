@@ -98,7 +98,7 @@ impl App {
                 .max_rect(rect)
                 .id_salt(("tb-duck", row)),
             |ui| {
-                ui.set_clip_rect(rect);
+                ui.set_clip_rect(ui.clip_rect().intersect(rect));
                 ui.style_mut().override_font_id = Some(FontId::proportional(10.5));
                 ui.visuals_mut().selection.bg_fill = Color32::from_rgb(67, 78, 46);
                 ui.spacing_mut().button_padding = egui::vec2(3.0, 1.0);

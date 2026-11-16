@@ -326,6 +326,22 @@ fn main() -> eframe::Result {
             app.audio_health = audio_health;
             app.menu = true;
             app.studio.modern = true;
+            if demo {
+                let frames = (0..88200)
+                    .map(|i| {
+                        let t = i as f32 / 44100.0;
+                        let envelope = (t * 5.0).sin().abs();
+                        let value = (t * 900.0).sin() * envelope * 0.5;
+                        [value, value]
+                    })
+                    .collect();
+                app.studio.waves[0] =
+                    Some(Arc::new(orb_engine::studio::audio_file::Wave { frames }));
+                app.studio.names[0] = "Demo waveform".into();
+                for step in [0, 4, 8, 12] {
+                    app.studio.settings.lanes[0].steps[step] = 100;
+                }
+            }
             app.enable_logo_anim();
             app.settings = Settings::load();
             // the song (or the new empty song) and its mod's startup sound; nothing in the demo,

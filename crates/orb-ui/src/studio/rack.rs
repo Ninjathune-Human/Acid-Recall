@@ -10,6 +10,31 @@ use crate::app::App;
 const ACID: Color32 = Color32::from_rgb(190, 215, 126);
 const FACE: Color32 = Color32::from_rgb(29, 31, 32);
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cards_keep_the_scroll_viewport_clip() {
+        let ctx = egui::Context::default();
+        let viewport = Rect::from_min_size(egui::pos2(20.0, 20.0), Vec2::splat(60.0));
+        let outer = Rect::from_min_size(egui::Pos2::ZERO, Vec2::splat(100.0));
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(outer),
+                ..Default::default()
+            },
+            |ui| {
+                ui.set_clip_rect(viewport);
+                surface(ui, outer, "clipped-card", |ui| {
+                    assert_eq!(ui.clip_rect(), viewport);
+                });
+            },
+        );
+        output.textures_delta.clear();
+    }
+}
+
 fn surface(ui: &mut Ui, rect: Rect, id: &str, draw: impl FnOnce(&mut Ui)) {
     ui.painter().rect_filled(rect, 5.0, FACE);
     ui.painter().rect_stroke(
@@ -23,7 +48,7 @@ fn surface(ui: &mut Ui, rect: Rect, id: &str, draw: impl FnOnce(&mut Ui)) {
             .max_rect(rect.shrink(8.0))
             .id_salt(id),
         |ui| {
-            ui.set_clip_rect(rect);
+            ui.set_clip_rect(ui.clip_rect().intersect(rect));
             let scale = (rect.width() / 300.0).clamp(0.8, 1.15);
             ui.style_mut().override_font_id = Some(FontId::proportional(12.0 * scale));
             ui.spacing_mut().item_spacing = Vec2::new(5.0 * scale, 3.0 * scale);

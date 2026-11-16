@@ -50,9 +50,8 @@ jobs:
       - name: Capture the desktop interface
         shell: pwsh
         run: |
-          & ./scripts/set-ci-display.ps1
           $previewPath = Join-Path $PWD 'graphite-preview/desktop.png'
-          $process = Start-Process -FilePath target/release/OpenRB-338.exe -WindowStyle Hidden -PassThru -ArgumentList @('--demo', '--size', '1600x1000', '--screenshot', $previewPath)
+          $process = Start-Process -FilePath target/release/OpenRB-338.exe -WindowStyle Hidden -PassThru -ArgumentList @('--demo', '--size', '1600x1000', '--ppp', '0.6', '--screenshot', $previewPath)
           if (-not $process.WaitForExit(45000)) { Stop-Process -Id $process.Id }
           if (Test-Path -LiteralPath $previewPath) {
             Write-Output ('GRAPHITE_APP_PREVIEW:' + [Convert]::ToBase64String([IO.File]::ReadAllBytes($previewPath)))
@@ -61,7 +60,7 @@ jobs:
           }
           foreach ($studioView in @('sampler', 'space')) {
             $studioPreviewPath = Join-Path $PWD ('graphite-preview/' + $studioView + '.png')
-            $studioProcess = Start-Process -FilePath target/release/OpenRB-338.exe -WindowStyle Hidden -PassThru -ArgumentList @('--demo', '--size', '1600x1000', '--studio-view', $studioView, '--screenshot', $studioPreviewPath)
+            $studioProcess = Start-Process -FilePath target/release/OpenRB-338.exe -WindowStyle Hidden -PassThru -ArgumentList @('--demo', '--size', '1600x1000', '--ppp', '0.6', '--studio-view', $studioView, '--screenshot', $studioPreviewPath)
             if (-not $studioProcess.WaitForExit(45000)) { Stop-Process -Id $studioProcess.Id }
             if (Test-Path -LiteralPath $studioPreviewPath) {
               Write-Output ('STUDIO_' + $studioView.ToUpper() + '_PREVIEW:' + [Convert]::ToBase64String([IO.File]::ReadAllBytes($studioPreviewPath)))
