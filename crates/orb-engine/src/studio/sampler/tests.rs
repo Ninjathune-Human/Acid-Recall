@@ -128,7 +128,8 @@ fn warped_reverse_loops_honor_trim_and_follow_tempo_changes() {
                 .all(|v| v.is_finite() && v.abs() < 0.25)
         );
     }
-    assert!(sampler.voices[0][0].position.rem_euclid(1024.0).abs() < 1e-8);
+    let phase = sampler.voices[0][0].position.rem_euclid(1024.0);
+    assert!(phase.min(1024.0 - phase) < 1e-8, "loop phase: {phase}");
     sampler.process(
         &lanes,
         0.0,
