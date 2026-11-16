@@ -2,9 +2,11 @@ use super::*;
 
 #[test]
 fn default_bus_is_exact_unity_and_preserves_lane_sends() {
-    let mut bus = Bus::default();
-    bus.dry = [[0.25; 64], [-0.125; 64]];
-    bus.reverb = [[0.05; 64], [-0.03; 64]];
+    let mut bus = Bus {
+        dry: [[0.25; 64], [-0.125; 64]],
+        reverb: [[0.05; 64], [-0.03; 64]],
+        ..Bus::default()
+    };
     let dry = bus.dry;
     let mut delay = [0.0; 64];
     let mut space = [[0.0; 64]; 2];
