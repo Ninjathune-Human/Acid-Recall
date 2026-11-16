@@ -2042,9 +2042,7 @@ fn the_about_window_opens_centered_and_closes() {
     };
     assert!(!h.app.about_is_open());
     egui_extras::install_image_loaders(&h.ctx);
-    // an image is a rect shape with a texture brush
-    let images = |s: &str| s.matches("brush: Some(").count();
-    let before = images(&h.frame_shapes(vec![]));
+    let _ = h.frame_shapes(vec![]);
 
     h.app.command(Cmd::About);
     assert!(h.app.about_is_open());
@@ -2076,12 +2074,11 @@ fn the_about_window_opens_centered_and_closes() {
     }
     assert_eq!(orb_ui::about::COLLECTIONS[0].0, "Song collection:");
     assert_eq!(orb_ui::about::COLLECTIONS[1].0, "Mod collection:");
-    // the icon and the wordmark: two more images than without the window
-    assert_eq!(
-        images(&shapes),
-        before + 2,
-        "the icon and the logo are drawn"
-    );
+    // The fork uses its PNG icon and a text wordmark, rather than two legacy SVG parts.
+    let icon = h.ctx.data(|data| {
+        data.get_temp::<egui::TextureHandle>(egui::Id::unique("acid-recall-about-icon"))
+    });
+    assert_eq!(icon.expect("brand icon is loaded").size(), [128, 128]);
     // the version is `YYYY.MMDD.HHMM (<git>)` (task-133)
     let v = orb_ui::about::VERSION;
     let b = v.as_bytes();
