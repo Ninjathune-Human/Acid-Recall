@@ -178,11 +178,14 @@ fn lane_row(
     active: bool,
     lane: &mut Lane,
     selected: &mut usize,
+    row_width: f32,
 ) -> [Rect; 3] {
     let mut regions = [Rect::NOTHING; 3];
     ui.push_id(("sampler-lane", index), |ui| {
+        ui.spacing_mut().interact_size.x = 20.0;
+        ui.spacing_mut().button_padding.x = 3.0;
         ui.horizontal(|ui| {
-            let width = (ui.available_width() - 50.0).max(40.0);
+            let width = (row_width - 40.0 - 2.0 * ui.spacing().item_spacing.x).max(40.0);
             let (rect, response) = ui.allocate_exact_size(Vec2::new(width, 20.0), Sense::click());
             regions[0] = rect;
             ui.painter().rect_filled(
@@ -357,6 +360,7 @@ impl App {
                                     i == selected,
                                     lane,
                                     &mut self.studio.selected,
+                                    rect.width() * 0.22,
                                 );
                             }
                         });
@@ -691,6 +695,7 @@ mod tests {
                         false,
                         &mut lane,
                         &mut selected,
+                        240.0,
                     );
                 },
             );
@@ -719,6 +724,40 @@ mod tests {
             selected, 0,
             "Quick mix actions must not change the editing lane"
         );
+    }
+
+    #[test]
+    fn quick_mix_columns_stay_aligned_across_all_eight_sample_names() {
+        let ctx = egui::Context::default();
+        let mut selected = 0;
+        let mut lanes: [Lane; 8] = std::array::from_fn(|_| Lane::default());
+        let mut columns = Vec::new();
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, Vec2::splat(400.0))),
+                ..Default::default()
+            },
+            |ui| {
+                ui.set_width(240.0);
+                for (index, lane) in lanes.iter_mut().enumerate() {
+                    columns.push(lane_row(
+                        ui,
+                        index,
+                        "A long imported sample filename.wav",
+                        false,
+                        lane,
+                        &mut selected,
+                        240.0,
+                    ));
+                }
+            },
+        );
+        output.textures_delta.clear();
+        for row in &columns {
+            assert_eq!(row[1].left(), columns[0][1].left());
+            assert_eq!(row[2].left(), columns[0][2].left());
+            assert!(row[2].right() <= row[0].left() + 240.1);
+        }
     }
 
     #[test]
