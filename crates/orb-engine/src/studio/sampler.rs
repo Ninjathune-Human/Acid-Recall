@@ -1,9 +1,9 @@
 //! Eight stereo lanes, fixed voice pools, sample-accurate sixteenth-note triggering.
 
 use super::audio_file::{Wave, sinc};
-mod warp;
 #[cfg(test)]
 mod tests;
+mod warp;
 
 pub const LANES: usize = 8;
 pub const STEPS: usize = 64 * 16;
@@ -315,10 +315,18 @@ impl Sampler {
             if tempo.is_finite() && tempo > 0.0 {
                 let source = if lanes[i].warp_bpm.is_finite() {
                     lanes[i].warp_bpm.clamp(20.0, 400.0)
-                } else { 120.0 };
+                } else {
+                    120.0
+                };
                 let ratio = (tempo / source).clamp(0.01, 32.0);
-                if (ratio - 1.0).abs() < 1e-10 { 1.0 } else { ratio }
-            } else { 1.0 }
+                if (ratio - 1.0).abs() < 1e-10 {
+                    1.0
+                } else {
+                    ratio
+                }
+            } else {
+                1.0
+            }
         });
         let attacks: [f64; LANES] =
             std::array::from_fn(|i| 1.0 - (-1.0 / (lanes[i].gater_attack_ms * 44.1)).exp());
@@ -394,30 +402,30 @@ impl Sampler {
                         let mut value = if warping {
                             voice.warp.read(&region, voice.position)
                         } else {
-                        voice.warp.reset();
-                        let position = if lane.reverse {
-                            end as f64 - 1.0 - voice.position
-                        } else {
-                            start as f64 + voice.position
-                        };
-                        let center = position.floor() as isize;
-                        let phase = ((position - position.floor()) * 256.0) as usize;
-                        let weights =
-                            &self.table[(lane.pitch + 24) as usize * 256 + phase.min(255)];
-                        let mut value = [0.0; 2];
-                        if lane.pitch == 0 && position == center as f64 {
-                            value = wave.frames[center as usize].map(f64::from);
-                        } else {
-                            for (tap, &weight) in weights.iter().enumerate() {
-                                let index = (center + tap as isize - 7)
-                                    .clamp(start as isize, end as isize - 1)
-                                    as usize;
-                                for (c, v) in value.iter_mut().enumerate() {
-                                    *v += f64::from(wave.frames[index][c]) * weight;
+                            voice.warp.reset();
+                            let position = if lane.reverse {
+                                end as f64 - 1.0 - voice.position
+                            } else {
+                                start as f64 + voice.position
+                            };
+                            let center = position.floor() as isize;
+                            let phase = ((position - position.floor()) * 256.0) as usize;
+                            let weights =
+                                &self.table[(lane.pitch + 24) as usize * 256 + phase.min(255)];
+                            let mut value = [0.0; 2];
+                            if lane.pitch == 0 && position == center as f64 {
+                                value = wave.frames[center as usize].map(f64::from);
+                            } else {
+                                for (tap, &weight) in weights.iter().enumerate() {
+                                    let index = (center + tap as isize - 7)
+                                        .clamp(start as isize, end as isize - 1)
+                                        as usize;
+                                    for (c, v) in value.iter_mut().enumerate() {
+                                        *v += f64::from(wave.frames[index][c]) * weight;
+                                    }
                                 }
                             }
-                        }
-                        value
+                            value
                         };
                         value = voice.warp.transition(value, warping);
                         if lane.mode == Mode::Loop && seam > 0.0 {

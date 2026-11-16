@@ -175,20 +175,33 @@ pub(super) fn warp_controls(ui: &mut Ui, lane: &mut Lane, frames: Option<usize>)
     ui.horizontal_wrapped(|ui| {
         ui.checkbox(&mut lane.warp, "TIME WARP")
             .on_hover_text("Follow the song tempo without changing the sample pitch");
-        ui.add(egui::DragValue::new(&mut lane.warp_bpm)
-            .range(20.0..=400.0).speed(0.1).prefix("Src BPM "))
-            .on_hover_text("The original tempo of this sample, not the song tempo");
-        ui.add(egui::DragValue::new(&mut lane.warp_beats)
-            .range(1..=256).prefix("Beats "))
-            .on_hover_text("Number of quarter-note beats in the selected IN/OUT region");
+        ui.add(
+            egui::DragValue::new(&mut lane.warp_bpm)
+                .range(20.0..=400.0)
+                .speed(0.1)
+                .prefix("Src BPM "),
+        )
+        .on_hover_text("The original tempo of this sample, not the song tempo");
+        ui.add(
+            egui::DragValue::new(&mut lane.warp_beats)
+                .range(1..=256)
+                .prefix("Beats "),
+        )
+        .on_hover_text("Number of quarter-note beats in the selected IN/OUT region");
         let fitted = frames.and_then(|frames| lane.fitted_warp_bpm(frames));
-        if ui.add_enabled(fitted.is_some(), egui::Button::new("FIT"))
+        if ui
+            .add_enabled(fitted.is_some(), egui::Button::new("FIT"))
             .on_hover_text("Calculate source BPM from Beats and the selected audio; enable Warp")
-            .clicked() {
+            .clicked()
+        {
             lane.warp_bpm = fitted.unwrap();
             lane.warp = true;
         }
-        ui.small(if lane.warp { "Tempo sync" } else { "Free playback" });
+        ui.small(if lane.warp {
+            "Tempo sync"
+        } else {
+            "Free playback"
+        });
     });
 }
 
@@ -507,7 +520,8 @@ impl App {
                                         .prefix("REV "),
                                 );
                             });
-                            let frames = self.studio.waves[selected].as_ref().map(|w| w.frames.len());
+                            let frames =
+                                self.studio.waves[selected].as_ref().map(|w| w.frames.len());
                             warp_controls(ui, lane, frames);
                             gater_controls(ui, lane);
                             let bars = usize::from(lane.bars.clamp(1, 64));

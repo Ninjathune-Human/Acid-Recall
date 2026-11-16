@@ -27,20 +27,30 @@ pub(super) struct Region<'a> {
 }
 
 impl Region<'_> {
-    fn length(&self) -> usize { self.end - self.start }
+    fn length(&self) -> usize {
+        self.end - self.start
+    }
 
     fn position(&self, relative: f64) -> f64 {
         let length = self.length() as f64;
-        let relative = if self.looping { relative.rem_euclid(length) }
-            else { relative.clamp(0.0, length - 1.0) };
-        if self.reverse { self.end as f64 - 1.0 - relative }
-            else { self.start as f64 + relative }
+        let relative = if self.looping {
+            relative.rem_euclid(length)
+        } else {
+            relative.clamp(0.0, length - 1.0)
+        };
+        if self.reverse {
+            self.end as f64 - 1.0 - relative
+        } else {
+            self.start as f64 + relative
+        }
     }
 
     fn index(&self, index: isize) -> usize {
         if self.looping {
             self.start + (index - self.start as isize).rem_euclid(self.length() as isize) as usize
-        } else { index.clamp(self.start as isize, self.end as isize - 1) as usize }
+        } else {
+            index.clamp(self.start as isize, self.end as isize - 1) as usize
+        }
     }
 
     fn linear(&self, relative: f64) -> [f64; 2] {
@@ -76,11 +86,15 @@ impl Region<'_> {
         let reference: [[f64; 2]; POINTS] =
             std::array::from_fn(|n| self.linear(previous + n as f64 * stride));
         let sums: [f64; 2] = std::array::from_fn(|c| reference.iter().map(|v| v[c]).sum());
-        let energy: f64 = (0..2).map(|c| {
-            reference.iter().map(|v| v[c] * v[c]).sum::<f64>()
-                - sums[c] * sums[c] / POINTS as f64
-        }).sum();
-        if energy < 1e-12 { return ideal; }
+        let energy: f64 = (0..2)
+            .map(|c| {
+                reference.iter().map(|v| v[c] * v[c]).sum::<f64>()
+                    - sums[c] * sums[c] / POINTS as f64
+            })
+            .sum();
+        if energy < 1e-12 {
+            return ideal;
+        }
         let search = (self.length() / 8).clamp(1, 256) as i32;
         let score = |offset: i32| {
             let candidate = ideal + f64::from(offset);
@@ -102,20 +116,28 @@ impl Region<'_> {
                 square -= sum[c] * sum[c] / POINTS as f64;
                 dot -= sum[c] * sums[c] / POINTS as f64;
             }
-            if square < 1e-12 { return -1.0; }
-            dot / (square * energy).sqrt()
-                - f64::from(offset.abs()) / f64::from(search) * 0.0001
+            if square < 1e-12 {
+                return -1.0;
+            }
+            dot / (square * energy).sqrt() - f64::from(offset.abs()) / f64::from(search) * 0.0001
         };
         let mut best = 0;
         let mut best_score = score(0);
         // Fixed upper bound: 17 coarse + 17 medium + 9 fine candidates per grain.
         for step in [32, 4, 1] {
-            let radius = match step { 32 => search, 4 => 32, _ => 4 };
+            let radius = match step {
+                32 => search,
+                4 => 32,
+                _ => 4,
+            };
             let center = best;
             for delta in (-radius..=radius).step_by(step as usize) {
                 let candidate = (center + delta).clamp(-search, search);
                 let value = score(candidate);
-                if value > best_score { best = candidate; best_score = value; }
+                if value > best_score {
+                    best = candidate;
+                    best_score = value;
+                }
             }
         }
         ideal + f64::from(best)
@@ -123,11 +145,23 @@ impl Region<'_> {
 }
 
 impl Warp {
-    pub fn reset(&mut self) { self.ready = false; }
+    pub fn reset(&mut self) {
+        self.ready = false;
+    }
 
     pub fn read(&mut self, region: &Region<'_>, cursor: f64) -> [f64; 2] {
-        let tag = (region.start, region.end, region.reverse, region.looping, region.pitch);
+        let tag = (
+            region.start,
+            region.end,
+            region.reverse,
+            region.looping,
+            region.pitch,
+        );
         if !self.ready || self.region != tag {
+            if self.ready {
+                self.from = self.last;
+                self.fade = 64;
+            }
             self.ready = true;
             self.region = tag;
             self.hop = (region.length() / 8).clamp(16, 1024);
@@ -137,8 +171,11 @@ impl Warp {
             self.positions[0] = self.positions[1];
             // Compensate the overlap's analysis lag so transients follow the source clock.
             let ideal = cursor + (region.advance - region.rate) * self.hop as f64;
-            let ideal = if region.looping { ideal }
-                else { ideal.clamp(0.0, region.length() as f64 - 1.0) };
+            let ideal = if region.looping {
+                ideal
+            } else {
+                ideal.clamp(0.0, region.length() as f64 - 1.0)
+            };
             self.positions[1] = region.align(ideal, self.positions[0], self.hop);
             self.phase = 0;
         }
@@ -162,7 +199,9 @@ impl Warp {
             let mix = (65 - self.fade) as f64 / 64.0;
             self.fade -= 1;
             std::array::from_fn(|c| self.from[c] * (1.0 - mix) + value[c] * mix)
-        } else { value };
+        } else {
+            value
+        };
         self.last = value;
         value
     }

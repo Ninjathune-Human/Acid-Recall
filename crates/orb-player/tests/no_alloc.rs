@@ -129,10 +129,12 @@ fn the_callback_does_not_allocate() {
         lane.warp = true;
         lane.warp_bpm = 110.0;
         studio.sampler.waves[i] = Some(Box::new(orb_engine::studio::audio_file::Wave {
-            frames: (0..8000).map(|n| {
-                let value = (n as f64 * std::f64::consts::TAU * 330.0 / 44100.0).sin() as f32;
-                [value * 0.03, value * -0.03]
-            }).collect(),
+            frames: (0..8000)
+                .map(|n| {
+                    let value = (n as f64 * std::f64::consts::TAU * 330.0 / 44100.0).sin() as f32;
+                    [value * 0.03, value * -0.03]
+                })
+                .collect(),
         }));
     }
     send(&mut p, Command::Studio(studio));

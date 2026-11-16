@@ -165,7 +165,9 @@ fn lane_value(lane: &Lane, name: &str) -> f64 {
         "reverse" => f64::from(u8::from(lane.reverse)),
         "warp" => f64::from(u8::from(lane.warp)),
         "warp_bpm" => (lane.warp_bpm - 20.0) / 380.0,
-        "warp_beats" => WARP_BEATS.iter().enumerate()
+        "warp_beats" => WARP_BEATS
+            .iter()
+            .enumerate()
             .min_by_key(|(_, beats)| beats.abs_diff(lane.warp_beats))
             .map_or(0.0, |(index, _)| index as f64 / 15.0),
         "mute" => f64::from(u8::from(lane.muted)),
@@ -475,10 +477,12 @@ mod tests {
 
     #[test]
     fn warp_source_tempo_fit_and_midi_pickup_reach_the_sampler_settings() {
-        use std::sync::Arc;
         use orb_engine::studio::audio_file::Wave;
+        use std::sync::Arc;
         let mut app = App::new(Panel::new(), None);
-        app.studio.waves[0] = Some(Arc::new(Wave { frames: vec![[0.0; 2]; 88200] }));
+        app.studio.waves[0] = Some(Arc::new(Wave {
+            frames: vec![[0.0; 2]; 88200],
+        }));
         let mut router = Router::default();
         move_cc(&mut app, &mut router, "sampler1.warp_bpm", 0, false);
         assert_eq!(app.studio.settings.lanes[0].warp_bpm, 20.0);
@@ -497,7 +501,7 @@ mod tests {
         assert_eq!(app.studio.settings.lanes[0].warp_bpm, 120.0);
         for value in 0..=127 {
             move_cc(&mut app, &mut router, "sampler1.warp_beats", value, true);
-            assert_eq!(app.panel.value("sampler1.warp_beats"), Some(i32::from(value)));
+            assert_eq!(app.panel.value("sampler1.warp_beats"), Some(value));
         }
         move_cc(&mut app, &mut router, "sampler1.warp", 0, false);
         assert!(!app.studio.settings.lanes[0].warp);
