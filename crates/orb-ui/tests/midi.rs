@@ -94,7 +94,15 @@ fn legacy_uc33_calibration_tolerates_a_minimum_of_one_or_two_for_every_control()
         let mut router = Router::default();
         let mut c = config(&id, false);
         c.minimum_one = true;
-        for (raw, expected) in [(0, 0), (1, 0), (2, 0), (3, 1), (64, 63), (126, 126), (127, 127)] {
+        for (raw, expected) in [
+            (0, 0),
+            (1, 0),
+            (2, 0),
+            (3, 1),
+            (64, 63),
+            (126, 126),
+            (127, 127),
+        ] {
             router.apply(cc(1, raw), &c, &mut p, 0.0);
             assert_eq!(p.value(&id), Some(expected), "{id}: raw {raw}");
         }
@@ -107,7 +115,11 @@ fn legacy_uc33_calibration_tolerates_a_minimum_of_one_or_two_for_every_control()
             previous = actual;
             values.insert(actual);
         }
-        assert_eq!(values.len(), 126, "{id}: no extra lost resolution above the calibrated floor");
+        assert_eq!(
+            values.len(),
+            126,
+            "{id}: no extra lost resolution above the calibrated floor"
+        );
     }
 }
 

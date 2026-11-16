@@ -700,14 +700,19 @@ impl App {
                 let mut minimum = config.minimum_cc_for(0);
                 ui.horizontal(|ui| {
                     ui.label("Input 1 minimum CC");
-                    if ui.add(egui::DragValue::new(&mut minimum).range(0..=16)).changed() {
+                    if ui
+                        .add(egui::DragValue::new(&mut minimum).range(0..=16))
+                        .changed()
+                    {
                         config.minimum_cc = minimum;
                         config.minimum_one = false;
                         self.midi.router.reset();
                         changed = true;
                     }
                 });
-                ui.small("0 keeps standard MIDI. Set 2 for UC-33e minima fluctuating between 1 and 2.");
+                ui.small(
+                    "0 keeps standard MIDI. Set 2 for UC-33e minima fluctuating between 1 and 2.",
+                );
                 ui.small("Values at or below this minimum map to zero; 127 stays full scale.");
                 for (i, input) in config.additional_inputs.iter_mut().enumerate() {
                     ui.push_id(("additional-midi", i), |ui| {
@@ -741,7 +746,10 @@ impl App {
                         let mut minimum = calibration_floor(input.minimum_cc, input.minimum_one);
                         ui.horizontal(|ui| {
                             ui.label("Minimum CC");
-                            if ui.add(egui::DragValue::new(&mut minimum).range(0..=16)).changed() {
+                            if ui
+                                .add(egui::DragValue::new(&mut minimum).range(0..=16))
+                                .changed()
+                            {
                                 input.minimum_cc = minimum;
                                 input.minimum_one = false;
                                 self.midi.router.reset();

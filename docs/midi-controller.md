@@ -82,16 +82,17 @@ capture the next MIDI movement. Check **Waiting for CC** before moving the contr
 Assign different CC/channel pairs to CH and OH. If a pair already belongs to another target,
 the assignment confirmation says which routing was replaced.
 
-## A controller stops at value 1
+## A controller stops at value 1 or 2
 
-If **Last input** shows value **1** when a physical knob or fader is fully down, enable
-**Controller minimum is 1 (calibrate to zero)** in the MIDI Controller window. This maps the
-hardware range 1–127 onto the software range 0–127, retaining both endpoints and smooth
-movement. Incoming zero also remains zero. The calibration applies to continuous controls;
+If **Last input** shows **1** or **2** when a physical knob or fader is fully down, set
+**Minimum CC** for that input in the MIDI Controller window. For an UC-33e whose lowest
+value fluctuates between 1 and 2, choose **2**. Values at or below the selected minimum map
+to exact zero, while 127 remains full scale. The calibration applies to continuous controls;
 button presses and switches retain their normal thresholds. Soft takeover uses the calibrated
 values. Last input continues to display the raw hardware message for diagnosis.
 
-The option is off by default for controllers that already send 0–127. It is saved automatically
+The minimum defaults to 0 for controllers that already send 0-127. Old minimum-one settings
+automatically migrate to a minimum of 2. Each input has its own calibration, saved automatically
 on this computer and stays local when importing/exporting routing, since it describes the
 connected hardware. It does not change mouse controls or the audio engine. A volume at zero
 cuts that volume path; other parameters such as Tune or Decay retain their musical meaning.

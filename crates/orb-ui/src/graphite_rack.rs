@@ -29,26 +29,60 @@ type DrumParameter = (&'static str, &'static str);
 // Hats use the separate closed-hat level supported by the controller router.
 const VOICES_808: [&[DrumParameter]; 12] = [
     &[("ac_level", "LEVEL")],
-    &[("bd_level", "LEVEL"), ("bd_tone", "TONE"), ("bd_decay", "DECAY")],
-    &[("sd_level", "LEVEL"), ("sd_tone", "TONE"), ("sd_snappy", "SNAPPY")],
+    &[
+        ("bd_level", "LEVEL"),
+        ("bd_tone", "TONE"),
+        ("bd_decay", "DECAY"),
+    ],
+    &[
+        ("sd_level", "LEVEL"),
+        ("sd_tone", "TONE"),
+        ("sd_snappy", "SNAPPY"),
+    ],
     &[("lt_level", "LEVEL"), ("lt_tuning", "TUNE")],
     &[("mt_level", "LEVEL"), ("mt_tuning", "TUNE")],
     &[("ht_level", "LEVEL"), ("ht_tuning", "TUNE")],
     &[("rs_level", "LEVEL")],
     &[("cp_level", "LEVEL")],
     &[("cb_level", "LEVEL")],
-    &[("cy_level", "LEVEL"), ("cy_tone", "TONE"), ("cy_decay", "DECAY")],
+    &[
+        ("cy_level", "LEVEL"),
+        ("cy_tone", "TONE"),
+        ("cy_decay", "DECAY"),
+    ],
     &[("oh_level", "LEVEL"), ("oh_decay", "DECAY")],
     &[("ch_level", "LEVEL")],
 ];
 
 const VOICES_909: [&[DrumParameter]; 12] = [
     &[("ac_level", "LEVEL"), ("flam", "FLAM")],
-    &[("bd_level", "LEVEL"), ("bd_tune", "TUNE"), ("bd_attack", "ATTACK"), ("bd_decay", "DECAY")],
-    &[("sd_level", "LEVEL"), ("sd_tune", "TUNE"), ("sd_tone", "TONE"), ("sd_snappy", "SNAPPY")],
-    &[("lt_level", "LEVEL"), ("lt_tune", "TUNE"), ("lt_decay", "DECAY")],
-    &[("mt_level", "LEVEL"), ("mt_tune", "TUNE"), ("mt_decay", "DECAY")],
-    &[("ht_level", "LEVEL"), ("ht_tune", "TUNE"), ("ht_decay", "DECAY")],
+    &[
+        ("bd_level", "LEVEL"),
+        ("bd_tune", "TUNE"),
+        ("bd_attack", "ATTACK"),
+        ("bd_decay", "DECAY"),
+    ],
+    &[
+        ("sd_level", "LEVEL"),
+        ("sd_tune", "TUNE"),
+        ("sd_tone", "TONE"),
+        ("sd_snappy", "SNAPPY"),
+    ],
+    &[
+        ("lt_level", "LEVEL"),
+        ("lt_tune", "TUNE"),
+        ("lt_decay", "DECAY"),
+    ],
+    &[
+        ("mt_level", "LEVEL"),
+        ("mt_tune", "TUNE"),
+        ("mt_decay", "DECAY"),
+    ],
+    &[
+        ("ht_level", "LEVEL"),
+        ("ht_tune", "TUNE"),
+        ("ht_decay", "DECAY"),
+    ],
     &[("rs_level", "LEVEL")],
     &[("cp_level", "LEVEL")],
     &[("ch_level", "LEVEL"), ("ch_decay", "DECAY")],
@@ -56,119 +90,6 @@ const VOICES_909: [&[DrumParameter]; 12] = [
     &[("cc_level", "LEVEL"), ("cc_tune", "TUNE")],
     &[("rc_level", "LEVEL"), ("rc_tune", "TUNE")],
 ];
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::model::Panel;
-
-    #[test]
-    fn every_real_drum_parameter_is_directly_available_with_no_invented_controls() {
-        use std::collections::BTreeSet;
-        for (section, voices) in [("tr808", VOICES_808), ("tr909", VOICES_909)] {
-            let actual: BTreeSet<_> = layout::controls().into_iter()
-                .filter(|c| c.section == section && c.kind == "knob").map(|c| c.id).collect();
-            let exposed: BTreeSet<_> = voices.iter().flat_map(|voice| voice.iter())
-                .map(|(name, _)| format!("{section}.{name}")).collect();
-            assert_eq!(exposed, actual, "The {section} face must expose its real voice controls");
-        }
-    }
-
-    #[test]
-    fn drum_attack_decay_and_snappy_are_directly_draggable_on_the_rack() {
-        for (id, row, instrument, parameter) in [
-            ("tr808.bd_decay", 2, 1, 2),
-            ("tr808.sd_snappy", 2, 2, 2),
-            ("tr909.bd_attack", 3, 1, 2),
-            ("tr909.sd_snappy", 3, 2, 3),
-        ] {
-            let ctx = egui::Context::default();
-            let mut app = App::new(Panel::new(), None);
-            let screen = Rect::from_min_size(Pos2::ZERO, Vec2::new(WIDTH, HEIGHT));
-            let rack = Rack::fit(screen);
-            let pos = rack.rect(233.0 + instrument as f32 * 50.0,
-                ROWS[row].0 + 35.0 + parameter as f32 * 40.0, 28.0, 40.0).center();
-            let before = app.panel.knob(id);
-            let moved = pos - Vec2::new(0.0, 20.0);
-            for events in [vec![], vec![egui::Event::PointerMoved(pos),
-                egui::Event::PointerButton { pos, button: egui::PointerButton::Primary,
-                    pressed: true, modifiers: egui::Modifiers::default() }],
-                vec![egui::Event::PointerMoved(moved)],
-                vec![egui::Event::PointerButton { pos: moved, button: egui::PointerButton::Primary,
-                    pressed: false, modifiers: egui::Modifiers::default() }]] {
-                let mut output = ctx.run_ui(egui::RawInput { screen_rect: Some(screen), events,
-                    ..Default::default() }, |ui| { app.graphite_rack(ui, screen); });
-                output.textures_delta.clear();
-            }
-            assert!(app.panel.knob(id) > before, "{id} must be editable without opening EDIT");
-            assert!(app.panel.events.iter().any(|event|
-                matches!(event, crate::model::Event::Set { id: changed, .. } if changed == id)));
-        }
-    }
-
-    #[test]
-    fn native_rack_does_not_push_the_menu_to_the_bottom() {
-        let ctx = egui::Context::default();
-        egui_extras::install_image_loaders(&ctx);
-        let mut app = App::new(Panel::new(), None);
-        app.studio.modern = true;
-        app.menu = true;
-        let mut menu_bottom = 0.0;
-        let mut output = ctx.run_ui(
-            egui::RawInput {
-                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(WIDTH, HEIGHT))),
-                ..Default::default()
-            },
-            |ui| {
-                app.show(ui);
-                menu_bottom = ui.cursor().top();
-            },
-        );
-        assert!(
-            menu_bottom < 70.0,
-            "The menu must remain at the top of its parent UI"
-        );
-        output.textures_delta.clear();
-    }
-
-    #[test]
-    fn master_compressor_is_visible_and_clickable_in_the_native_rack() {
-        let ctx = egui::Context::default();
-        egui_extras::install_image_loaders(&ctx);
-        let mut app = App::new(Panel::new(), None);
-        app.studio.modern = true;
-        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(WIDTH, HEIGHT));
-        let position = Rack::fit(rect).rect(1140.0, 25.0, 104.0, 29.0).center();
-        assert!(!app.panel.toggle_on("master.comp"));
-        for pressed in [None, Some(true), Some(false)] {
-            let events = pressed.map_or_else(Vec::new, |pressed| {
-                vec![
-                    egui::Event::PointerMoved(position),
-                    egui::Event::PointerButton {
-                        pos: position,
-                        button: egui::PointerButton::Primary,
-                        pressed,
-                        modifiers: egui::Modifiers::default(),
-                    },
-                ]
-            });
-            let mut output = ctx.run_ui(
-                egui::RawInput {
-                    screen_rect: Some(rect),
-                    events,
-                    ..Default::default()
-                },
-                |ui| app.show(ui),
-            );
-            output.textures_delta.clear();
-        }
-        assert!(app.panel.toggle_on("master.comp"));
-        for area in sidechain_areas(rect) {
-            assert!(rect.contains_rect(area));
-            assert!(area.left() > rect.center().x);
-        }
-    }
-}
 
 #[derive(Clone, Copy)]
 struct Rack {
@@ -687,29 +608,56 @@ impl App {
             let x = 224.0 + i as f32 * 50.0;
             // Subtle vertical voice groups make unequal parameter counts intentional and
             // leave nonexistent controls blank rather than inventing silent knobs.
-            ui.painter().rect_filled(rack.rect(x, y + 33.0, 46.0, 165.0),
-                3.0 * rack.scale, Color32::from_rgb(25, 28, 28));
+            ui.painter().rect_filled(
+                rack.rect(x, y + 33.0, 46.0, 165.0),
+                3.0 * rack.scale,
+                Color32::from_rgb(25, 28, 28),
+            );
             for (parameter, &(id, label)) in voices[i].iter().enumerate() {
-                self.rack_knob(ui, rack, &format!("{section}.{id}"), label,
-                    rack.rect(x + 9.0, y + 35.0 + parameter as f32 * 40.0, 28.0, 40.0));
+                self.rack_knob(
+                    ui,
+                    rack,
+                    &format!("{section}.{id}"),
+                    label,
+                    rack.rect(x + 9.0, y + 35.0 + parameter as f32 * 40.0, 28.0, 40.0),
+                );
             }
             if row == 2 && (3..=7).contains(&i) {
                 let id = format!("tr808.slot{i}_switch");
                 let original = self.panel.switch_position(&id) != 0;
                 let label = match (i, original) {
-                    (3..=5, true) => "TOM", (3..=5, false) => "CONGA",
-                    (6, true) => "RIM", (6, false) => "CLAVE",
-                    (_, true) => "CLAP", (_, false) => "MARACA",
+                    (3..=5, true) => "TOM",
+                    (3..=5, false) => "CONGA",
+                    (6, true) => "RIM",
+                    (6, false) => "CLAVE",
+                    (_, true) => "CLAP",
+                    (_, false) => "MARACA",
                 };
-                if button(ui, rack, rack.rect(x + 2.0, y + 174.0, 42.0, 18.0),
-                    &id, label, original).clicked() {
+                if button(
+                    ui,
+                    rack,
+                    rack.rect(x + 2.0, y + 174.0, 42.0, 18.0),
+                    &id,
+                    label,
+                    original,
+                )
+                .clicked()
+                {
                     self.panel.set_switch(&id, u8::from(!original));
                 }
             }
             if row == 3 && i == 0 {
                 let on = self.panel.toggle_on("tr909.flam_button");
-                if button(ui, rack, rack.rect(x + 2.0, y + 174.0, 42.0, 18.0),
-                    "tr909.flam_button", "FLAM", on).clicked() {
+                if button(
+                    ui,
+                    rack,
+                    rack.rect(x + 2.0, y + 174.0, 42.0, 18.0),
+                    "tr909.flam_button",
+                    "FLAM",
+                    on,
+                )
+                .clicked()
+                {
                     self.panel.press("tr909.flam_button", 0.0);
                 }
             }
@@ -1049,6 +997,158 @@ impl App {
             });
         if !open {
             ui.ctx().data_mut(|d| d.insert_temp(id, None::<usize>));
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::Panel;
+
+    #[test]
+    fn every_real_drum_parameter_is_directly_available_with_no_invented_controls() {
+        use std::collections::BTreeSet;
+        for (section, voices) in [("tr808", VOICES_808), ("tr909", VOICES_909)] {
+            let actual: BTreeSet<_> = layout::controls()
+                .into_iter()
+                .filter(|c| c.section == section && c.kind == "knob")
+                .map(|c| c.id)
+                .collect();
+            let exposed: BTreeSet<_> = voices
+                .iter()
+                .flat_map(|voice| voice.iter())
+                .map(|(name, _)| format!("{section}.{name}"))
+                .collect();
+            assert_eq!(
+                exposed, actual,
+                "The {section} face must expose its real voice controls"
+            );
+        }
+    }
+
+    #[test]
+    fn drum_attack_decay_and_snappy_are_directly_draggable_on_the_rack() {
+        for (id, row, instrument, parameter) in [
+            ("tr808.bd_decay", 2, 1, 2),
+            ("tr808.sd_snappy", 2, 2, 2),
+            ("tr909.bd_attack", 3, 1, 2),
+            ("tr909.sd_snappy", 3, 2, 3),
+        ] {
+            let ctx = egui::Context::default();
+            let mut app = App::new(Panel::new(), None);
+            let screen = Rect::from_min_size(Pos2::ZERO, Vec2::new(WIDTH, HEIGHT));
+            let rack = Rack::fit(screen);
+            let pos = rack
+                .rect(
+                    233.0 + instrument as f32 * 50.0,
+                    ROWS[row].0 + 35.0 + parameter as f32 * 40.0,
+                    28.0,
+                    40.0,
+                )
+                .center();
+            let before = app.panel.knob(id);
+            let moved = pos - Vec2::new(0.0, 20.0);
+            for events in [
+                vec![],
+                vec![
+                    egui::Event::PointerMoved(pos),
+                    egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed: true,
+                        modifiers: egui::Modifiers::default(),
+                    },
+                ],
+                vec![egui::Event::PointerMoved(moved)],
+                vec![egui::Event::PointerButton {
+                    pos: moved,
+                    button: egui::PointerButton::Primary,
+                    pressed: false,
+                    modifiers: egui::Modifiers::default(),
+                }],
+            ] {
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(screen),
+                        events,
+                        ..Default::default()
+                    },
+                    |ui| {
+                        app.graphite_rack(ui, screen);
+                    },
+                );
+                output.textures_delta.clear();
+            }
+            assert!(
+                app.panel.knob(id) > before,
+                "{id} must be editable without opening EDIT"
+            );
+            assert!(app.panel.events.iter().any(|event|
+                matches!(event, crate::model::Event::Set { id: changed, .. } if changed == id)));
+        }
+    }
+
+    #[test]
+    fn native_rack_does_not_push_the_menu_to_the_bottom() {
+        let ctx = egui::Context::default();
+        egui_extras::install_image_loaders(&ctx);
+        let mut app = App::new(Panel::new(), None);
+        app.studio.modern = true;
+        app.menu = true;
+        let mut menu_bottom = 0.0;
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(WIDTH, HEIGHT))),
+                ..Default::default()
+            },
+            |ui| {
+                app.show(ui);
+                menu_bottom = ui.cursor().top();
+            },
+        );
+        assert!(
+            menu_bottom < 70.0,
+            "The menu must remain at the top of its parent UI"
+        );
+        output.textures_delta.clear();
+    }
+
+    #[test]
+    fn master_compressor_is_visible_and_clickable_in_the_native_rack() {
+        let ctx = egui::Context::default();
+        egui_extras::install_image_loaders(&ctx);
+        let mut app = App::new(Panel::new(), None);
+        app.studio.modern = true;
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(WIDTH, HEIGHT));
+        let position = Rack::fit(rect).rect(1140.0, 25.0, 104.0, 29.0).center();
+        assert!(!app.panel.toggle_on("master.comp"));
+        for pressed in [None, Some(true), Some(false)] {
+            let events = pressed.map_or_else(Vec::new, |pressed| {
+                vec![
+                    egui::Event::PointerMoved(position),
+                    egui::Event::PointerButton {
+                        pos: position,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: egui::Modifiers::default(),
+                    },
+                ]
+            });
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(rect),
+                    events,
+                    ..Default::default()
+                },
+                |ui| app.show(ui),
+            );
+            output.textures_delta.clear();
+        }
+        assert!(app.panel.toggle_on("master.comp"));
+        for area in sidechain_areas(rect) {
+            assert!(rect.contains_rect(area));
+            assert!(area.left() > rect.center().x);
         }
     }
 }

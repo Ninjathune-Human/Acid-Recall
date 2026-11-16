@@ -49,7 +49,10 @@ fn all_assignments_round_trip_and_input_selection_remains_local() {
         other.minimum_one,
         "hardware calibration remains local on import"
     );
-    assert_eq!(other.minimum_cc, 4, "numeric calibration remains local on import");
+    assert_eq!(
+        other.minimum_cc, 4,
+        "numeric calibration remains local on import"
+    );
     assert!(!encoded.contains("minimum_one"));
     assert!(!encoded.contains("minimum_cc"));
 }
