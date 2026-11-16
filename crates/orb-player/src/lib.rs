@@ -950,7 +950,10 @@ impl Audio {
         let s = self.snapshot.input_buffer_mut();
         s.closed_hat_level = f.devices.channels[3].closed_hat_level();
         s.sidechain_reduction = f.sidechain.reduction();
-        s.sampler_meter = f.studio.as_ref().map_or([0; 2], |studio| studio.sampler_meter());
+        s.sampler_meter = f
+            .studio
+            .as_ref()
+            .map_or([0; 2], |studio| studio.sampler_meter());
         s.frames = self.frames;
         s.generation = self.generation;
         s.pending = self.pending.is_some();

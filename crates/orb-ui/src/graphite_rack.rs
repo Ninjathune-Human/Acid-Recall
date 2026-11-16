@@ -1015,21 +1015,37 @@ mod tests {
             app.arpeggiator.options[row].root = if row == 0 { 0 } else { 9 };
             app.arpeggiator.options[row].length = 7;
             app.panel.press(&format!("pattern{}.bankD", row + 1), 0.0);
-            app.panel.press(&format!("pattern{}.pattern8", row + 1), 0.0);
+            app.panel
+                .press(&format!("pattern{}.pattern8", row + 1), 0.0);
             let before = [app.panel.pattern_bytes(0), app.panel.pattern_bytes(1)];
             let expected = app.arpeggiator_preview(row).unwrap().bytes;
             let selected = app.panel.rows[row].pattern;
             let screen = Rect::from_min_size(Pos2::ZERO, Vec2::new(WIDTH, HEIGHT));
-            let position = Rack::fit(screen).rect(685.0, ROWS[row].0 + 9.0, 49.0, 19.0).center();
+            let position = Rack::fit(screen)
+                .rect(685.0, ROWS[row].0 + 9.0, 49.0, 19.0)
+                .center();
             for pressed in [None, Some(true), Some(false)] {
                 let events = pressed.map_or_else(Vec::new, |pressed| {
-                    vec![egui::Event::PointerMoved(position), egui::Event::PointerButton {
-                        pos: position, button: egui::PointerButton::Primary, pressed,
-                        modifiers: egui::Modifiers::default(),
-                    }]
+                    vec![
+                        egui::Event::PointerMoved(position),
+                        egui::Event::PointerButton {
+                            pos: position,
+                            button: egui::PointerButton::Primary,
+                            pressed,
+                            modifiers: egui::Modifiers::default(),
+                        },
+                    ]
                 });
-                let mut output = ctx.run_ui(egui::RawInput { screen_rect: Some(screen), events,
-                    ..Default::default() }, |ui| { app.graphite_rack(ui, screen); });
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(screen),
+                        events,
+                        ..Default::default()
+                    },
+                    |ui| {
+                        app.graphite_rack(ui, screen);
+                    },
+                );
                 output.textures_delta.clear();
             }
             assert_eq!(app.panel.pattern_bytes(row), expected);

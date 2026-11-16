@@ -209,10 +209,16 @@ impl Studio {
         );
     }
 
-    pub fn route_sampler(&mut self,
-        distortion: Option<(&dyn crate::frame::InsertEffect, &crate::frame::BlockContext<'_>)>,
-        delay: &mut crate::frame::Block) {
-        self.sampler_bus.route(self.settings.sampler_bus, distortion, delay, &mut self.send);
+    pub fn route_sampler(
+        &mut self,
+        distortion: Option<(
+            &dyn crate::frame::InsertEffect,
+            &crate::frame::BlockContext<'_>,
+        )>,
+        delay: &mut crate::frame::Block,
+    ) {
+        self.sampler_bus
+            .route(self.settings.sampler_bus, distortion, delay, &mut self.send);
     }
 
     pub fn sampler_meter(&self) -> [u8; 2] {

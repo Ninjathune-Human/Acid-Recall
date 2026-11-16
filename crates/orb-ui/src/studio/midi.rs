@@ -39,8 +39,11 @@ pub fn controls() -> Vec<(String, String)> {
         out.push((id.into(), label.into()));
     }
     for (name, label) in [
-        ("level", "Global level"), ("pan", "Global pan"),
-        ("dist", "Distortion routing"), ("delay", "Delay send"), ("send", "Reverb send"),
+        ("level", "Global level"),
+        ("pan", "Global pan"),
+        ("dist", "Distortion routing"),
+        ("delay", "Delay send"),
+        ("send", "Reverb send"),
     ] {
         out.push((format!("sampler.{name}"), format!("Sampler / {label}")));
     }
@@ -393,13 +396,27 @@ mod tests {
         let mut router = Router::default();
         app.studio.settings.lanes[0].send = 0.3;
         let lanes = app.studio.settings.lanes.clone();
-        for id in ["sampler.level", "sampler.pan", "sampler.dist", "sampler.delay", "sampler.send"] {
+        for id in [
+            "sampler.level",
+            "sampler.pan",
+            "sampler.dist",
+            "sampler.delay",
+            "sampler.send",
+        ] {
             move_cc(&mut app, &mut router, id, 127, false);
         }
         let bus = &app.studio.settings.sampler_bus;
-        assert_eq!((bus.gain, bus.pan, bus.delay, bus.reverb_send), (2.0, 1.0, 1.0, 1.0));
+        assert_eq!(
+            (bus.gain, bus.pan, bus.delay, bus.reverb_send),
+            (2.0, 1.0, 1.0, 1.0)
+        );
         assert!(bus.dist);
-        for id in ["sampler.level", "sampler.dist", "sampler.delay", "sampler.send"] {
+        for id in [
+            "sampler.level",
+            "sampler.dist",
+            "sampler.delay",
+            "sampler.send",
+        ] {
             for raw in (0..=127).rev() {
                 move_cc(&mut app, &mut router, id, raw, true);
             }
@@ -589,7 +606,13 @@ mod tests {
 
     #[test]
     fn duck_selectors_and_percentages_do_not_rearm_their_own_pickup() {
-        for id in ["duck1.depth", "duck2.depth", "duck.source", "duck.release", "duck.instrument"] {
+        for id in [
+            "duck1.depth",
+            "duck2.depth",
+            "duck.source",
+            "duck.release",
+            "duck.instrument",
+        ] {
             let mut app = App::new(Panel::new(), None);
             let mut router = Router::default();
             let current = app.panel.value(id).unwrap();

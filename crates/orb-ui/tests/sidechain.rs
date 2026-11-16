@@ -86,10 +86,14 @@ fn additional_mix_settings_round_trip_and_old_settings_default_to_bypass() {
 fn old_sidechain_settings_keep_the_kick_and_existing_depths() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("ui.toml");
-    std::fs::write(&file, concat!(
-        "[sidechain]\nenabled=true\nsource=1\ndepth=[22,78]\n",
-        "release_ms=240\nbypass=[true,false]\n",
-    )).unwrap();
+    std::fs::write(
+        &file,
+        concat!(
+            "[sidechain]\nenabled=true\nsource=1\ndepth=[22,78]\n",
+            "release_ms=240\nbypass=[true,false]\n",
+        ),
+    )
+    .unwrap();
     let settings = Settings::load_from(&file);
     assert_eq!(settings.sidechain.instrument, 1);
     assert_eq!(settings.sidechain.source, 1);

@@ -200,13 +200,37 @@ fn voice_selection_tracks_history_without_missing_the_first_selected_hit() {
     counts[0][8] += 1;
     assert_eq!(d.gains_for_voices(counts, [true; 2]), [[1.0; 64]; 2]);
     counts[1][8] += 1;
-    assert!(d.gains_for_voices(counts, [true; 2])[0].iter().any(|&g| g < 1.0));
+    assert!(
+        d.gains_for_voices(counts, [true; 2])[0]
+            .iter()
+            .any(|&g| g < 1.0)
+    );
 
     let mut fresh = Ducker::default();
     fresh.set_config(d.config());
     let mut first = [[0; 12]; 2];
     first[1][8] = 1;
-    assert!(fresh.gains_for_voices(first, [true; 2])[0].iter().any(|&g| g < 1.0));
-    assert_eq!(Config { instrument: 0, ..Config::default() }.sanitized().instrument, 1);
-    assert_eq!(Config { instrument: 255, ..Config::default() }.sanitized().instrument, 11);
+    assert!(
+        fresh.gains_for_voices(first, [true; 2])[0]
+            .iter()
+            .any(|&g| g < 1.0)
+    );
+    assert_eq!(
+        Config {
+            instrument: 0,
+            ..Config::default()
+        }
+        .sanitized()
+        .instrument,
+        1
+    );
+    assert_eq!(
+        Config {
+            instrument: 255,
+            ..Config::default()
+        }
+        .sanitized()
+        .instrument,
+        11
+    );
 }

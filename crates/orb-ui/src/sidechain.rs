@@ -73,9 +73,15 @@ pub struct SidechainUi {
 
 fn instrument_selector(ui: &mut Ui, settings: &mut Settings) {
     let labels = match settings.source {
-        0 => ["BD", "SD", "LT", "MT", "HT", "RS", "CP", "CB", "CY", "OH", "CH"],
-        1 => ["BD", "SD", "LT", "MT", "HT", "RS", "CP", "CH", "OH", "CC", "RC"],
-        _ => ["BD", "SD", "LT", "MT", "HT", "RS", "CP", "CB/CH", "CY/OH", "OH/CC", "CH/RC"],
+        0 => [
+            "BD", "SD", "LT", "MT", "HT", "RS", "CP", "CB", "CY", "OH", "CH",
+        ],
+        1 => [
+            "BD", "SD", "LT", "MT", "HT", "RS", "CP", "CH", "OH", "CC", "RC",
+        ],
+        _ => [
+            "BD", "SD", "LT", "MT", "HT", "RS", "CP", "CB/CH", "CY/OH", "OH/CC", "CH/RC",
+        ],
     };
     egui::ComboBox::from_id_salt("sidechain-instrument")
         .width(48.0)
@@ -84,7 +90,9 @@ fn instrument_selector(ui: &mut Ui, settings: &mut Settings) {
             for (i, label) in labels.into_iter().enumerate() {
                 ui.selectable_value(&mut settings.instrument, i as u8 + 1, label);
             }
-        }).response.on_hover_text("Trigger voice. BOTH labels show 808 / 909 native columns.");
+        })
+        .response
+        .on_hover_text("Trigger voice. BOTH labels show 808 / 909 native columns.");
 }
 
 impl Default for SidechainUi {

@@ -23,12 +23,18 @@ fn sampler_engine(bus: SamplerBusSettings, lane_send: f64) -> Engine {
     studio.settings.predelay_ms = 0.0;
     studio.settings.lanes[0].send = lane_send;
     studio.settings.lanes[0].mode = sampler::Mode::Loop;
-    studio.sampler.replace(0, Some(Box::new(audio_file::Wave {
-        frames: (0..44100).map(|j| {
-            let value = (j as f64 * std::f64::consts::TAU * 220.0 / 44100.0).sin() as f32 * 0.2;
-            [value; 2]
-        }).collect(),
-    })));
+    studio.sampler.replace(
+        0,
+        Some(Box::new(audio_file::Wave {
+            frames: (0..44100)
+                .map(|j| {
+                    let value =
+                        (j as f64 * std::f64::consts::TAU * 220.0 / 44100.0).sin() as f32 * 0.2;
+                    [value; 2]
+                })
+                .collect(),
+        })),
+    );
     studio.sampler.audition(0);
     engine.frame.studio = Some(Box::new(studio));
     engine
@@ -49,25 +55,69 @@ fn sampler_bus_native_dist_delay_and_space_routes_are_audible() {
     let baseline = render_sampler(&mut sampler_engine(SamplerBusSettings::default(), 0.0), 24);
     assert!(baseline.iter().any(|v| v.unsigned_abs() > 100));
     for bus in [
-        SamplerBusSettings { dist: true, ..SamplerBusSettings::default() },
-        SamplerBusSettings { delay: 1.0, ..SamplerBusSettings::default() },
-        SamplerBusSettings { reverb_send: 1.0, ..SamplerBusSettings::default() },
+        SamplerBusSettings {
+            dist: true,
+            ..SamplerBusSettings::default()
+        },
+        SamplerBusSettings {
+            delay: 1.0,
+            ..SamplerBusSettings::default()
+        },
+        SamplerBusSettings {
+            reverb_send: 1.0,
+            ..SamplerBusSettings::default()
+        },
     ] {
         let output = render_sampler(&mut sampler_engine(bus, 0.0), 24);
-        assert!(output.iter().zip(&baseline).any(|(a, b)| a.abs_diff(*b) > 10), "{bus:?}");
+        assert!(
+            output
+                .iter()
+                .zip(&baseline)
+                .any(|(a, b)| a.abs_diff(*b) > 10),
+            "{bus:?}"
+        );
     }
     let lane_only = render_sampler(&mut sampler_engine(SamplerBusSettings::default(), 1.0), 24);
-    assert!(lane_only.iter().zip(&baseline).any(|(a, b)| a.abs_diff(*b) > 10));
+    assert!(
+        lane_only
+            .iter()
+            .zip(&baseline)
+            .any(|(a, b)| a.abs_diff(*b) > 10)
+    );
 }
 
 #[test]
 fn sampler_bus_gain_zero_silences_the_sampler_after_its_meter_detected_audio() {
     let mut engine = sampler_engine(SamplerBusSettings::default(), 0.0);
-    assert!(render_sampler(&mut engine, 4).iter().any(|v| v.unsigned_abs() > 100));
-    assert!(engine.frame.studio.as_ref().unwrap().sampler_meter().iter().any(|&v| v > 0));
-    engine.frame.studio.as_mut().unwrap().settings.sampler_bus.gain = 0.0;
+    assert!(
+        render_sampler(&mut engine, 4)
+            .iter()
+            .any(|v| v.unsigned_abs() > 100)
+    );
+    assert!(
+        engine
+            .frame
+            .studio
+            .as_ref()
+            .unwrap()
+            .sampler_meter()
+            .iter()
+            .any(|&v| v > 0)
+    );
+    engine
+        .frame
+        .studio
+        .as_mut()
+        .unwrap()
+        .settings
+        .sampler_bus
+        .gain = 0.0;
     render_sampler(&mut engine, 12);
-    assert!(render_sampler(&mut engine, 1).iter().all(|v| v.unsigned_abs() <= 1));
+    assert!(
+        render_sampler(&mut engine, 1)
+            .iter()
+            .all(|v| v.unsigned_abs() <= 1)
+    );
 }
 
 #[test]

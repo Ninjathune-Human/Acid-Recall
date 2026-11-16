@@ -18,14 +18,24 @@ pub struct SamplerBusSettings {
 
 impl Default for SamplerBusSettings {
     fn default() -> Self {
-        Self { gain: 1.0, pan: 0.0, dist: false, delay: 0.0, reverb_send: 0.0 }
+        Self {
+            gain: 1.0,
+            pan: 0.0,
+            dist: false,
+            delay: 0.0,
+            reverb_send: 0.0,
+        }
     }
 }
 
 impl SamplerBusSettings {
     pub fn sanitize(&mut self) {
         fn finite(value: f64, default: f64, lo: f64, hi: f64) -> f64 {
-            if value.is_finite() { value.clamp(lo, hi) } else { default }
+            if value.is_finite() {
+                value.clamp(lo, hi)
+            } else {
+                default
+            }
         }
         self.gain = finite(self.gain, 1.0, 0.0, 2.0);
         self.pan = finite(self.pan, 0.0, -1.0, 1.0);
@@ -49,8 +59,13 @@ pub(super) struct Bus {
 impl Default for Bus {
     fn default() -> Self {
         Self {
-            dry: [[0.0; 64]; 2], reverb: [[0.0; 64]; 2], gain: 1.0, pan: 0.0,
-            delay: 0.0, reverb_send: 0.0, peak: [0.0; 2],
+            dry: [[0.0; 64]; 2],
+            reverb: [[0.0; 64]; 2],
+            gain: 1.0,
+            pan: 0.0,
+            delay: 0.0,
+            reverb_send: 0.0,
+            peak: [0.0; 2],
             distortion: std::array::from_fn(|_| Distortion::new()),
         }
     }
@@ -62,11 +77,17 @@ impl Bus {
         self.reverb = [[0.0; 64]; 2];
     }
 
-    pub fn route(&mut self, settings: SamplerBusSettings,
+    pub fn route(
+        &mut self,
+        settings: SamplerBusSettings,
         effect: Option<(&dyn InsertEffect, &BlockContext<'_>)>,
-        legacy_delay: &mut Block, space: &mut [[f64; 64]; 2]) {
-        if settings.dist && let Some((effect, ctx)) = effect
-            && effect.live().first().is_some_and(|&on| on != 0) {
+        legacy_delay: &mut Block,
+        space: &mut [[f64; 64]; 2],
+    ) {
+        if settings.dist
+            && let Some((effect, ctx)) = effect
+            && effect.live().first().is_some_and(|&on| on != 0)
+        {
             for (channel, distortion) in self.dry.iter_mut().zip(&mut self.distortion) {
                 for (controller, &value) in effect.live().iter().take(3).enumerate() {
                     distortion.set_param(controller as u8, value);
@@ -84,8 +105,10 @@ impl Bus {
         for j in 0..64 {
             super::smooth(&mut self.gain, settings.gain, 0.004);
             super::smooth(&mut self.pan, settings.pan, 0.004);
-            let gains = [self.gain * (1.0 - self.pan).min(1.0),
-                self.gain * (1.0 + self.pan).min(1.0)];
+            let gains = [
+                self.gain * (1.0 - self.pan).min(1.0),
+                self.gain * (1.0 + self.pan).min(1.0),
+            ];
             for (c, gain) in gains.into_iter().enumerate() {
                 if gain != 1.0 {
                     self.dry[c][j] *= gain;
@@ -98,12 +121,16 @@ impl Bus {
             super::smooth(&mut self.delay, settings.delay, 0.004);
             super::smooth(&mut self.reverb_send, settings.reverb_send, 0.004);
             let sent = (self.dry[0][j] + self.dry[1][j]) * 0.5 * self.delay;
-            if sent != 0.0 { *delay = (f64::from(*delay) + sent) as f32; }
+            if sent != 0.0 {
+                *delay = (f64::from(*delay) + sent) as f32;
+            }
             for (c, space) in space.iter_mut().enumerate() {
                 let dry = self.dry[c][j];
                 self.peak[c] = self.peak[c].max(dry.abs());
                 let reverb = self.reverb[c][j] + dry * self.reverb_send;
-                if reverb != 0.0 { space[j] += reverb; }
+                if reverb != 0.0 {
+                    space[j] += reverb;
+                }
             }
         }
     }
