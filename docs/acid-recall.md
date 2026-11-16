@@ -1,106 +1,124 @@
 # ACID RECALL
 
-![Logo ACID RECALL](../assets/brand/acid-recall.png)
+![ACID RECALL logo](../assets/brand/acid-recall.png)
 
-**Le souvenir revient. Les machines repartent.**
+**The memory returns. The machines come alive.**
 
-Deux basses acid. Deux boîtes à rythmes. Un sampler. Des contrôleurs sous les doigts.
-ACID RECALL fait évoluer le rack d’OpenRB-338 vers une pratique plus directe : jouer,
-générer des idées, découper des voix et faire dialoguer les machines.
+ACID RECALL is a performance-focused fork of **[OpenRB-338 by pingw33n](https://github.com/pingw33n/OpenRB-338)**,
+the open-source reimplementation of ReBirth RB-338. It builds on that foundation with hands-on
+MIDI control, musical pattern generation, two arpeggiators, an integrated sampler and a graphite rack.
 
-## L’histoire — retrouver le premier déclic
+Two acid bass lines. An 808. A 909. Eight sample lanes. A controller under your hands.
 
-ReBirth a été le premier logiciel de musique que j’ai installé sur mon PC.
-Bien avant ce projet, il y a donc eu ce premier contact : deux lignes de basse,
-des boîtes à rythmes et la possibilité de commencer à faire de la musique sur ordinateur.
+## Start playing
 
-Alors, lorsque j’ai découvert qu’un projet recréait ReBirth, j’ai été trop content.
-OpenRB-338 existait. Les deux 303, la 808, la 909 : cette petite famille de machines
-pouvait de nouveau tourner sur un ordinateur actuel.
+The ACID RECALL Studio features described here are currently developed on
+[`feat/studio-v2`](https://github.com/smldms/Acid-Recall/tree/feat/studio-v2).
+The default branch still contains the upstream application code while integration is in progress.
 
-J’ai commencé à jouer avec. Puis j’ai regardé mon vieux contrôleur Evolution UC-33e,
-qui fonctionne toujours très bien. La première envie était toute simple : retrouver
-ces machines avec mes faders et mes potentiomètres.
+- **[Download the Windows preview](https://github.com/smldms/Acid-Recall/actions/workflows/midi-windows.yml)**:
+  open a successful run and download **ACID-RECALL-Windows-x64** from its Artifacts section.
+  A GitHub sign-in may be required. Extract the ZIP and launch **ACID-RECALL.exe**.
+- **[Read the Studio guide](https://github.com/smldms/Acid-Recall/blob/feat/studio-v2/docs/studio.md)** for sampler, effects, MIDI setup and project limits.
+- **[Visit the original OpenRB-338 project](https://github.com/pingw33n/OpenRB-338)** for the
+  upstream implementation, its releases and documentation.
 
-C’est comme ça que tout a commencé. Un fork, du MIDI, quelques affectations.
-Je ne suis pas développeur de logiciel : j’avance avec une assistance IA pour traduire
-mes envies de musicien en fonctions, les essayer, relever ce qui gêne et recommencer.
+## The story — finding that first spark again
 
-Très vite, une idée en a amené une autre. Générer des lignes de basse qui restent
-en harmonie. Faire répondre une 303 à l’autre. Ajouter un arpégiateur sur chacune.
-Garder huit pas sur l’une et seize sur l’autre. Donner de l’espace au kick.
+ReBirth was the first music software I ever installed on my PC.
 
-Puis sont arrivés le sampler, les voix découpées au rythme des hats, la reverb à
-convolution et une interface graphite pensée pour avoir les commandes sous les yeux.
-Le logiciel a commencé à suivre ma façon de faire de la musique aujourd’hui.
+That is where this story starts: with the discovery that a computer could become a place
+to make music. Years later, finding OpenRB-338 brought that feeling back. Someone had
+recreated ReBirth, and I was thrilled. I could play with those familiar machines again.
 
-ACID RECALL est né de ce mouvement : retrouver un premier déclic et lui donner une suite.
-Le souvenir reste là. Maintenant, j’ai envie de voir ce qu’on peut en faire.
+There was another part of that reunion: my old Evolution UC-33e controller.
+Its revival is thanks to my friend **Matthieu**, who is skilled at restoring this kind of
+older equipment. He also builds **analog x0xb0x synthesizers — TB-303 clones**.
+He brought the UC-33e back into action, and I wanted to put its faders and knobs to work.
 
-## Ce que ce fork ajoute à OpenRB-338
+The first idea was simple: connect the controller and play the machines with my hands.
 
-Le point de départ est le travail de réimplémentation d’OpenRB-338. Les évolutions
-ci-dessous décrivent notre fork ; elles ne prétendent pas recréer ce socle de zéro.
+That became a fork, MIDI input and a few assignments. I am not a software developer;
+I work with AI assistance to turn musical ideas into features, try them out, identify
+what gets in the way and improve them.
 
-| Domaine | Évolutions du fork |
+One idea led to another. Generate bass lines that stay in harmony. Let one 303 answer
+the other. Give each one an arpeggiator. Run eight steps on one and sixteen on the other.
+Make room for the kick.
+
+Then came the sampler, vocals chopped to the hats, convolution reverb and a graphite
+interface with the controls in plain sight. The software started to follow the way
+I want to make music today.
+
+ACID RECALL grew out of that process: rediscover a first spark, reconnect the hardware,
+and see where the next session takes it.
+
+## What this fork adds
+
+OpenRB-338 provides the original reimplementation and compatibility work.
+The additions below belong to the ACID RECALL Studio preview built on top of it.
+
+| Area | ACID RECALL additions |
 |---|---|
-| Contrôle physique | MIDI Learn sous Windows, plusieurs entrées simultanées, reprise douce et calibration par contrôleur. |
-| Routages | Import/export des affectations pour retrouver son installation sur un autre ordinateur. |
-| Génération | Choix Techno, IDM et Break ; notes, accents, slides et Undo. |
-| Dialogue des 303 | LINK harmonique avec des longueurs indépendantes, par exemple 8 et 16 pas. |
-| Arpèges | Un arpégiateur par TB, à partir d’un accord ou des notes du pattern ; application directe avec ARP. |
-| Mixage | Sidechain piloté par une voix choisie de la 808 ou de la 909, avec profondeur indépendante sur chaque TB. |
-| Hats 909 | CH et OH indépendantes pour les notes et les niveaux. |
-| Espace | Reverb stéréo à convolution, espaces synthétiques et import d’impulsions WAV/AIFF. |
-| Sampler | Huit pistes, séquences jusqu’à 64 mesures, WAV/AIFF/MP3, points IN/OUT et Reverse. |
-| Jeu du sampler | One Shot, Auto Cut, Gate et Loop ; Solo/Mute accessibles sur chaque ligne. |
-| Mouvement | Gater piloté par une voix TR, maintien synchronisé au tempo, lissage et sidechain optionnel. |
-| Tranche sampler | ON/OFF assignable en MIDI, volume global, vue-mètre stéréo, panoramique, distortion, delay et reverb globale ; sends individuels conservés. |
-| Interface | Rack graphite, réglages TR visibles, sampler intégré et colonne FX permanente. |
-| Sessions | Projets `.orb338` transportant les samples, l’impulsion et les réglages Studio. |
+| Hands-on control | Windows MIDI Learn, multiple simultaneous controller inputs, soft takeover and per-device calibration. |
+| Portable mappings | Import and export MIDI assignments to move between computers. |
+| Pattern generation | Techno, IDM and Break styles, with notes, accents, slides and Undo. |
+| Linked bass lines | Harmonically linked TB patterns with independent lengths, such as 8 and 16 steps. |
+| Arpeggiators | One per TB, using a chosen chord or existing pattern notes; ARP applies the current settings immediately. |
+| Sidechain | Ducking triggered by a selected 808 or 909 voice, with independent depth for each TB. |
+| Independent hats | Separate TR-909 CH/OH notes and levels. |
+| Convolution reverb | Stereo convolution, synthetic spaces and WAV/AIFF impulse-response import. |
+| Sampler | Eight lanes, sequences up to 64 bars, WAV/AIFF/MP3, IN/OUT trimming and Reverse. |
+| Sample performance | One Shot, Auto Cut, Gate and Loop, with Solo/Mute beside each sample name. |
+| Rhythmic gating | A gater driven by a selected TR voice, tempo-based Hold, smoothing and optional sidechain. |
+| Sampler mixer | MIDI-assignable ON/OFF, global level, stereo meters, pan, distortion, delay and global reverb alongside individual sends. |
+| Interface | A graphite rack with visible TR voice parameters, an integrated sampler and a permanent FX column. |
+| Portable sessions | `.orb338` projects containing samples, impulse responses and Studio settings. |
 
-Les contrôles du sampler, de la reverb et du sidechain disposent d’affectations MIDI.
-L’UC-33e a servi de point de départ ; les affectations ne lui sont pas réservées.
+Sampler, reverb and sidechain controls can be mapped to MIDI. The UC-33e inspired the first
+steps; the mapping system is not limited to that controller.
 
-## Une identité pour cette nouvelle étape
+## Why ACID RECALL?
 
-**ACID** pour les basses, les séquenceurs et le terrain musical du projet.
-**RECALL** pour le souvenir qui revient et l’envie de rappeler les machines au jeu.
+**ACID** points to the bass lines, sequencers and musical territory of the project.
+**RECALL** is about bringing back a memory and calling the machines into play again.
 
-Le monogramme AR intègre une flèche de rappel. Le graphite et le vert acide reprennent
-l’esprit du rack : une interface sombre, des états actifs visibles et peu de décoration.
+The AR monogram incorporates a recall arrow. Graphite and acid green carry the same idea
+into the interface: a dark workspace, clear active states and restrained decoration.
 
-### Présentation courte
+## Short description
 
-ACID RECALL est un fork d’OpenRB-338 qui prolonge l’esprit de ReBirth avec du contrôle
-MIDI, des générateurs de patterns, deux arpégiateurs et un sampler intégré. Un rack
-graphite pour retrouver les machines d’hier et construire des sessions d’aujourd’hui.
+ACID RECALL is a fork of OpenRB-338 that extends the spirit of ReBirth with hands-on MIDI
+control, musical pattern generators, two arpeggiators and an integrated sampler.
+A graphite rack for rediscovering familiar machines and building new sessions.
 
-### Texte de lancement
+## Launch copy
 
-ReBirth a été le premier logiciel de musique que j’ai installé sur mon PC.
-Des années plus tard, découvrir OpenRB-338 m’a donné envie de rejouer avec ces machines.
-J’ai commencé par connecter mon vieux UC-33e. Puis sont venus les patterns en harmonie,
-les arpégiateurs, le sidechain, le sampler et une nouvelle interface.
-Ce fork s’appelle désormais ACID RECALL. Le souvenir revient. Les machines repartent.
+ReBirth was the first music software I ever installed on my PC. Discovering OpenRB-338
+years later made me want to play those machines again. My friend Matthieu had brought
+my old UC-33e back to life, so I started by connecting it. Then came harmonically linked
+patterns, arpeggiators, sidechain, a sampler and a new interface.
+This fork is now called ACID RECALL. The memory returns. The machines come alive.
 
-## Où en est le projet ?
+## Current scope
 
-Le projet reste en évolution. Les builds Windows de cette branche permettent d’essayer
-les fonctions décrites ici. La synchronisation MIDI Clock IN/OUT avec d’autres machines
-est une piste pour la suite : **elle n’est pas implémentée à ce stade**. L’entrée MIDI
-actuelle sert au contrôle des paramètres ; elle ne signifie pas que le logiciel est
-déjà maître ou esclave d’une horloge MIDI externe.
+This is an evolving standalone rack and sequencer. **MIDI Clock IN/OUT synchronization
+with external machines is not implemented yet.** Current MIDI input controls parameters;
+it does not make ACID RECALL a MIDI clock master or slave.
 
-Le sampler charge les fichiers en mémoire. Les limites de taille et les détails
-d’utilisation sont décrits dans le [guide Studio](studio.md).
-ACID RECALL reste un rack et un séquenceur, avec un projet qui grandit au fil des sessions.
+The sampler loads audio into memory. File-size and memory limits are explained in the
+[Studio guide](https://github.com/smldms/Acid-Recall/blob/feat/studio-v2/docs/studio.md). Windows preview builds provide the current ACID RECALL experience;
+the upstream project's release packages are a separate distribution.
 
-## Origines et crédits
+## Credits and thanks
 
-ACID RECALL est développé dans le [fork de smldms](https://github.com/smldms/openrb-338),
-à partir d’[OpenRB-338 de pingw33n](https://github.com/pingw33n/openrb-338).
-Le travail sur le moteur de réimplémentation et la compatibilité historique appartient
-à ce projet amont et à ses contributeurs. Le code conserve sa licence GPL-3.0-only.
+- **[pingw33n and the OpenRB-338 contributors](https://github.com/pingw33n/OpenRB-338)**:
+  the original open-source reimplementation, engine and historical compatibility work.
+  ACID RECALL builds on their work.
+- **Matthieu**: for restoring my Evolution UC-33e and keeping older music hardware alive,
+  alongside his work building analog x0xb0x TB-303 clones.
+- **Propellerhead's ReBirth RB-338**: the software that started this story.
+- **[smldms / ACID RECALL](https://github.com/smldms/Acid-Recall)**: this fork's musical direction, additions and continuing development,
+  with AI-assisted implementation.
 
-ReBirth RB-338, le logiciel de Propellerhead, est à l’origine de cette aventure.
+The code remains licensed under **GPL-3.0-only**. See LICENSE in the repository root.
