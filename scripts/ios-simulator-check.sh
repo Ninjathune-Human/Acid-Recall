@@ -77,6 +77,11 @@ echo "--- stderr ---"
 cat "$out/stderr.log" 2>/dev/null || true
 echo "--- the app's crash logs (Library/Logs/OpenRB-338) ---"
 data=$(xcrun simctl get_app_container "$udid" "$bundle_id" data 2>/dev/null || true)
+echo "--- the app's log (Documents/AcidRecall.log) ---"
+if [ -n "$data" ] && [ -f "$data/Documents/AcidRecall.log" ]; then
+    tail -60 "$data/Documents/AcidRecall.log"
+    cp "$data/Documents/AcidRecall.log" "$out/"
+fi
 if [ -n "$data" ] && [ -d "$data/Library/Logs/OpenRB-338" ]; then
     for f in "$data/Library/Logs/OpenRB-338"/*; do
         [ -e "$f" ] || continue

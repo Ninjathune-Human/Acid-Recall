@@ -45,6 +45,8 @@ rfd = { version = "0.17.2", default-features = false, features = ["xdg-portal"] 
 # backend: `ios_rfd` stands in for its dialogs.
 [target.'cfg(target_os = "ios")'.dependencies]
 eframe = { version = "0.37.0", default-features = false, features = ["default_fonts", "wgpu"] }
+# The warnings and errors of eframe, wgpu and winit, to Documents/AcidRecall.log (main.rs).
+log = "0.4"
 
 [dev-dependencies]
 orb-ui-art = { path = "../orb-ui-art" }

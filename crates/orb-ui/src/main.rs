@@ -208,11 +208,54 @@ fn attach_parent_console() {
     }
 }
 
+/// The iPad's log (docs/ipad.md): the warnings and errors of eframe, wgpu and winit go to stderr
+/// and to `Documents/AcidRecall.log`, which the Files app shows. On iOS, eframe ends the process
+/// itself when the window or the renderer cannot start, so `main` never returns its error: the
+/// log line eframe writes first is the only trace.
+#[cfg(target_os = "ios")]
+mod ios_log {
+    use std::io::Write as _;
+
+    struct Logger;
+
+    impl log::Log for Logger {
+        fn enabled(&self, m: &log::Metadata) -> bool {
+            m.level() <= log::Level::Warn
+        }
+
+        fn log(&self, r: &log::Record) {
+            if !self.enabled(r.metadata()) {
+                return;
+            }
+            let line = format!("{} {}: {}\n", r.level(), r.target(), r.args());
+            eprint!("{line}");
+            let path = orb_ui::settings::documents_dir().join("AcidRecall.log");
+            let file = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path);
+            if let Ok(mut f) = file {
+                let _ = f.write_all(line.as_bytes());
+            }
+        }
+
+        fn flush(&self) {}
+    }
+
+    pub fn install() {
+        if log::set_logger(&Logger).is_ok() {
+            log::set_max_level(log::LevelFilter::Warn);
+        }
+    }
+}
+
 fn main() -> eframe::Result {
     #[cfg(all(windows, not(debug_assertions)))]
     attach_parent_console();
     // before anything that can panic: a panic writes a crash log and shows a box (task-157)
     orb_ui::crash::install(orb_ui::about::VERSION);
+    #[cfg(target_os = "ios")]
+    ios_log::install();
     let Args {
         studio_view,
         demo,

@@ -36,6 +36,9 @@ jobs:
       # rustup installs the toolchain of rust-toolchain.toml on the first cargo or rustup call
       - run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          # the builds take 15 minutes: keep them even when the Simulator check fails
+          cache-on-failure: true
       - name: Build for the iPad Simulator
         run: scripts/ios-app.sh sim
       - name: Build for an iPad (unsigned .ipa)
