@@ -11,6 +11,8 @@
 
 # Rust build output
 /target/
+# The browser build that .github/workflows/pages.yml makes into the Pages site (docs/web.md)
+/site/app/
 
 # Agent worktrees, editor and OS files
 .claude/worktrees/

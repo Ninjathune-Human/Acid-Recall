@@ -12,7 +12,7 @@ What changed for iOS:
 
 - `crates/orb-ui/Cargo.toml`: on iOS, eframe without its desktop features (X11, Wayland, the
   clipboard, system fonts, links), and no rfd, which has no iOS backend.
-- `crates/orb-ui/src/ios_rfd.rs`: stands in for rfd on iOS. The file pickers (load a sample, load
+- `crates/orb-ui/src/rfd_stub.rs`: stands in for rfd on iOS (and in the browser, docs/web.md). The file pickers (load a sample, load
   an impulse response, import or export a MIDI routing) return nothing, so those buttons do
   nothing yet, and the crash box is not shown (the crash log is still written).
 - `crates/orb-ui/src/main.rs`: the wgpu device asks for the GPU's own limits (wgpu's defaults
@@ -65,6 +65,6 @@ built-in kit (`assets/Standard.rbm`) is Propellerhead's material.
    visible, controls of at least 44 pt, several knobs at once (multi-touch).
 2. MIDI through Core MIDI: USB-C controllers and MIDI Clock, behind the same interface as
    the WinMM backend (`crates/orb-ui/src/midi.rs`).
-3. Native pickers (UIDocumentPicker) in place of `ios_rfd`.
+3. Native pickers (UIDocumentPicker) in place of `rfd_stub`.
 
 The project page is `site/` (`.github/workflows/pages.yml`, GitHub Pages).

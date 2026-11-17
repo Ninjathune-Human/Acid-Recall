@@ -20,8 +20,8 @@ use orb_engine::studio::{
 use orb_player::Command;
 
 use crate::app::App;
-#[cfg(target_os = "ios")]
-use crate::ios_rfd as rfd;
+#[cfg(any(target_os = "ios", target_arch = "wasm32"))]
+use crate::rfd_stub as rfd;
 use project::{Metadata, Project};
 
 enum Completed {

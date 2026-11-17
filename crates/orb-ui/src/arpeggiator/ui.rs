@@ -253,7 +253,7 @@ impl App {
                     });
                     ui.checkbox(&mut o.slides, "Slides between adjacent notes");
                     if o.order == Order::Random && ui.button("New random variation").clicked() {
-                        o.seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+                        o.seed = web_time::SystemTime::now().duration_since(web_time::UNIX_EPOCH)
                             .map_or(o.seed.wrapping_add(1), |d| d.as_nanos() as u64);
                     }
                     ui.separator();

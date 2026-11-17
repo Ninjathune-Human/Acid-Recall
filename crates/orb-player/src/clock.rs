@@ -2,7 +2,9 @@
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, AtomicU64, Ordering};
-use std::time::Instant;
+
+// std's Instant panics in a browser (docs/web.md); elsewhere web_time's is std's
+use web_time::Instant;
 
 pub const OFF: u8 = 0;
 pub const MASTER: u8 = 1;

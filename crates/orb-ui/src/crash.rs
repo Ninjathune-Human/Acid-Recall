@@ -24,8 +24,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-#[cfg(target_os = "ios")]
-use crate::ios_rfd as rfd;
+#[cfg(any(target_os = "ios", target_arch = "wasm32"))]
+use crate::rfd_stub as rfd;
 use crate::version::utc;
 
 /// How many crash logs are kept (the newest).

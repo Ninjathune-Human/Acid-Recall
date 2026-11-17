@@ -1,16 +1,19 @@
 //! The output encoders: WAV (byte-identical to the engine export's file), FLAC and Ogg Vorbis.
 
 use std::error::Error;
+#[cfg(not(target_arch = "wasm32"))]
 use std::num::{NonZeroU8, NonZeroU32};
 
 use flacenc::component::BitRepr;
 use flacenc::error::Verify;
+#[cfg(not(target_arch = "wasm32"))]
 use vorbis_rs::{VorbisBitrateManagementStrategy, VorbisEncoderBuilder};
 
 pub const SAMPLE_RATE: u32 = 44100;
 
 /// The Ogg stream serial of every .ogg file orb writes ("rb", the project's first name; kept so
 /// the files stay the same).
+#[cfg(not(target_arch = "wasm32"))]
 const OGG_SERIAL: i32 = 0x7262;
 
 /// The container chosen by the output file's extension.
@@ -56,6 +59,13 @@ fn flac(samples: &[i16]) -> Result<Vec<u8>, Box<dyn Error>> {
     Ok(sink.as_slice().to_vec())
 }
 
+/// The browser build (docs/web.md) has no libvorbis.
+#[cfg(target_arch = "wasm32")]
+fn ogg(_samples: &[i16], _quality: f32) -> Result<Vec<u8>, Box<dyn Error>> {
+    Err("Ogg Vorbis export is not available in the browser".into())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn ogg(samples: &[i16], quality: f32) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut out = Vec::new();
     // A fixed stream serial, so that the same samples give the same file.

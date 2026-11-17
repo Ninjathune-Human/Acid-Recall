@@ -13,7 +13,6 @@
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use std::time::Instant;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{ErrorKind, FromSample, SampleFormat, SizedSample, StreamConfig};
@@ -22,6 +21,8 @@ use rubato::{
     Async, FixedAsync, Resampler as _, SincInterpolationParameters, SincInterpolationType,
     WindowFunction,
 };
+// std's Instant panics in a browser (docs/web.md); elsewhere web_time's is std's
+use web_time::Instant;
 
 use crate::{Audio, CALL_FRAMES, RATE};
 

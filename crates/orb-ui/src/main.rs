@@ -268,6 +268,65 @@ fn ios_wgpu_options() -> eframe::egui_wgpu::WgpuConfiguration {
     }
 }
 
+/// The browser (docs/web.md): the app in the page's canvas `#acid-recall`. No command line and
+/// no files: the new empty song with the built-in kit. The sound goes through Web Audio (cpal),
+/// which the page's script resumes on the first touch or key, as browsers start it suspended.
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    use eframe::wasm_bindgen::JsCast as _;
+
+    let _ = eframe::WebLogger::init(log::LevelFilter::Warn);
+    let samples = Some(rbm::standard::builtin_samples());
+    let (link, audio) = Link::new(Arc::new(Tables::new()), samples.clone());
+    let mut start_errors: Vec<String> = Vec::new();
+    let mut audio_health = None;
+    match orb_player::output::start(audio) {
+        Ok(s) => {
+            audio_health = Some(s.health());
+            // the page never ends the program: the stream lives as long as the page
+            std::mem::forget(s);
+        }
+        Err(e) => {
+            log::error!("audio output: {e}");
+            start_errors.push(format!("Audio output: {e}; the panel runs without sound"));
+        }
+    }
+    let canvas = eframe::web_sys::window()
+        .and_then(|w| w.document())
+        .and_then(|d| d.get_element_by_id("acid-recall"))
+        .and_then(|e| e.dyn_into::<eframe::web_sys::HtmlCanvasElement>().ok())
+        .expect("the page has a canvas #acid-recall");
+    wasm_bindgen_futures::spawn_local(async move {
+        let started = eframe::WebRunner::new()
+            .start(
+                canvas,
+                eframe::WebOptions::default(),
+                Box::new(move |cc| {
+                    cc.egui_ctx.set_theme(egui::ThemePreference::Dark);
+                    let mut app = App::with_link(Panel::new(), link, None);
+                    app.samples = samples;
+                    app.audio_health = audio_health;
+                    app.menu = true;
+                    app.studio.modern = true;
+                    app.enable_logo_anim();
+                    app.settings = Settings::load();
+                    app.action(|app| {
+                        app.start(None);
+                        for e in start_errors {
+                            app.fail(e);
+                        }
+                    });
+                    Ok(Box::new(app))
+                }),
+            )
+            .await;
+        if let Err(e) = started {
+            log::error!("the app did not start: {e:?}");
+        }
+    });
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result {
     #[cfg(all(windows, not(debug_assertions)))]
     attach_parent_console();

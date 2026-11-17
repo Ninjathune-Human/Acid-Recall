@@ -1,5 +1,6 @@
-# The iPad project page (site/, docs/ipad.md) on GitHub Pages. After each successful
-# deployment, the tag `deploye` moves to the published commit.
+# The iPad project page (site/, docs/ipad.md) and the browser version of the app (site/app/,
+# docs/web.md) on GitHub Pages. After each successful deployment, the tag `deploye` moves to
+# the published commit.
 #
 # One-time setup in the repository: Settings > Pages > Source: GitHub Actions, and the
 # github-pages environment must allow the branch (it allows the default branch only, unless
@@ -11,6 +12,12 @@ on:
     branches: [feat/ipad]
     paths:
       - "site/**"
+      - "web/**"
+      - "crates/**"
+      - "assets/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "scripts/web-build.sh"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -23,6 +30,10 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -31,6 +42,33 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # rustup installs the toolchain of rust-toolchain.toml on the first cargo or rustup call
+      - run: rustup target add wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          cache-on-failure: true
+      - name: wasm-bindgen-cli at the version of Cargo.lock
+        run: |
+          v=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"$/\1/p')
+          if [ "$(wasm-bindgen --version 2>/dev/null)" != "wasm-bindgen $v" ]; then
+            cargo install wasm-bindgen-cli --version "$v" --locked
+          fi
+      - name: Build the browser version into site/app
+        run: scripts/web-build.sh site/app
+      # The build as a branch too, so that it can be fetched and tried outside GitHub
+      # (a checkout and any local HTTP server): one commit, replaced on each run.
+      - name: Push the build to the web-preview branch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          cd site/app
+          git init -q -b web-preview
+          git add -A
+          git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com \
+            commit -q -m "Browser build of $GITHUB_SHA"
+          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            web-preview
+          rm -rf .git
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:

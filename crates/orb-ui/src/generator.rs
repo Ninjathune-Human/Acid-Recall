@@ -423,8 +423,9 @@ pub struct Generator {
 
 impl Default for Generator {
     fn default() -> Self {
-        let seed = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        // web_time: std's SystemTime panics in a browser (docs/web.md)
+        let seed = web_time::SystemTime::now()
+            .duration_since(web_time::UNIX_EPOCH)
             .map_or(1, |d| d.as_nanos() as u64);
         Self {
             open: false,

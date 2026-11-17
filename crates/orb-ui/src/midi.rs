@@ -11,10 +11,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::app::App;
 use crate::behavior;
-#[cfg(target_os = "ios")]
-use crate::ios_rfd as rfd;
 use crate::layout;
 use crate::model::Panel;
+#[cfg(any(target_os = "ios", target_arch = "wasm32"))]
+use crate::rfd_stub as rfd;
 
 pub mod preset;
 pub mod sync;

@@ -17,8 +17,6 @@ pub mod error_box;
 pub mod generator;
 mod graphite_rack;
 pub mod info;
-#[cfg(target_os = "ios")]
-mod ios_rfd;
 pub mod key_help;
 pub mod keys;
 pub mod layout;
@@ -29,6 +27,8 @@ pub mod midi;
 pub mod mod_info;
 pub mod model;
 pub mod palette;
+#[cfg(any(target_os = "ios", target_arch = "wasm32"))]
+mod rfd_stub;
 pub mod session;
 pub mod settings;
 pub mod shortcuts;

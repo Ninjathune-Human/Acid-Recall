@@ -1,7 +1,8 @@
-//! The iPad build's stand-in for the few `rfd` calls (docs/ipad.md): rfd has no iOS backend.
-//! The file pickers return nothing, so their buttons do nothing yet, and the crash box is not
-//! shown (the crash log is still written). The builders take the same arguments as rfd's, so
-//! the call sites stay as they are, with `use crate::ios_rfd as rfd;` on iOS.
+//! The stand-in for the few `rfd` calls on iPad (docs/ipad.md) and in the browser (docs/web.md):
+//! rfd has no iOS backend, and in a browser it has no blocking dialogs. The file pickers return
+//! nothing, so their buttons do nothing yet, and the crash box is not shown (on iOS the crash
+//! log is still written). The builders take the same arguments as rfd's, so the call sites stay
+//! as they are, with `use crate::rfd_stub as rfd;` on those targets.
 
 use std::path::{Path, PathBuf};
 
