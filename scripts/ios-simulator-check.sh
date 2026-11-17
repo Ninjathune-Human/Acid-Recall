@@ -3,16 +3,22 @@
 # screenshots, the app's output and any crash report into OUT_DIR (docs/ipad.md), and prints
 # them too, so the CI log alone tells what happened (the screenshots as base64 JPEG between
 # BEGIN and END lines). Exits 1 when the app is no longer running after SECONDS (default 30):
-# it crashed or quit.
+# it crashed or quit. APP_ARGS go to the app.
 #
-#   scripts/ios-simulator-check.sh OUT_DIR [SECONDS]
+#   scripts/ios-simulator-check.sh OUT_DIR [SECONDS [APP_ARGS...]]
+#
+# CI passes --demo (the panel without the player): the hosted macOS runners have no audio
+# output, and there the Simulator's Core Audio never answers the player's output unit, which
+# aborts the app ("RPC timeout. Apparently deadlocked") before its window shows. Sound is
+# checked on an iPad.
 #
 # The Simulator is the first available iPad 11-inch (an iPad Air first), else any iPad.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-out=${1:?usage: scripts/ios-simulator-check.sh OUT_DIR [SECONDS]}
+out=${1:?usage: scripts/ios-simulator-check.sh OUT_DIR [SECONDS [APP_ARGS...]]}
 wait=${2:-30}
+shift $(($# < 2 ? $# : 2))
 mkdir -p "$out"
 out=$(cd "$out" && pwd)
 app=$root/target/ios/sim/AcidRecall.app
@@ -49,7 +55,7 @@ xcrun simctl install "$udid" "$app"
 start=$(date "+%Y-%m-%d %H:%M:%S")
 launched=$(SIMCTL_CHILD_RUST_BACKTRACE=1 SIMCTL_CHILD_ORB_GPU_INFO=1 \
     xcrun simctl launch --terminate-running-process \
-    --stdout="$out/stdout.log" --stderr="$out/stderr.log" "$udid" "$bundle_id")
+    --stdout="$out/stdout.log" --stderr="$out/stderr.log" "$udid" "$bundle_id" ${@+"$@"})
 echo "$launched"
 pid=${launched##*: }
 sleep 6

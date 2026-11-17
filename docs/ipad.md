@@ -33,9 +33,12 @@ scripts/ios-simulator-check.sh target/ios/check
 scripts/ios-app.sh device                  # target/ios/device/AcidRecall.ipa, unsigned
 ```
 
-`scripts/ios-simulator-check.sh` installs the app in an iPad Simulator, starts it, and saves a
-screenshot, the app's output and any crash report. It fails when the app is no longer running
-after 30 seconds.
+`scripts/ios-simulator-check.sh` installs the app in an iPad Simulator, starts it, and saves
+screenshots, the app's output and any crash report, and prints them. It fails when the app is
+no longer running after 30 seconds. CI starts the app with `--demo` (no player): the hosted
+macOS runners have no audio output, and there the Simulator's Core Audio never answers the
+player's output unit, which aborts the app before its window shows. Sound is checked on an
+iPad.
 
 CI: `.github/workflows/ios.yml` runs these three steps on an Intel macOS runner (the Apple
 silicon runners were too busy to take the job) for every push to
