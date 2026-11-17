@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Builds ACID RECALL for iPad and wraps it into an app bundle (docs/ipad.md):
 #
-#   scripts/ios-app.sh sim      # aarch64-apple-ios-sim: target/ios/sim/AcidRecall.app
+#   scripts/ios-app.sh sim      # the Simulator of this Mac: target/ios/sim/AcidRecall.app
+#                               # (aarch64-apple-ios-sim on Apple silicon, x86_64-apple-ios
+#                               # on an Intel Mac)
 #   scripts/ios-app.sh device   # aarch64-apple-ios: target/ios/device/AcidRecall.app and
 #                               # target/ios/device/AcidRecall.ipa
 #
@@ -18,7 +20,10 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 usage="usage: scripts/ios-app.sh sim|device"
 case ${1:-} in
-    sim) target=aarch64-apple-ios-sim; platform=iPhoneSimulator ;;
+    sim)
+        platform=iPhoneSimulator
+        if [ "$(uname -m)" = arm64 ]; then target=aarch64-apple-ios-sim; else target=x86_64-apple-ios; fi
+        ;;
     device) target=aarch64-apple-ios; platform=iPhoneOS ;;
     *) echo "$usage" >&2; exit 2 ;;
 esac

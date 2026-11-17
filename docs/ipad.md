@@ -27,8 +27,8 @@ RECALL). The in-app file browser opens there.
 On a Mac with Xcode and the pinned toolchain:
 
 ```
-rustup target add aarch64-apple-ios aarch64-apple-ios-sim
-scripts/ios-app.sh sim                     # target/ios/sim/AcidRecall.app
+rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
+scripts/ios-app.sh sim                     # target/ios/sim/AcidRecall.app, for this Mac's CPU
 scripts/ios-simulator-check.sh target/ios/check
 scripts/ios-app.sh device                  # target/ios/device/AcidRecall.ipa, unsigned
 ```
@@ -37,7 +37,8 @@ scripts/ios-app.sh device                  # target/ios/device/AcidRecall.ipa, u
 screenshot, the app's output and any crash report. It fails when the app is no longer running
 after 30 seconds.
 
-CI: `.github/workflows/ios.yml` runs these three steps on a macOS runner for every push to
+CI: `.github/workflows/ios.yml` runs these three steps on an Intel macOS runner (the Apple
+silicon runners were too busy to take the job) for every push to
 `feat/ipad`, and uploads `AcidRecall-iPad` (the `.ipa`) and `simulator-check` as artifacts of
 the run.
 

@@ -28,11 +28,13 @@ env:
 
 jobs:
   ipad:
-    runs-on: macos-15
+    # Intel: the hosted Apple silicon runners were too busy to take the job (2026-11-17). The
+    # Simulator then runs the x86_64-apple-ios build (scripts/ios-app.sh sim).
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # rustup installs the toolchain of rust-toolchain.toml on the first cargo or rustup call
-      - run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+      - run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - name: Build for the iPad Simulator
         run: scripts/ios-app.sh sim
