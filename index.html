@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- The browser version of ACID RECALL (docs/web.md): the app draws itself in the canvas. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ACID RECALL">
+<meta name="theme-color" content="#101212">
+<title>ACID RECALL</title>
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #101212;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#acid-recall {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  outline: none;
+  touch-action: none;
+}
+#status {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #8d9290;
+  font: 500 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.14em;
+  pointer-events: none;
+}
+#status b { color: #e8eae7; font-size: 17px; font-weight: 600; letter-spacing: 0.16em; }
+#status.error { color: #ff8a78; letter-spacing: 0; padding: 0 24px; text-align: center; }
+</style>
+</head>
+<body>
+<canvas id="acid-recall"></canvas>
+<div id="status"><b>ACID RECALL</b><span>LOADING</span></div>
+<script>
+// Browsers start Web Audio suspended until the page gets a touch, a click or a key, and only a
+// call made inside that event may resume it. The app's audio context is made by its Rust code
+// (cpal), out of reach of these events, so every context made in the page is kept here and
+// resumed on each such event until it runs.
+(function () {
+  var Base = window.AudioContext || window.webkitAudioContext;
+  if (!Base) return;
+  var contexts = [];
+  var Tracked = class extends Base {
+    constructor(options) {
+      super(options);
+      contexts.push(this);
+    }
+  };
+  window.AudioContext = Tracked;
+  if (window.webkitAudioContext) window.webkitAudioContext = Tracked;
+  function resume() {
+    for (var i = 0; i < contexts.length; i++) {
+      if (contexts[i].state !== "running") contexts[i].resume();
+    }
+  }
+  ["touchend", "pointerup", "click", "keydown"].forEach(function (type) {
+    window.addEventListener(type, resume, { capture: true });
+  });
+  // iOS 17 and later: play through the speaker even with the ring/silent switch on silent
+  if (navigator.audioSession) {
+    try { navigator.audioSession.type = "playback"; } catch (e) {}
+  }
+})();
+</script>
+<script type="module">
+import init from "./pkg/acid_recall.js";
+const status = document.getElementById("status");
+try {
+  await init();
+  status.remove();
+} catch (e) {
+  console.error(e);
+  status.className = "error";
+  status.textContent = "ACID RECALL could not start: " + e;
+}
+</script>
+</body>
+</html>

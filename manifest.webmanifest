@@ -1,0 +1,14 @@
+{
+  "name": "ACID RECALL",
+  "short_name": "ACID RECALL",
+  "description": "Two TB-303, a TR-808, a TR-909 and an eight-lane sampler, in the browser.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#101212",
+  "theme_color": "#101212",
+  "icons": [
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
