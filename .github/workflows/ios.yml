@@ -1,0 +1,53 @@
+# The iPad prototype (docs/ipad.md): builds ACID RECALL for the iPad Simulator, runs it there
+# (screenshot, output, crash report), then builds the unsigned .ipa for a real iPad. Both are
+# uploaded as artifacts of the run. No secret: nothing is signed for a device here.
+name: ios
+
+on:
+  push:
+    branches: [feat/ipad]
+    paths-ignore:
+      - "backlog/**"
+      - "docs/**"
+      - "site/**"
+      - "**.md"
+      - "LICENSE"
+      - "assets/readme/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  ipad:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # rustup installs the toolchain of rust-toolchain.toml on the first cargo or rustup call
+      - run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Build for the iPad Simulator
+        run: scripts/ios-app.sh sim
+      - name: Run in the iPad Simulator
+        run: scripts/ios-simulator-check.sh target/ios/check 30
+      - name: Build for an iPad (unsigned .ipa)
+        run: scripts/ios-app.sh device
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: simulator-check
+          path: target/ios/check/
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: AcidRecall-iPad
+          path: target/ios/device/AcidRecall.ipa
+          if-no-files-found: error

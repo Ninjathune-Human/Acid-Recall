@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ACID RECALL for iPad</title>
+<meta name="description" content="ACID RECALL, the performance fork of OpenRB-338, ported to the iPad.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #101212;
+  --surface: #171919;
+  --line: #262a29;
+  --ink: #e8eae7;
+  --dim: #8d9290;
+  --acid: #bed77e;
+  --radius: 16px;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.55;
+}
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: max(40px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+    max(64px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+}
+.banner { display: block; width: 100%; height: auto; border-radius: var(--radius); }
+.eyebrow {
+  margin: 48px 0 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--acid);
+}
+h1 { margin: 0 0 16px; font-size: 2.125rem; font-weight: 600; line-height: 1.15; }
+h2 {
+  margin: 56px 0 16px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--dim);
+}
+p { margin: 0 0 16px; max-width: 62ch; }
+.lede { font-size: 1.25rem; color: #c9cdca; }
+.status {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.status li {
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 0.9375rem;
+}
+.status b { display: block; margin-bottom: 4px; font-weight: 600; }
+.status .done b::before,
+.status .next b::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 4px;
+  vertical-align: 1px;
+}
+.status .done b::before { background: var(--acid); }
+.status .next b::before { background: #3a3f3e; }
+ol.steps { margin: 0; padding: 0; list-style: none; counter-reset: step; }
+ol.steps li {
+  position: relative;
+  padding: 0 0 20px 48px;
+  counter-increment: step;
+}
+ol.steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: -2px;
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+a { color: var(--acid); text-decoration: none; }
+a:hover, a:focus-visible { text-decoration: underline; }
+a:focus-visible { outline: 2px solid var(--acid); outline-offset: 3px; border-radius: 4px; }
+.button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 22px;
+  border-radius: 22px;
+  background: var(--acid);
+  color: #141613;
+  font-weight: 600;
+}
+.button:hover { text-decoration: none; filter: brightness(1.06); }
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--surface);
+}
+footer {
+  margin-top: 64px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+  font-size: 0.875rem;
+  color: var(--dim);
+}
+footer a { color: var(--ink); }
+@media (max-width: 600px) {
+  .status { grid-template-columns: minmax(0, 1fr); }
+  h1 { font-size: 1.75rem; }
+}
+</style>
+</head>
+<body>
+<main>
+  <img class="banner" src="banner.svg" width="1280" height="400" alt="ACID RECALL for iPad">
+
+  <p class="eyebrow">PROTOTYPE</p>
+  <h1>ACID RECALL, on the iPad</h1>
+  <p class="lede">The performance fork of OpenRB-338 (two TB-303, a TR-808, a TR-909 and an
+  eight-lane sampler) built as a native iPadOS app, with the same Rust engine.</p>
+
+  <h2>WHERE IT STANDS</h2>
+  <ul class="status">
+    <li class="done"><b>Sound and screen, in test</b>The desktop rack, scaled to the iPad, with
+    the full audio engine on Core Audio.</li>
+    <li class="next"><b>Touch layout</b>One module per screen, swipe between them, a mixer rail
+    always at hand.</li>
+    <li class="next"><b>MIDI</b>Controllers and MIDI Clock over USB-C, through Core MIDI.</li>
+  </ul>
+
+  <h2>INSTALL ON AN IPAD</h2>
+  <ol class="steps">
+    <li>Open the latest successful run of the
+    <a href="https://github.com/Ninjathune-Human/Acid-Recall/actions/workflows/ios.yml">ios
+    workflow</a> and download the <code>AcidRecall-iPad</code> artifact. It holds
+    <code>AcidRecall.ipa</code>.</li>
+    <li>Install it with a sideloading tool such as Sideloadly or AltStore, signed in with your
+    Apple ID. With a free Apple ID the app runs for seven days, then is signed again.</li>
+    <li>On the iPad, trust your Apple ID in Settings, General, VPN and Device Management, then
+    turn on Developer Mode in Settings, Privacy and Security.</li>
+    <li>Put songs (<code>.rbs</code>) and samples in Files, On My iPad, ACID RECALL. The app's
+    file browser opens there.</li>
+  </ol>
+  <p><a class="button" href="https://github.com/Ninjathune-Human/Acid-Recall/tree/feat/ipad">Source code</a></p>
+
+  <footer>
+    A port of <a href="https://github.com/smldms/Acid-Recall">ACID RECALL</a>, itself a fork of
+    <a href="https://github.com/pingw33n/OpenRB-338">OpenRB-338</a>. GPL-3.0-only. Not affiliated
+    with Reason Studios.
+  </footer>
+</main>
+</body>
+</html>

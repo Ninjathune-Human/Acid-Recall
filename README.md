@@ -1,4 +1,11 @@
 <p align="center">
+  <img src="site/banner.svg" alt="ACID RECALL for iPad" width="800">
+</p>
+
+> **iPad port, in progress.** This fork builds ACID RECALL as a native iPadOS app, on the
+> `feat/ipad` branch. Status, build and install: [docs/ipad.md](docs/ipad.md).
+
+<p align="center">
   <img src="assets/brand/acid-recall.png" alt="ACID RECALL logo" width="160">
 </p>
 

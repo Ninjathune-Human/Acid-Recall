@@ -107,7 +107,8 @@ pub fn default_file() -> Option<PathBuf> {
         std::env::var_os("APPDATA").map(PathBuf::from)
     } else if let Some(x) = std::env::var_os("XDG_CONFIG_HOME").filter(|x| !x.is_empty()) {
         Some(PathBuf::from(x))
-    } else if cfg!(target_os = "macos") {
+    } else if cfg!(any(target_os = "macos", target_os = "ios")) {
+        // on iOS, HOME is the app's sandbox, where only Documents, Library and tmp are writable
         home().map(|h| h.join("Library/Application Support"))
     } else {
         home().map(|h| h.join(".config"))

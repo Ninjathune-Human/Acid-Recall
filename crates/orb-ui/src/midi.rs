@@ -11,6 +11,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::app::App;
 use crate::behavior;
+#[cfg(target_os = "ios")]
+use crate::ios_rfd as rfd;
 use crate::layout;
 use crate::model::Panel;
 

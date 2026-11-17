@@ -26,7 +26,6 @@ orb-cli = { path = "../orb-cli" }
 # The settings file (task-107).
 serde = { version = "1", features = ["derive"] }
 toml = "=0.9.12"
-eframe = "0.37.0"
 egui_extras = { version = "0.37.0", features = ["svg"] }
 # Renders the window icon and gives the panel's part rasterizing its options; the version
 # egui_extras' SVG loader uses.
@@ -34,10 +33,18 @@ resvg = { version = "0.45.1", default-features = false }
 # Saves the --screenshot PNG; decodes the mods' splash.jpg.
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 
+[target.'cfg(not(target_os = "ios"))'.dependencies]
+eframe = "0.37.0"
 # The native message box of the crash hook (task-157). No default features: on Linux the
 # box is run by `zenity` at run time (no GTK or other system library to link), and the Wayland
 # window-identifier code is not needed for a box without a parent window.
 rfd = { version = "0.17.2", default-features = false, features = ["xdg-portal"] }
+
+# iPad (docs/ipad.md): wgpu on Metal and the built-in fonts only. The desktop features
+# (X11, Wayland, the clipboard, system fonts, links) are left out, and rfd has no iOS
+# backend: `ios_rfd` stands in for its dialogs.
+[target.'cfg(target_os = "ios")'.dependencies]
+eframe = { version = "0.37.0", default-features = false, features = ["default_fonts", "wgpu"] }
 
 [dev-dependencies]
 orb-ui-art = { path = "../orb-ui-art" }

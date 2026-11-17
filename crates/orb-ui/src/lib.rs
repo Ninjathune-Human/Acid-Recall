@@ -17,6 +17,8 @@ pub mod error_box;
 pub mod generator;
 mod graphite_rack;
 pub mod info;
+#[cfg(target_os = "ios")]
+mod ios_rfd;
 pub mod key_help;
 pub mod keys;
 pub mod layout;
