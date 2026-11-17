@@ -15,6 +15,10 @@ What changed for iOS:
 - `crates/orb-ui/src/ios_rfd.rs`: stands in for rfd on iOS. The file pickers (load a sample, load
   an impulse response, import or export a MIDI routing) return nothing, so those buttons do
   nothing yet, and the crash box is not shown (the crash log is still written).
+- `crates/orb-ui/src/main.rs`: the wgpu device asks for the GPU's own limits (wgpu's defaults
+  want 16 inter-stage shader variables, the iPad Simulator has 15), and a logger writes the
+  warnings and errors of eframe, wgpu and winit to `Documents/AcidRecall.log`: on iOS, eframe
+  ends the process itself when the renderer cannot start, and that line is the only trace.
 - The settings file is `Library/Application Support/OpenRB-338/ui.toml` and the crash logs
   `Library/Logs/OpenRB-338` inside the app's sandbox, as on macOS.
 - MIDI is off: the existing backend is WinMM, Windows only.

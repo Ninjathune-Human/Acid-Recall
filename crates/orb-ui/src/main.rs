@@ -249,6 +249,25 @@ mod ios_log {
     }
 }
 
+/// The iPad's renderer (docs/ipad.md): the device asks for the limits the GPU has rather than
+/// wgpu's defaults, which the iPad Simulator does not reach (`max_inter_stage_shader_variables`
+/// 15, not 16: wgpu refuses the device and eframe ends the app).
+#[cfg(target_os = "ios")]
+fn ios_wgpu_options() -> eframe::egui_wgpu::WgpuConfiguration {
+    use eframe::egui_wgpu::{WgpuConfiguration, WgpuSetup, WgpuSetupCreateNew};
+
+    let mut setup = WgpuSetupCreateNew::without_display_handle();
+    setup.device_descriptor = Arc::new(|adapter| eframe::wgpu::DeviceDescriptor {
+        label: Some("egui wgpu device"),
+        required_limits: adapter.limits(),
+        ..Default::default()
+    });
+    WgpuConfiguration {
+        wgpu_setup: WgpuSetup::CreateNew(setup),
+        ..Default::default()
+    }
+}
+
 fn main() -> eframe::Result {
     #[cfg(all(windows, not(debug_assertions)))]
     attach_parent_console();
@@ -329,6 +348,8 @@ fn main() -> eframe::Result {
         .with_maximized(!sized);
     let options = eframe::NativeOptions {
         viewport,
+        #[cfg(target_os = "ios")]
+        wgpu_options: ios_wgpu_options(),
         ..Default::default()
     };
     eframe::run_native(
