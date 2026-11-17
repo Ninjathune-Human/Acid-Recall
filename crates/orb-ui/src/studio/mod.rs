@@ -140,6 +140,14 @@ impl StudioUi {
         self.worker = Some(rx);
         self.notice = None;
         let ctx = ctx.clone();
+        // a browser has no threads (docs/web.md): the job runs here, and the next frame polls
+        // its result as it polls a thread's
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = tx.send(job());
+            ctx.request_repaint();
+        }
+        #[cfg(not(target_arch = "wasm32"))]
         std::thread::spawn(move || {
             let _ = tx.send(job());
             ctx.request_repaint();
