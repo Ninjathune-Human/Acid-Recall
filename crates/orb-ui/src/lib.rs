@@ -29,6 +29,10 @@ pub mod model;
 pub mod palette;
 #[cfg(any(target_os = "ios", target_arch = "wasm32"))]
 mod rfd_stub;
+
+/// The smallest the Graphite rack is drawn without scrolling (90 % of its design size,
+/// `App::show`), for the browser's zoom that fits it to the window (main.rs, docs/web.md).
+pub const RACK_MIN: [f32; 2] = [graphite_rack::WIDTH * 0.9, graphite_rack::HEIGHT * 0.9];
 pub mod session;
 pub mod settings;
 pub mod shortcuts;

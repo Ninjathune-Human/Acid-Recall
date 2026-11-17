@@ -316,7 +316,7 @@ fn main() {
                             app.fail(e);
                         }
                     });
-                    Ok(Box::new(app))
+                    Ok(Box::new(Fitted(app)))
                 }),
             )
             .await;
@@ -324,6 +324,28 @@ fn main() {
             log::error!("the app did not start: {e:?}");
         }
     });
+}
+
+/// The browser's app, zoomed to fit the window (docs/web.md): the whole rack and the menu bar
+/// show without scrolling at any window size, an iPad's included, and again after a rotation.
+/// Never zoomed in past 1.
+#[cfg(target_arch = "wasm32")]
+struct Fitted(App);
+
+#[cfg(target_arch = "wasm32")]
+impl eframe::App for Fitted {
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        let ctx = ui.ctx().clone();
+        let zoom = ctx.zoom_factor();
+        // the window in CSS pixels: points at zoom 1
+        let window = ctx.content_rect().size() * zoom;
+        let [w, h] = orb_ui::RACK_MIN;
+        let fit = (window.x / w).min(window.y / (h + MENU_H)).min(1.0);
+        if (fit - zoom).abs() > 0.005 {
+            ctx.set_zoom_factor(fit);
+        }
+        self.0.ui(ui, frame);
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]

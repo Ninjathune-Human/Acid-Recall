@@ -9,6 +9,10 @@ It is published with the project page: `site/app/` on GitHub Pages
 
 - `crates/orb-ui/src/main.rs`: a `main` for wasm32 that starts the app in the page's canvas
   `#acid-recall` on the new empty song with the built-in kit, and logs to the browser console.
+  Its zoom fits the window on every frame (`Fitted`): the whole rack shows without scrolling,
+  at the desktop app's smallest rack (90 % of its design size, `orb_ui::RACK_MIN`) scaled down.
+- `crates/orb-ui/src/studio/mod.rs`: the studio's worker jobs run inline (a browser has no
+  threads); the next frame polls their result as it polls a thread's.
 - `crates/orb-ui/Cargo.toml`: eframe with wgpu and the built-in fonts only, and no rfd, whose
   blocking dialogs do not exist in a browser: `rfd_stub` stands in, as on iOS (docs/ipad.md).
 - `crates/orb-player`: cpal's `wasm-bindgen` feature (the Web Audio host), and `web_time`'s
