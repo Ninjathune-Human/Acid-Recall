@@ -38,10 +38,10 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - name: Build for the iPad Simulator
         run: scripts/ios-app.sh sim
-      - name: Run in the iPad Simulator
-        run: scripts/ios-simulator-check.sh target/ios/check 30
       - name: Build for an iPad (unsigned .ipa)
         run: scripts/ios-app.sh device
+      - name: Run in the iPad Simulator
+        run: scripts/ios-simulator-check.sh target/ios/check 30
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -49,6 +49,7 @@ jobs:
           path: target/ios/check/
           if-no-files-found: ignore
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
         with:
           name: AcidRecall-iPad
           path: target/ios/device/AcidRecall.ipa
